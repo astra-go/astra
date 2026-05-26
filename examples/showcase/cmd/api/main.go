@@ -130,7 +130,7 @@ func main() {
 			SkipPaths:       []string{"/health"},
 		}),
 		middleware.Recovery(),
-		middleware.CORS(),
+		middleware.CORSPermissive(),
 	)
 
 	// Canary rules are evaluated AFTER JWT so user_id is available in context.

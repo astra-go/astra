@@ -38,7 +38,7 @@ func nopApp(mws ...astra.MiddlewareFunc) *astra.App {
 // BenchmarkCORS_Passthrough measures the CORS middleware cost for a regular
 // same-origin GET — the common case where no CORS headers need to be added.
 func BenchmarkCORS_Passthrough(b *testing.B) {
-	app := nopApp(middleware.CORS())
+	app := nopApp(middleware.CORSPermissive())
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	b.ReportAllocs()
@@ -54,7 +54,7 @@ func BenchmarkCORS_Passthrough(b *testing.B) {
 // Origin header — the middleware must compare against AllowOrigins, set
 // Access-Control-Allow-Origin, and potentially add Vary.
 func BenchmarkCORS_CrossOrigin(b *testing.B) {
-	app := nopApp(middleware.CORS())
+	app := nopApp(middleware.CORSPermissive())
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Origin", "https://example.com")
 
@@ -70,7 +70,7 @@ func BenchmarkCORS_CrossOrigin(b *testing.B) {
 // BenchmarkCORS_Preflight measures the OPTIONS preflight path which constructs
 // and returns the full allow-list response without calling the actual handler.
 func BenchmarkCORS_Preflight(b *testing.B) {
-	app := nopApp(middleware.CORS())
+	app := nopApp(middleware.CORSPermissive())
 	req := httptest.NewRequest(http.MethodOptions, "/", nil)
 	req.Header.Set("Origin", "https://example.com")
 	req.Header.Set("Access-Control-Request-Method", "POST")

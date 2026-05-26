@@ -22,7 +22,7 @@ func main() {
 		middleware.RequestID(),
 		middleware.Logger(),
 		middleware.Recovery(),
-		middleware.CORS(),
+		middleware.CORSPermissive(),
 		middleware.Timeout(30*time.Second),
 	)
 

@@ -163,7 +163,7 @@ func main() {
 		middleware.RequestID(),
 		middleware.Logger(),
 		middleware.Recovery(),
-		middleware.CORS(),
+		middleware.CORSPermissive(),
 	)
 
 	app.GET("/users/:id", h.Get)

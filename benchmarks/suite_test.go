@@ -172,7 +172,7 @@ func BenchmarkIntegration_Middleware3_JSON(b *testing.B) {
 	app := astra.New()
 	app.Use(middleware.RequestID())
 	app.Use(middleware.Recovery())
-	app.Use(middleware.CORS())
+	app.Use(middleware.CORSPermissive())
 	app.GET("/users/:id", func(c *astra.Ctx) error {
 		return c.JSON(http.StatusOK, fixtureUser)
 	})
@@ -201,7 +201,7 @@ func BenchmarkIntegration_Middleware5_JWT_JSON(b *testing.B) {
 	app := astra.New()
 	app.Use(middleware.RequestID())
 	app.Use(middleware.Recovery())
-	app.Use(middleware.CORS())
+	app.Use(middleware.CORSPermissive())
 	app.Use(security.JWT(secret))
 	app.Use(func(c *astra.Ctx) error { // 5th: lightweight audit stub
 		c.Set("audit_ts", time.Now().UnixNano())
@@ -233,11 +233,11 @@ func BenchmarkIntegration_GroupedAPI(b *testing.B) {
 	app := astra.New()
 	app.Use(middleware.Recovery())
 
-	v1 := app.Group("/v1", middleware.CORS())
+	v1 := app.Group("/v1", middleware.CORSPermissive())
 	v1.GET("/users/:id", func(c *astra.Ctx) error { return c.JSON(200, fixtureUser) })
 	v1.GET("/orders/:id", func(c *astra.Ctx) error { return c.JSON(200, fixtureUser) })
 
-	v2 := app.Group("/v2", middleware.CORS())
+	v2 := app.Group("/v2", middleware.CORSPermissive())
 	v2.GET("/users/:id", func(c *astra.Ctx) error { return c.JSON(200, fixtureUser) })
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/users/42", nil)
@@ -302,7 +302,7 @@ func BenchmarkIntegration_Parallel_JSON_3MW(b *testing.B) {
 	app := astra.New()
 	app.Use(middleware.RequestID())
 	app.Use(middleware.Recovery())
-	app.Use(middleware.CORS())
+	app.Use(middleware.CORSPermissive())
 	app.GET("/users/:id", func(c *astra.Ctx) error {
 		return c.JSON(http.StatusOK, fixtureUser)
 	})

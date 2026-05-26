@@ -181,8 +181,19 @@ func (a *App) sealPool() {
 	}
 }
 
-// Use registers global middleware. Middleware is applied to all routes.
-// Safe to call concurrently with other route registrations.
+// Use registers global middleware that is applied to all routes.
+//
+// IMPORTANT: Use must be called before any route registration (GET, POST,
+// PUT, etc.). Middleware registered after a route is added will NOT apply
+// to that route, because handlers are baked into the route tree at
+// registration time.
+//
+//	app := astra.New()
+//	app.Use(Logger(), Recovery())  // register middleware first
+//	app.GET("/users", listUsers)   // then register routes
+//
+// Safe to call concurrently with other Use calls, but not concurrently
+// with route registrations.
 func (a *App) Use(middleware ...MiddlewareFunc) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

@@ -181,7 +181,7 @@ func buildMainSrc(module string, services []genproto.SvcInfo) string {
 	fmt.Fprintf(&out, "\t\tmiddleware.RequestID(),\n")
 	fmt.Fprintf(&out, "\t\tmiddleware.Logger(),\n")
 	fmt.Fprintf(&out, "\t\tmiddleware.Recovery(),\n")
-	fmt.Fprintf(&out, "\t\tmiddleware.CORS(),\n")
+	fmt.Fprintf(&out, "\t\tmiddleware.CORS(\"https://example.com\"), // TODO: replace with your actual allowed origins\n")
 	fmt.Fprintf(&out, "\t)\n\n")
 	fmt.Fprintf(&out, "\tapp.GET(\"/health/live\", func(c *astra.Context) error {\n")
 	fmt.Fprintf(&out, "\t\treturn c.JSON(http.StatusOK, astra.Map{\"status\": \"ok\"})\n")

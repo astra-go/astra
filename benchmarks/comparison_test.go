@@ -321,7 +321,7 @@ func BenchmarkVs_Fiber_PostBind(b *testing.B) {
 func BenchmarkVs_Astra_Mw3JSON(b *testing.B) {
 	app := astra.New()
 	app.Use(middleware.Recovery())
-	app.Use(middleware.CORS())
+	app.Use(middleware.CORSPermissive())
 	app.Use(middleware.RequestID())
 	app.GET("/users/:id", func(c *astra.Ctx) error { return c.JSON(http.StatusOK, fixtureUser) })
 	req := httptest.NewRequest(http.MethodGet, "/users/1", nil)

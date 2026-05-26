@@ -10,6 +10,7 @@ import (
 
 	"github.com/astra-go/astra"
 	"github.com/astra-go/astra/middleware"
+	"github.com/astra-go/astra/middleware/security"
 )
 
 // ─── Domain ───────────────────────────────────────────────────────────────────
@@ -197,7 +198,7 @@ func main() {
 		middleware.RequestID(),
 		middleware.Logger(),
 		middleware.Recovery(),
-		middleware.CORS(),
+		middleware.CORSPermissive(),
 	)
 
 	app.GET("/health", func(c *astra.Ctx) error {
@@ -212,7 +213,7 @@ func main() {
 	h := &Handler{store: store}
 
 	v1 := app.Group("/api/v1")
-	v1.Use(middleware.RateLimit(100, 20))
+	v1.Use(security.RateLimit(100, 20))
 
 	v1.GET("/users", h.List)
 	v1.POST("/users", h.Create)

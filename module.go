@@ -69,7 +69,7 @@ type Module interface {
 // Module. Use it for one-off inline setup that does not warrant a full type.
 //
 //	app.Register(astra.NewModuleFunc("cors-setup", func(app *astra.App) error {
-//	    app.Use(middleware.CORS(middleware.CORSConfig{AllowOrigins: []string{"*"}}))
+//	    app.Use(middleware.CORS("https://app.example.com"))
 //	    return nil
 //	}))
 type ModuleFunc struct {
