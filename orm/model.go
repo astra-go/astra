@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -8,6 +9,11 @@ import (
 
 	"github.com/astra-go/astra/timeutil"
 )
+
+// ErrClickHouseMutationNotSupported is returned when SoftDelete is called with
+// a ClickHouse-backed *gorm.DB. ClickHouse does not support row-level UPDATE or
+// DELETE; use ALTER TABLE ... DELETE or a ReplacingMergeTree engine instead.
+var ErrClickHouseMutationNotSupported = errors.New("orm: UPDATE/DELETE not supported on ClickHouse; use ALTER TABLE ... DELETE or ReplacingMergeTree")
 
 // Model is an embeddable GORM base model that uses [timeutil.Time] for
 // CreatedAt and UpdatedAt. Embed it in your GORM models instead of gorm.Model
@@ -137,12 +143,18 @@ type GORMSoftDeleteModel struct {
 // persisting the change via an UPDATE statement. Pass the actual concrete
 // model (e.g. &post) so GORM resolves the correct table name.
 //
+// Returns [ErrClickHouseMutationNotSupported] when db is a ClickHouse
+// connection — ClickHouse does not support row-level UPDATE.
+//
 //	var p Post
 //	db.First(&p, id)
 //	p.SoftDelete(db, &p)
 func (m *SoftDeleteModel) SoftDelete(db *gorm.DB, model any) error {
 	if db == nil {
 		return fmt.Errorf("orm: SoftDelete called with nil db")
+	}
+	if isClickHouse(db) {
+		return ErrClickHouseMutationNotSupported
 	}
 	now := timeutil.Now()
 	m.DeletedAt = &now

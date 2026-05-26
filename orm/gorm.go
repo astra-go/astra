@@ -153,7 +153,14 @@ func DB(c *astra.Ctx) *gorm.DB {
 // Commit conditions: response status < 400, request not aborted, no panic.
 // Rollback conditions: status ≥ 400, IsAborted(), or any panic (re-panics after
 // rollback so the recovery middleware can log it).
+//
+// Panics at registration time when db is a ClickHouse connection — ClickHouse
+// does not support transactions and using TxMiddleware with it would silently
+// produce incorrect behaviour.
 func TxMiddleware(db *gorm.DB) astra.MiddlewareFunc {
+	if isClickHouse(db) {
+		panic("orm: TxMiddleware does not support ClickHouse — ClickHouse has no ACID transactions; use batch inserts instead")
+	}
 	return func(c *astra.Ctx) error {
 		tx := db.WithContext(c.Request().Context()).Begin()
 		if tx.Error != nil {

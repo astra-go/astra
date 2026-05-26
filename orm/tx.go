@@ -3,11 +3,17 @@ package orm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/astra-go/astra/contract"
 	"gorm.io/gorm"
 )
+
+// ErrClickHouseTxNotSupported is returned when RunTx or RunTxWithOptions is
+// called with a ClickHouse-backed *gorm.DB. ClickHouse does not support ACID
+// transactions; use batch inserts instead.
+var ErrClickHouseTxNotSupported = errors.New("orm: transactions are not supported on ClickHouse; use batch inserts instead")
 
 // RunTx executes fn inside a new database transaction.
 //
@@ -44,6 +50,9 @@ func RunTx(ctx context.Context, db *gorm.DB, fn func(tx *gorm.DB) error) error {
 //	    func(tx *gorm.DB) error { ... },
 //	)
 func RunTxWithOptions(ctx context.Context, db *gorm.DB, opts *sql.TxOptions, fn func(tx *gorm.DB) error) error {
+	if isClickHouse(db) {
+		return ErrClickHouseTxNotSupported
+	}
 	tx := db.WithContext(ctx).Begin(opts)
 	if tx.Error != nil {
 		return fmt.Errorf("orm: begin transaction: %w", tx.Error)
