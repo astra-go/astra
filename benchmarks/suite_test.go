@@ -30,6 +30,7 @@ import (
 
 	"github.com/astra-go/astra"
 	"github.com/astra-go/astra/middleware"
+	"github.com/astra-go/astra/middleware/security"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -201,7 +202,7 @@ func BenchmarkIntegration_Middleware5_JWT_JSON(b *testing.B) {
 	app.Use(middleware.RequestID())
 	app.Use(middleware.Recovery())
 	app.Use(middleware.CORS())
-	app.Use(middleware.JWT(secret))
+	app.Use(security.JWT(secret))
 	app.Use(func(c *astra.Ctx) error { // 5th: lightweight audit stub
 		c.Set("audit_ts", time.Now().UnixNano())
 		c.Next()

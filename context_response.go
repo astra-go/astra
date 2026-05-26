@@ -302,3 +302,18 @@ func (c *Ctx) EarlyHints(targets []string, opts map[string]string) error {
 	c.writer.WriteHeader(http.StatusEarlyHints)
 	return nil
 }
+
+// Flush flushes buffered data to the client if the underlying ResponseWriter
+// implements http.Flusher. Returns nil if flushing is not supported.
+func (c *Ctx) Flush() error {
+	if f, ok := c.writer.(http.Flusher); ok {
+		f.Flush()
+	}
+	return nil
+}
+
+// Done returns the done channel of the request's context.
+// It is closed when the request context is cancelled or times out.
+func (c *Ctx) Done() <-chan struct{} {
+	return c.req.Context().Done()
+}

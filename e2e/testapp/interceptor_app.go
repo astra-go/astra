@@ -8,9 +8,10 @@ import (
 	"net"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/astra-go/astra"
-	"github.com/astra-go/astra/middleware"
+	"github.com/astra-go/astra/middleware/security"
 	grpcserver "github.com/astra-go/astra/grpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -46,7 +47,7 @@ func NewWithInterceptors(t testing.TB) *InterceptorApp {
 	auth.POST("/register", registerHandler(store))
 	auth.POST("/login", loginHandler(store, TestJWTSecret))
 
-	jwtMW := middleware.JWT(TestJWTSecret)
+	jwtMW := security.JWT(TestJWTSecret)
 	api := astraApp.Group("/api", jwtMW)
 	api.GET("/me", meHandler(store))
 
@@ -76,7 +77,7 @@ func NewWithInterceptors(t testing.TB) *InterceptorApp {
 			grpcserver.StreamInterceptorAuth(grpcserver.BearerTokenExtractor(), validator, grpcserver.SkipHealthCheck()),
 			grpcserver.StreamInterceptorMetadataForwarding(grpcserver.W3CHeaders...),
 			grpcserver.StreamInterceptorMetrics(grpcserver.GRPCMetricsConfig{}),
-			grpcserver.StreamInterceptorTimeout(5*1e9), // 5 s
+			grpcserver.StreamInterceptorTimeout(5*time.Second),
 		),
 	)
 

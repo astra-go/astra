@@ -55,6 +55,9 @@ type ServerOptions struct {
 	// Kratos-style additions
 	timeout   time.Duration // per-call deadline; 0 = no limit
 	tlsConfig *tls.Config   // gRPC TLS config; nil = plaintext
+	// gateway
+	gatewayPrefix    string
+	gatewayRegistrar GatewayRegistrar
 }
 
 // Option is a functional option for the dual-stack server.
@@ -104,10 +107,11 @@ type Server struct {
 	// GRPC is the underlying gRPC server (register services here).
 	GRPC *grpc.Server
 
-	opts       ServerOptions
-	healthSrv  *health.Server
-	grpcLis    net.Listener
-	httpServer *http.Server // kept for graceful shutdown
+	opts        ServerOptions
+	healthSrv   *health.Server
+	grpcLis     net.Listener
+	httpServer  *http.Server // kept for graceful shutdown
+	gatewayConn *grpc.ClientConn
 }
 
 // New creates a dual-stack server wrapping the given Astra app.
@@ -173,6 +177,26 @@ func New(app *astra.App, opts ...Option) *Server {
 // Use grpc_health_v1.HealthCheckResponse_SERVING or NOT_SERVING.
 func (s *Server) SetServiceStatus(service string, status grpc_health_v1.HealthCheckResponse_ServingStatus) {
 	s.healthSrv.SetServingStatus(service, status)
+}
+
+// SetReady sets the readiness probe status. Pass false to mark the server as
+// not ready (e.g. during rolling deploys or maintenance). Pass true to restore.
+func (s *Server) SetReady(ready bool) {
+	st := grpc_health_v1.HealthCheckResponse_SERVING
+	if !ready {
+		st = grpc_health_v1.HealthCheckResponse_NOT_SERVING
+	}
+	s.healthSrv.SetServingStatus("readiness", st)
+}
+
+// SetAlive sets the liveness probe status. Pass false to signal that the
+// process is unhealthy and should be restarted by the orchestrator.
+func (s *Server) SetAlive(alive bool) {
+	st := grpc_health_v1.HealthCheckResponse_SERVING
+	if !alive {
+		st = grpc_health_v1.HealthCheckResponse_NOT_SERVING
+	}
+	s.healthSrv.SetServingStatus("liveness", st)
 }
 
 // Run starts both servers and blocks until shutdown.
@@ -653,4 +677,27 @@ func encodeGRPCError(err error) error {
 	}
 	// Plain Go error — wrap as 500 Internal Server Error.
 	return InternalServer("INTERNAL", err.Error()).GRPCStatus().Err()
+}
+
+// StreamInterceptorTimeout returns a gRPC stream interceptor that enforces a
+// per-stream deadline. If the incoming context already has a tighter deadline,
+// it is left unchanged.
+func StreamInterceptorTimeout(d time.Duration) grpc.StreamServerInterceptor {
+	return func(
+		srv any,
+		ss grpc.ServerStream,
+		_ *grpc.StreamServerInfo,
+		handler grpc.StreamHandler,
+	) error {
+		if d <= 0 {
+			return handler(srv, ss)
+		}
+		ctx := ss.Context()
+		if _, ok := ctx.Deadline(); ok {
+			return handler(srv, ss)
+		}
+		ctx, cancel := context.WithTimeout(ctx, d)
+		defer cancel()
+		return handler(srv, &wrappedServerStream{ServerStream: ss, ctx: ctx})
+	}
 }

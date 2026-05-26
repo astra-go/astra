@@ -90,10 +90,10 @@ func (b GRPCClientBundle) Apply() []GRPCOption {
 
 	var opts []GRPCOption
 	if len(unary) > 0 {
-		opts = append(opts, WithGRPCUnaryInterceptors(unary...))
+		opts = append(opts, WithGRPCDialOptions(grpc.WithChainUnaryInterceptor(unary...)))
 	}
 	if len(stream) > 0 {
-		opts = append(opts, WithGRPCStreamInterceptors(stream...))
+		opts = append(opts, WithGRPCDialOptions(grpc.WithChainStreamInterceptor(stream...)))
 	}
 	return opts
 }

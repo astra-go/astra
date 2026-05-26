@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	"github.com/astra-go/astra/netengine"
 )
@@ -180,4 +181,13 @@ func isClosedErr(err error) bool {
 		}
 	}
 	return false
+}
+
+// RunReactorH2C starts the Reactor engine with h2c (plain-text HTTP/2) support.
+// Both HTTP/1.1 and HTTP/2 clients can connect without TLS.
+// For TLS+H2, use RunReactorTLS instead.
+func (a *App) RunReactorH2C(addr string) error {
+	h2srv := &http2.Server{}
+	handler := h2c.NewHandler(a, h2srv)
+	return a.runReactor(addr, nil, handler)
 }

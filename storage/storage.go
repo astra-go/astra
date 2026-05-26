@@ -96,3 +96,37 @@ type ObjectInfo struct {
 	ETag         string
 	LastModified time.Time
 }
+
+// CompletedPart represents a successfully uploaded part in a multipart upload.
+type CompletedPart struct {
+	PartNumber int
+	ETag       string
+}
+
+// ListResult is the response from a paginated List call.
+type ListResult struct {
+	Objects     []ObjectInfo
+	IsTruncated bool
+	NextToken   string
+}
+
+// ListableStorage extends Storage with paginated object listing.
+type ListableStorage interface {
+	Storage
+	List(ctx context.Context, prefix, nextToken string, maxKeys int) (ListResult, error)
+}
+
+// CopyableStorage extends Storage with server-side copy.
+type CopyableStorage interface {
+	Storage
+	Copy(ctx context.Context, srcKey, dstKey string) error
+}
+
+// MultipartStorage extends Storage with multipart upload operations.
+type MultipartStorage interface {
+	Storage
+	CreateMultipartUpload(ctx context.Context, key string, opts PutOptions) (uploadID string, err error)
+	UploadPart(ctx context.Context, key, uploadID string, partNum int, r io.Reader, size int64) (etag string, err error)
+	CompleteMultipartUpload(ctx context.Context, key, uploadID string, parts []CompletedPart) error
+	AbortMultipartUpload(ctx context.Context, key, uploadID string) error
+}

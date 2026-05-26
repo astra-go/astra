@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -22,13 +23,47 @@ type App struct {
 	modules    map[string]Module
 	mu         sync.RWMutex
 	slim       bool // true when created by NewSlim(); disables lifecycle/plugin/module subsystems
+
+	// pool telemetry — updated atomically
+	poolHit    atomic.Int64
+	poolMiss   atomic.Int64
+	poolActive atomic.Int64
 }
+
+// PoolStat holds a snapshot of the Ctx pool counters.
+type PoolStat struct {
+	Hit    int64 // number of Get calls that returned a pooled Ctx
+	Miss   int64 // number of Get calls that allocated a new Ctx
+	Active int64 // number of Ctx objects currently in use
+}
+
+// PoolStats returns a snapshot of the Ctx pool counters.
+func (a *App) PoolStats() PoolStat {
+	return PoolStat{
+		Hit:    a.poolHit.Load(),
+		Miss:   a.poolMiss.Load(),
+		Active: a.poolActive.Load(),
+	}
+}
+
+// Router returns the underlying HttpRouter.
+func (a *App) Router() HttpRouter { return a.router }
 
 // New creates a new Astra application with the given options.
 func New(opts ...Option) *App {
 	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
+	}
+	// Validate options — panic early so misconfiguration is caught at startup.
+	if options.ShutdownTimeout < 0 {
+		panic("astra: WithShutdownTimeout: value must be >= 0")
+	}
+	if options.MaxJSONBodySize < 0 {
+		panic("astra: WithMaxJSONBodySize: value must be >= 0")
+	}
+	if options.MaxMultipartMemory < 0 {
+		panic("astra: WithMaxMultipartMemory: value must be >= 0")
 	}
 	// Compile TrustedProxies strings into net.IPNet once so that per-request
 	// ClientIP lookups never call net.ParseCIDR / net.ParseIP again.
@@ -224,6 +259,9 @@ func (a *App) Static(prefix, root string) {
 }
 
 func (a *App) handle(method, path string, handlers HandlersChain) {
+	if path == "" {
+		return
+	}
 	a.mu.RLock()
 	allHandlers := make(HandlersChain, len(a.middleware)+len(handlers))
 	copy(allHandlers, a.middleware)
@@ -234,11 +272,20 @@ func (a *App) handle(method, path string, handlers HandlersChain) {
 
 // ServeHTTP implements http.Handler, making App compatible with the standard library.
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c := a.pool.Get().(*Ctx)
+	raw := a.pool.Get()
+	c := raw.(*Ctx)
+	if c.pooled {
+		a.poolHit.Add(1)
+	} else {
+		a.poolMiss.Add(1)
+		c.pooled = true
+	}
+	a.poolActive.Add(1)
 	c.reset(w, r)
 
 	a.router.Handle(c)
 
+	a.poolActive.Add(-1)
 	a.pool.Put(c)
 }
 

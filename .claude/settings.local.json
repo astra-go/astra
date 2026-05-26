@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go test *)",
+      "Bash(go build *)",
+      "Bash(head -554 /Users/huangxiaolin/data/project/gotest/astra/middleware/security/jwt.go)",
+      "Bash(mv /tmp/jwt_trimmed.go /Users/huangxiaolin/data/project/gotest/astra/middleware/security/jwt.go)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'fix: 修复全项目编译错误并补全缺失 API *)"
+    ]
+  }
+}

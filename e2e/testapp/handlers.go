@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/astra-go/astra"
-	"github.com/astra-go/astra/middleware"
+	"github.com/astra-go/astra/middleware/security"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -51,7 +51,7 @@ func loginHandler(store *UserStore, secret string) astra.HandlerFunc {
 		}
 
 		exp := time.Now().Add(time.Hour)
-		token, err := middleware.GenerateJWT(jwt.MapClaims{
+		token, err := security.GenerateJWT(jwt.MapClaims{
 			"sub": u.ID,
 			"exp": exp.Unix(),
 		}, secret)
@@ -65,7 +65,7 @@ func loginHandler(store *UserStore, secret string) astra.HandlerFunc {
 
 func meHandler(store *UserStore) astra.HandlerFunc {
 	return func(c *astra.Ctx) error {
-		claims := middleware.GetClaims(c)
+		claims := security.GetClaims(c)
 		if claims == nil {
 			return c.JSON(http.StatusUnauthorized, map[string]any{"code": 401, "message": "unauthorized"})
 		}

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/astra-go/astra"
-	"github.com/astra-go/astra/middleware"
+	"github.com/astra-go/astra/middleware/security"
 	"github.com/astra-go/astra/websocket"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -43,7 +43,7 @@ func New(t testing.TB) *App {
 	auth.POST("/login", loginHandler(store, TestJWTSecret))
 
 	// ── Protected API routes ─────────────────────────────────────────────────
-	jwtMW := middleware.JWT(TestJWTSecret)
+	jwtMW := security.JWT(TestJWTSecret)
 	api := astraApp.Group("/api", jwtMW)
 	api.GET("/me", meHandler(store))
 
@@ -53,8 +53,8 @@ func New(t testing.TB) *App {
 	hub := websocket.NewHub()
 	go hub.Run()
 
-	astraApp.GET("/ws", middleware.JWTWithConfig(middleware.JWTConfig{
-		Secret:      TestJWTSecret,
+	astraApp.GET("/ws", security.JWTWithConfig(security.JWTConfig{
+		Secret:      security.NewSecretString(TestJWTSecret),
 		TokenLookup: "query:token",
 	}), websocket.Handler(hub, func(client *websocket.Client, msg []byte) {
 		client.Send(msg) // echo back to sender

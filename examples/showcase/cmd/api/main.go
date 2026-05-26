@@ -17,6 +17,7 @@ import (
 	"github.com/astra-go/astra/examples/showcase/internal/repository"
 	"github.com/astra-go/astra/examples/showcase/internal/service"
 	"github.com/astra-go/astra/middleware"
+	"github.com/astra-go/astra/middleware/security"
 	astraorm "github.com/astra-go/astra/orm"
 	astraotel "github.com/astra-go/astra/otel"
 	"github.com/astra-go/astra/taskqueue"
@@ -150,11 +151,11 @@ func main() {
 	app.GET("/auth/github/callback", authH.GithubCallback)
 
 	// ── Protected API ─────────────────────────────────────────────────────────
-	jwtMW := middleware.JWT(jwtSecret)
+	jwtMW := security.JWT(jwtSecret)
 	rbacMW := rbac.Middleware(rbac.Config{
 		Enforcer: enforcer,
 		GetSubject: func(c *astra.Ctx) string {
-			claims := middleware.GetClaims(c)
+			claims := security.GetClaims(c)
 			if claims == nil {
 				return ""
 			}
