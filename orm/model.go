@@ -3,6 +3,7 @@ package orm
 import (
 	"fmt"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/astra-go/astra/timeutil"
@@ -38,6 +39,44 @@ func (m *Model) BeforeCreate(_ *gorm.DB) error {
 
 // BeforeUpdate is a GORM hook that refreshes UpdatedAt on every update.
 func (m *Model) BeforeUpdate(_ *gorm.DB) error {
+	m.UpdatedAt = timeutil.Now()
+	return nil
+}
+
+// ModelUUID is an embeddable GORM base model that uses a UUID string as the
+// primary key instead of an auto-increment integer. Embed it when you need
+// globally unique, opaque identifiers (e.g. public-facing APIs, distributed
+// systems, or multi-tenant databases where sequential IDs leak row counts).
+//
+//	type Session struct {
+//	    orm.ModelUUID
+//	    UserID uint `json:"user_id" gorm:"not null;index"`
+//	}
+//
+// The UUID is generated automatically in BeforeCreate if the field is empty,
+// so you never need to set it manually.
+type ModelUUID struct {
+	ID        string        `gorm:"primaryKey;type:varchar(36)" json:"id"`
+	CreatedAt timeutil.Time `json:"created_at"`
+	UpdatedAt timeutil.Time `json:"updated_at"`
+}
+
+// BeforeCreate is a GORM hook that generates a UUID for ID (if not already
+// set) and initialises CreatedAt / UpdatedAt.
+func (m *ModelUUID) BeforeCreate(_ *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.New().String()
+	}
+	now := timeutil.Now()
+	if m.CreatedAt.IsZero() {
+		m.CreatedAt = now
+	}
+	m.UpdatedAt = now
+	return nil
+}
+
+// BeforeUpdate is a GORM hook that refreshes UpdatedAt on every update.
+func (m *ModelUUID) BeforeUpdate(_ *gorm.DB) error {
 	m.UpdatedAt = timeutil.Now()
 	return nil
 }
