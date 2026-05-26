@@ -2,14 +2,22 @@ package astra
 
 // context_store.go — per-request key-value store methods for Ctx.
 //
-// The store is backed by a []kvPair slice (linear scan, no mutex) that is
-// reset to [:0] on each request to retain its backing array across requests.
-// RouteKey ("/users/:id" template) bypasses the slice via a dedicated string
-// field on Ctx to avoid string→any interface boxing on every request.
+// The store starts as a []kvPair slice (linear scan, no mutex). When the number
+// of entries exceeds kvStoreMapThreshold, it is promoted to a map[string]any
+// for O(1) access. The slice is retained alongside the map so that reset() can
+// clear the map by iterating the slice (avoiding a full map iteration).
+// RouteKey ("/users/:id" template) bypasses both structures via a dedicated
+// string field on Ctx to avoid string→any interface boxing on every request.
 
 // RouteKey is the context store key for the matched route template (e.g. "/users/:id").
 // Read by middleware/metrics.go and middleware/tracing.go for low-cardinality labels.
 const RouteKey = "astra.route"
+
+// kvStoreMapThreshold is the number of entries above which Set/Get switch from
+// linear slice scan to map lookup. Chosen to be larger than the typical
+// middleware chain depth (~8–12 keys) while still benefiting from the map for
+// unusually deep chains.
+const kvStoreMapThreshold = 16
 
 // ─── Context Store ───────────────────────────────────────────────────────────
 //
@@ -19,8 +27,9 @@ const RouteKey = "astra.route"
 // Design constraints:
 //   - No mutex: Ctx belongs to a single goroutine for the lifetime of a request.
 //     Handlers that spawn goroutines must copy values out before launching them.
-//   - Linear scan: N is small in practice (typically <16); a slice scan is
-//     faster than a map hash and keeps the working set cache-hot.
+//   - Adaptive: for ≤kvStoreMapThreshold entries, linear slice scan is faster
+//     than map hashing and keeps the working set cache-hot. Above the threshold,
+//     kvMap is populated and all subsequent lookups use the map.
 //   - RouteKey is a dedicated string field (c.routeKey) that bypasses
 //     the store entirely to avoid string→any interface boxing.
 
@@ -34,6 +43,20 @@ func (c *Ctx) Set(key string, value any) {
 		return
 	}
 
+	if c.kvMap != nil {
+		// Map mode: update slice entry in-place for reset() efficiency, then map.
+		for i := range c.kvStore {
+			if c.kvStore[i].key == key {
+				c.kvStore[i].value = value
+				c.kvMap[key] = value
+				return
+			}
+		}
+		c.kvStore = append(c.kvStore, kvPair{key: key, value: value})
+		c.kvMap[key] = value
+		return
+	}
+
 	for i := range c.kvStore {
 		if c.kvStore[i].key == key {
 			c.kvStore[i].value = value
@@ -41,6 +64,16 @@ func (c *Ctx) Set(key string, value any) {
 		}
 	}
 	c.kvStore = append(c.kvStore, kvPair{key: key, value: value})
+
+	// Promote to map once the slice exceeds the threshold.
+	if len(c.kvStore) > kvStoreMapThreshold {
+		if c.kvMap == nil {
+			c.kvMap = make(map[string]any, len(c.kvStore)*2)
+		}
+		for _, kv := range c.kvStore {
+			c.kvMap[kv.key] = kv.value
+		}
+	}
 }
 
 // Get retrieves a value from the context store.
@@ -51,6 +84,11 @@ func (c *Ctx) Get(key string) (any, bool) {
 			return c.routeKey, true
 		}
 		return nil, false
+	}
+
+	if c.kvMap != nil {
+		v, ok := c.kvMap[key]
+		return v, ok
 	}
 
 	for i := range c.kvStore {

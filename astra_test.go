@@ -791,3 +791,76 @@ func containsMethod(allow, method string) bool {
 	}
 	return false
 }
+
+// ─── allowedMethods cache ────────────────────────────────────────────────────
+
+func TestAllowedMethodsCache_PopulatedOnFirstHit(t *testing.T) {
+	app := testutil.NewTestApp()
+	app.GET("/cached", func(c *astra.Ctx) error { return c.String(200, "ok") })
+	app.POST("/cached", func(c *astra.Ctx) error { return c.String(200, "ok") })
+
+	r := astra.AppRouter(app)
+	if r == nil {
+		t.Fatal("AppRouter returned nil")
+	}
+
+	if n := astra.RouterAllowedCacheLen(r); n != 0 {
+		t.Fatalf("cache should be empty before first 405, got %d entries", n)
+	}
+
+	// Trigger a 405 to populate the cache.
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/cached", nil)
+	app.ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", w.Code)
+	}
+
+	if n := astra.RouterAllowedCacheLen(r); n != 1 {
+		t.Fatalf("cache should have 1 entry after first 405, got %d", n)
+	}
+
+	// Second 405 on the same path: cache hit, count stays at 1.
+	w2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPatch, "/cached", nil)
+	app.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", w2.Code)
+	}
+
+	if n := astra.RouterAllowedCacheLen(r); n != 1 {
+		t.Fatalf("cache should still have 1 entry on second hit, got %d", n)
+	}
+
+	// Allow header must be consistent across both responses.
+	allow1 := w.Header().Get("Allow")
+	allow2 := w2.Header().Get("Allow")
+	if allow1 != allow2 {
+		t.Errorf("Allow header inconsistent: %q vs %q", allow1, allow2)
+	}
+}
+
+func TestAllowedMethodsCache_ClearedOnRouteAdd(t *testing.T) {
+	app := testutil.NewTestApp()
+	app.GET("/route", func(c *astra.Ctx) error { return c.String(200, "ok") })
+
+	r := astra.AppRouter(app)
+	if r == nil {
+		t.Fatal("AppRouter returned nil")
+	}
+
+	// Populate the cache.
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/route", nil))
+
+	if n := astra.RouterAllowedCacheLen(r); n != 1 {
+		t.Fatalf("expected 1 cache entry, got %d", n)
+	}
+
+	// Adding a new route must invalidate the cache.
+	app.POST("/route", func(c *astra.Ctx) error { return c.String(200, "ok") })
+
+	if n := astra.RouterAllowedCacheLen(r); n != 0 {
+		t.Fatalf("cache should be empty after route add, got %d entries", n)
+	}
+}

@@ -113,7 +113,10 @@ type Ctx struct {
 	// kvStore is the per-request key-value store. It grows on demand via append
 	// and is reset to [:0] on each request to retain the backing array.
 	// No mutex: the context is single-goroutine (see concurrency note above).
+	// When len(kvStore) exceeds kvStoreMapThreshold, kvMap is populated and
+	// subsequent Set/Get operations use the map for O(1) access.
 	kvStore []kvPair
+	kvMap   map[string]any
 
 	// queryCache holds the parsed URL query parameters for the current request.
 	// Lazily initialized on the first Query/QueryMap call; cleared by reset().
@@ -179,6 +182,10 @@ func (c *Ctx) reset(w http.ResponseWriter, r *http.Request) {
 		kv[i].value = nil
 	}
 	c.kvStore = kv[:0]
+	// Clear the map if it was promoted; retain the allocation for reuse.
+	for k := range c.kvMap {
+		delete(c.kvMap, k)
+	}
 }
 
 
@@ -214,6 +221,12 @@ func (c *Ctx) Clone() *Ctx {
 	if len(c.kvStore) > 0 {
 		clone.kvStore = make([]kvPair, len(c.kvStore))
 		copy(clone.kvStore, c.kvStore)
+	}
+	if len(c.kvMap) > 0 {
+		clone.kvMap = make(map[string]any, len(c.kvMap))
+		for k, v := range c.kvMap {
+			clone.kvMap[k] = v
+		}
 	}
 	return clone
 }
