@@ -315,6 +315,10 @@ type Router struct {
 
 	// maxParamValueLen, when > 0, rejects param segments longer than this many bytes.
 	maxParamValueLen int
+	// allowedCache caches the Allow header string produced by allowedMethods for
+	// each raw request path. Populated lazily on the first 405 hit per path.
+	// sync.Map is appropriate here: write-once-per-path / read-many pattern.
+	allowedCache sync.Map // key: string path → value: string Allow header
 }
 
 // methodRoot pairs an HTTP method string with its radix-tree root node.
@@ -403,6 +407,13 @@ func (r *Router) Add(method, path string, handlers HandlersChain) {
 			"path", path,
 		)
 	}
+	// Invalidate the allowed-methods cache: a new route may change which methods
+	// are valid for a given path. Routes are startup-only in practice, so this
+	// Range+Delete is called at most once per registered route.
+	r.allowedCache.Range(func(k, _ any) bool {
+		r.allowedCache.Delete(k)
+		return true
+	})
 }
 
 func insertNode(root *node, path string, handlers HandlersChain) (overwritten bool) {
@@ -542,7 +553,9 @@ func (r *Router) Handle(c *Ctx) {
 		// Build Allow header by traversing all method trees (RFC 9110 §15.5.6
 		// requires the Allow header in every 405 response).  allowedMethods uses
 		// the ordered methodRoots slice so the header value is deterministic.
-		if allow := r.allowedMethods(path); allow != "" {
+		// Results are cached in allowedCache (sync.Map) so repeated 405 hits on
+		// the same path skip the trie traversal entirely.
+		if allow := r.cachedAllowedMethods(path); allow != "" {
 			c.rw.ResponseWriter.Header().Set("Allow", allow)
 			c.handlers = r.methodNotAllowedChain
 		} else {
@@ -573,6 +586,19 @@ func (r *Router) Handle(c *Ctx) {
 		c.routeKey = fullPath
 	}
 	c.Next()
+}
+
+// cachedAllowedMethods returns the Allow header string for path, using
+// allowedCache to avoid repeated trie traversals for the same path.
+// The cache is populated on first miss; subsequent hits are a sync.Map load.
+// mu must be held (read) by the caller.
+func (r *Router) cachedAllowedMethods(path string) string {
+	if v, ok := r.allowedCache.Load(path); ok {
+		return v.(string)
+	}
+	allow := r.allowedMethods(path)
+	r.allowedCache.Store(path, allow)
+	return allow
 }
 
 // allowedMethods traverses all registered method trees for the given path and

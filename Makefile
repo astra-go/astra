@@ -1,3 +1,17 @@
+# ─── Workspace / module maintenance ──────────────────────────────────────────
+
+.PHONY: sync-replaces
+sync-replaces: ## Sync intra-workspace replace directives across all go.mod files
+	bash scripts/sync-intra-replaces.sh
+
+.PHONY: check-replaces
+check-replaces: ## CI check: fail if any go.mod has missing/stale intra-workspace replace directives
+	bash scripts/check-intra-replaces.sh
+
+.PHONY: tidy
+tidy: ## Run go mod tidy across all workspace modules in topological order
+	bash scripts/tidy-all.sh
+
 # ─── Benchmark targets ────────────────────────────────────────────────────────
 #
 # Prerequisites: Go 1.22+, optional: golang.org/x/perf/cmd/benchstat

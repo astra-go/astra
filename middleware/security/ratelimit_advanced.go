@@ -53,9 +53,6 @@ type SlidingWindowConfig struct {
 	// ErrorHandler is invoked when the limit is exceeded.
 	// Default: 429 Too Many Requests with a Retry-After header.
 	ErrorHandler ErrorHandler
-	// ExceededHandler is an alias for ErrorHandler (deprecated).
-	// If ErrorHandler is nil and ExceededHandler is set, ExceededHandler is used.
-	ExceededHandler astra.HandlerFunc // Deprecated: use ErrorHandler
 	// Keys are matched against the value returned by KeyFunc.
 	// Unmatched keys fall back to Limit.
 	//
@@ -71,12 +68,6 @@ type SlidingWindowConfig struct {
 	// If nil and App is also nil, context.Background() is used (goroutine runs
 	// until the process exits — fine for long-lived app middleware).
 	Context context.Context
-	// App, when set, wires the cleanup goroutine lifetime to the application
-	// shutdown lifecycle automatically.  Takes precedence over Context.
-	//
-	// Deprecated: pass a context.Context derived from your shutdown signal instead.
-	// This field will be removed in a future major version.
-	App *astra.App
 }
 
 // SlidingWindow returns a middleware that enforces the sliding-window rate limit
@@ -120,10 +111,6 @@ func SlidingWindowWithConfig(cfg SlidingWindowConfig) astra.HandlerFunc {
 	if cfg.KeyFunc == nil {
 		cfg.KeyFunc = func(c *astra.Ctx) string { return c.ClientIP() }
 	}
-	// Resolve deprecated ExceededHandler → ErrorHandler
-	if cfg.ErrorHandler == nil && cfg.ExceededHandler != nil {
-		cfg.ErrorHandler = ErrorHandler(cfg.ExceededHandler)
-	}
 	if cfg.ErrorHandler == nil {
 		cfg.ErrorHandler = func(c *astra.Ctx) error {
 			c.Writer().Header().Set("Retry-After",
@@ -132,7 +119,7 @@ func SlidingWindowWithConfig(cfg SlidingWindowConfig) astra.HandlerFunc {
 		}
 	}
 
-	ctx := resolveContext(cfg.Context, cfg.App)
+	ctx := resolveContext(cfg.Context)
 
 	store := &swStore{window: cfg.Window}
 
@@ -304,19 +291,10 @@ type RouteQuotaConfig struct {
 	Skipper Skipper
 	// ErrorHandler is invoked when the limit is exceeded.
 	ErrorHandler ErrorHandler
-	// ExceededHandler is an alias for ErrorHandler (deprecated).
-	// If ErrorHandler is nil and ExceededHandler is set, ExceededHandler is used.
-	ExceededHandler astra.HandlerFunc // Deprecated: use ErrorHandler
 	// Context controls the lifetime of the internal cleanup goroutines.
 	// When cancelled all goroutines exit cleanly.
-	// If nil and App is also nil, context.Background() is used.
+	// If nil, context.Background() is used.
 	Context context.Context
-	// App, when set, wires the cleanup goroutine lifetime to the application
-	// shutdown lifecycle automatically.  Takes precedence over Context.
-	//
-	// Deprecated: pass a context.Context derived from your shutdown signal instead.
-	// This field will be removed in a future major version.
-	App *astra.App
 }
 
 // RouteQuota pairs a URL path prefix with its rate limit.
@@ -363,10 +341,6 @@ func RouteQuotaMiddleware(cfg RouteQuotaConfig) astra.HandlerFunc {
 	if cfg.KeyFunc == nil {
 		cfg.KeyFunc = func(c *astra.Ctx) string { return c.ClientIP() }
 	}
-	// Resolve deprecated ExceededHandler → ErrorHandler
-	if cfg.ErrorHandler == nil && cfg.ExceededHandler != nil {
-		cfg.ErrorHandler = ErrorHandler(cfg.ExceededHandler)
-	}
 	if cfg.ErrorHandler == nil {
 		cfg.ErrorHandler = func(c *astra.Ctx) error {
 			return astra.NewHTTPError(http.StatusTooManyRequests, "rate limit exceeded")
@@ -378,7 +352,7 @@ func RouteQuotaMiddleware(cfg RouteQuotaConfig) astra.HandlerFunc {
 		}
 	}
 
-	ctx := resolveContext(cfg.Context, cfg.App)
+	ctx := resolveContext(cfg.Context)
 
 	// One swStore per route entry + one for the default.
 	stores := make([]*swStore, len(cfg.Routes)+1)
@@ -451,18 +425,9 @@ func hasPrefix(path, prefix string) bool {
 // ─── shared helpers ───────────────────────────────────────────────────────────
 
 // resolveContext returns the context to use for cleanup goroutines:
-//  1. If app != nil, create a derived context and register cancel with OnStop.
-//  2. Else if explicit ctx != nil, use it directly.
-//  3. Fall back to context.Background() (goroutine lives until process exits).
-func resolveContext(explicit context.Context, app *astra.App) context.Context {
-	if app != nil {
-		ctx, cancel := context.WithCancel(context.Background())
-		_ = app.OnStop(func(_ context.Context) error {
-			cancel()
-			return nil
-		})
-		return ctx
-	}
+//  1. If explicit ctx != nil, use it directly.
+//  2. Fall back to context.Background() (goroutine lives until process exits).
+func resolveContext(explicit context.Context) context.Context {
 	if explicit != nil {
 		return explicit
 	}

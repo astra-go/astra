@@ -24,10 +24,6 @@ type RateLimitConfig struct {
 	// Default: 429 Too Many Requests with Retry-After header.
 	ErrorHandler ErrorHandler
 
-	// ExceededHandler is an alias for ErrorHandler (deprecated).
-	// Prefer ErrorHandler for consistency across middleware.
-	// If ErrorHandler is nil and ExceededHandler is set, ExceededHandler is used.
-	ExceededHandler astra.HandlerFunc // Deprecated: use ErrorHandler
 	// Context controls the lifetime of the internal cleanup goroutine.
 	// When the context is cancelled the goroutine exits cleanly.
 	// If nil, context.Background() is used and the goroutine runs until the
@@ -83,16 +79,12 @@ func RateLimitWithConfig(cfg RateLimitConfig) astra.HandlerFunc {
 			return c.ClientIP()
 		}
 	}
-	// Resolve deprecated ExceededHandler → ErrorHandler
-	if cfg.ErrorHandler == nil && cfg.ExceededHandler != nil {
-		cfg.ErrorHandler = ErrorHandler(cfg.ExceededHandler)
-	}
 	if cfg.ErrorHandler == nil {
 		cfg.ErrorHandler = func(c *astra.Ctx) error {
 			return astra.NewHTTPError(http.StatusTooManyRequests, "rate limit exceeded")
 		}
 	}
-	cfg.Context = resolveContext(cfg.Context, nil)
+	cfg.Context = resolveContext(cfg.Context)
 
 	store := &tokenBucketStore{
 		buckets: make(map[string]*tokenBucket),

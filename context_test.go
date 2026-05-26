@@ -3,6 +3,7 @@ package astra_test
 import (
 	"encoding/json"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -316,4 +317,78 @@ func TestCtx_Writer_Status(t *testing.T) {
 	if resp.Code != http.StatusTeapot {
 		t.Errorf("want %d, got %d", http.StatusTeapot, resp.Code)
 	}
+}
+
+// ─── kvStore adaptive map promotion ─────────────────────────────────────────
+
+func TestCtx_KvStore_MapPromotion(t *testing.T) {
+	// Fill the store beyond the threshold; kvMap should be populated.
+	app := testutil.NewTestApp()
+	app.GET("/promote", func(c *astra.Ctx) error {
+		for i := range astra.KvStoreMapThreshold + 1 {
+			c.Set(fmt.Sprintf("key%d", i), i)
+		}
+		// All keys must be readable after promotion.
+		for i := range astra.KvStoreMapThreshold + 1 {
+			v, ok := c.Get(fmt.Sprintf("key%d", i))
+			if !ok {
+				return c.String(500, "key%d missing", i)
+			}
+			if v.(int) != i {
+				return c.String(500, "key%d wrong value", i)
+			}
+		}
+		if astra.CtxKvMap(c) == nil {
+			return c.String(500, "kvMap not promoted")
+		}
+		return c.String(200, "ok")
+	})
+	srv := testutil.NewServer(t, app)
+	srv.GET("/promote").AssertStatus(200).AssertBodyContains("ok")
+}
+
+func TestCtx_KvStore_MapPromotion_Overwrite(t *testing.T) {
+	// Overwriting a key after promotion must update both slice and map.
+	app := testutil.NewTestApp()
+	app.GET("/overwrite-promoted", func(c *astra.Ctx) error {
+		for i := range astra.KvStoreMapThreshold + 1 {
+			c.Set(fmt.Sprintf("key%d", i), i)
+		}
+		c.Set("key0", 999)
+		v, _ := c.Get("key0")
+		if v.(int) != 999 {
+			return c.String(500, "overwrite failed: got %v", v)
+		}
+		return c.String(200, "ok")
+	})
+	srv := testutil.NewServer(t, app)
+	srv.GET("/overwrite-promoted").AssertStatus(200).AssertBodyContains("ok")
+}
+
+func TestCtx_KvStore_ResetClearsMap(t *testing.T) {
+	// After a request that promoted to map mode, the next request must start
+	// with an empty store (map cleared, not nil — allocation is retained).
+	app := testutil.NewTestApp()
+	count := 0
+	app.GET("/reset-map", func(c *astra.Ctx) error {
+		count++
+		if count == 1 {
+			for i := range astra.KvStoreMapThreshold + 1 {
+				c.Set(fmt.Sprintf("key%d", i), i)
+			}
+			return c.String(200, "first")
+		}
+		// Second request: map should be empty (cleared by reset).
+		if m := astra.CtxKvMap(c); m != nil && len(m) != 0 {
+			return c.String(500, "map not cleared: len=%d", len(m))
+		}
+		_, ok := c.Get("key0")
+		if ok {
+			return c.String(500, "key0 leaked across requests")
+		}
+		return c.String(200, "clean")
+	})
+	srv := testutil.NewServer(t, app)
+	srv.GET("/reset-map").AssertBodyContains("first")
+	srv.GET("/reset-map").AssertStatus(200).AssertBodyContains("clean")
 }
