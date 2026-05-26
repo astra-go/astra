@@ -237,7 +237,7 @@ func main() {
 		middleware.RequestID(),
 		middleware.Logger(),
 		middleware.Recovery(),
-		middleware.CORS(),
+		middleware.CORSPermissive(),
 	)
 
 	v1 := app.Group("/api/v1")

@@ -259,7 +259,7 @@ func main() {
 		middleware.RequestID(),
 		middleware.Logger(),
 		middleware.Recovery(),
-		middleware.CORS(),
+		middleware.CORS("https://example.com"), // TODO: replace with your actual allowed origins
 	)
 
 	// Kubernetes health probes — must NOT sit behind auth middleware.
@@ -310,7 +310,7 @@ func main() {
 		middleware.RequestID(),
 		middleware.Logger(),
 		middleware.Recovery(),
-		middleware.CORS(),
+		middleware.CORS("https://example.com"), // TODO: replace with your actual allowed origins
 	)
 
 	// Kubernetes health probes — must NOT sit behind auth middleware.

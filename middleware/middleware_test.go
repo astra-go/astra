@@ -89,7 +89,7 @@ func TestCORS_DisallowedOrigin_NoHeaders(t *testing.T) {
 
 func TestCORS_Preflight_Returns204(t *testing.T) {
 	app := testutil.NewTestApp()
-	app.Use(middleware.CORS())
+	app.Use(middleware.CORSPermissive())
 	app.POST("/api", func(c *astra.Ctx) error { return c.String(http.StatusOK, "ok") })
 	// In Astra, middleware is bundled with routes, so OPTIONS must be registered
 	// for the CORS middleware to intercept the preflight request.
@@ -104,7 +104,7 @@ func TestCORS_Preflight_Returns204(t *testing.T) {
 
 func TestCORS_NoOrigin_SkipsMiddleware(t *testing.T) {
 	app := testutil.NewTestApp()
-	app.Use(middleware.CORS())
+	app.Use(middleware.CORSPermissive())
 	app.GET("/", func(c *astra.Ctx) error { return c.String(http.StatusOK, "ok") })
 	s := testutil.NewServer(t, app)
 

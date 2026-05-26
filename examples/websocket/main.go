@@ -96,7 +96,7 @@ func main() {
 		middleware.RequestID(),
 		middleware.Logger(),
 		middleware.Recovery(),
-		middleware.CORS(),
+		middleware.CORSPermissive(),
 	)
 
 	rooms := NewRoomManager()

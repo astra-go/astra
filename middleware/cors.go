@@ -41,15 +41,29 @@ var DefaultCORSConfig = CORSConfig{
 	MaxAge:       86400,
 }
 
-// CORS returns a middleware that allows all cross-origin requests.
+// CORS returns a production-ready CORS middleware restricted to the explicitly
+// listed origins. It panics at startup if no origins are provided or if the
+// wildcard "*" is included — use CORSPermissive() for open-origin dev configs.
+//
+// Example:
+//
+//	app.Use(middleware.CORS(
+//	    "https://app.example.com",
+//	    "https://admin.example.com",
+//	))
+func CORS(origins ...string) astra.HandlerFunc {
+	return CORSStrict(origins...)
+}
+
+// CORSPermissive returns a middleware that allows all cross-origin requests.
 //
 // WARNING: This uses DefaultCORSConfig (AllowOrigins: ["*"]) which is
 // intended for local development only. For production, use:
 //
-//	middleware.CORSStrict("https://app.example.com", "https://admin.example.com")
+//	middleware.CORS("https://app.example.com", "https://admin.example.com")
 //	// or
 //	middleware.CORSWithConfig(middleware.CORSConfig{AllowOrigins: [...]})
-func CORS() astra.HandlerFunc {
+func CORSPermissive() astra.HandlerFunc {
 	return CORSWithConfig(DefaultCORSConfig)
 }
 
@@ -144,9 +158,11 @@ func CORSWithConfig(cfg CORSConfig) astra.HandlerFunc {
 }
 
 // CORSStrict returns a production-ready CORS middleware restricted to the
-// explicitly listed origins. Unlike CORS(), it panics at startup if:
+// explicitly listed origins. Unlike CORSPermissive(), it panics at startup if:
 //   - no origins are provided (would silently block all cross-origin requests)
-//   - the wildcard "*" is included (use CORS() or CORSWithConfig for that)
+//   - the wildcard "*" is included (use CORSPermissive() or CORSWithConfig for that)
+//
+// Note: CORS(origins...) is an alias for this function.
 //
 // Example:
 //
@@ -160,7 +176,7 @@ func CORSStrict(allowedOrigins ...string) astra.HandlerFunc {
 	}
 	for _, o := range allowedOrigins {
 		if o == "*" {
-			panic(`middleware.CORSStrict: wildcard "*" is not permitted; use CORS() or CORSWithConfig for open-origin dev configs`)
+			panic(`middleware.CORSStrict: wildcard "*" is not permitted; use CORSPermissive() or CORSWithConfig for open-origin dev configs`)
 		}
 	}
 	return CORSWithConfig(CORSConfig{
