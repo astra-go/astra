@@ -28,7 +28,17 @@ ALL_MODULES=(
     runner client testutil
 )
 
-declare -A dirty
+# dirty_modules: space-separated list of modules that need tidy
+dirty_modules=""
+
+has_module() {
+    local needle="$1"
+    local m
+    for m in $dirty_modules; do
+        [ "$m" = "$needle" ] && return 0
+    done
+    return 1
+}
 
 staged=$(git diff --cached --name-only 2>/dev/null || true)
 [ -z "$staged" ] && exit 0
@@ -41,13 +51,13 @@ for f in $staged; do
             best="$mod"
         fi
     done
-    dirty["$best"]=1
+    has_module "$best" || dirty_modules="$dirty_modules $best"
 done
 
 # ── 按拓扑顺序 tidy ──────────────────────────────────────────────────────────
 FAILED=()
 for mod in "${ALL_MODULES[@]}"; do
-    [ "${dirty[$mod]+_}" ] || continue
+    has_module "$mod" || continue
     dir="$ROOT"; [ "$mod" != "." ] && dir="$ROOT/$mod"
     echo "▶  go mod tidy — $mod"
     (cd "$dir" && go mod tidy)
@@ -64,6 +74,16 @@ if [ ${#FAILED[@]} -gt 0 ]; then
     exit 1
 fi
 echo "✓ go mod tidy — all clean"
+
+# ── check intra-workspace replace directives ─────────────────────────────────
+echo "▶  check-replaces"
+if ! bash "$ROOT/scripts/check-intra-replaces.sh"; then
+    echo ""
+    echo "✗ intra-workspace replace directives are out of sync."
+    echo "  Run 'make sync-replaces', then 'git add' the updated go.mod files and retry."
+    exit 1
+fi
+echo "✓ check-replaces — all clean"
 HOOK_SCRIPT
 
 chmod +x "$HOOK"

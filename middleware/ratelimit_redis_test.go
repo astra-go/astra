@@ -111,13 +111,13 @@ func TestDistributedRateLimit_CustomKeyFunc(t *testing.T) {
 	s.GET("/", map[string]string{"X-API-Key": "key-b"}).AssertStatus(http.StatusOK)
 }
 
-func TestDistributedRateLimit_ExceededHandler(t *testing.T) {
+func TestDistributedRateLimit_ErrorHandler(t *testing.T) {
 	customCalled := false
 	mw, stop := sec.DistributedRateLimitWithConfig(sec.DistributedRateLimitConfig{
 		RedisAddr: "localhost:59999",
 		Rate:      100,
 		Burst:     1,
-		ExceededHandler: func(c *astra.Ctx) error {
+		ErrorHandler: func(c *astra.Ctx) error {
 			customCalled = true
 			return c.String(http.StatusForbidden, "limit hit")
 		},
@@ -137,7 +137,7 @@ func TestDistributedRateLimit_ExceededHandler(t *testing.T) {
 	resp.AssertBodyContains("limit hit")
 
 	if !customCalled {
-		t.Error("expected custom ExceededHandler to be called")
+		t.Error("expected custom ErrorHandler to be called")
 	}
 }
 

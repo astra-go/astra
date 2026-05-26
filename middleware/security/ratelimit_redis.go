@@ -82,17 +82,11 @@ type DistributedRateLimitConfig struct {
 	LocalOnly bool
 	// ErrorHandler is called when the rate limit is exceeded.
 	ErrorHandler ErrorHandler
-	// ExceededHandler is an alias for ErrorHandler (deprecated).
-	// If ErrorHandler is nil and ExceededHandler is set, ExceededHandler is used.
-	ExceededHandler astra.HandlerFunc // Deprecated: use ErrorHandler
 	// Context controls the lifetime of the background Redis health-check goroutine.
 	// When cancelled the goroutine exits and the Redis client is closed.
 	// If nil, context.Background() is used and the goroutine runs until the process
 	// exits — fine for top-level middleware.
 	Context context.Context
-	// App, when set, wires the background goroutine lifetime to the application
-	// shutdown lifecycle automatically.  Takes precedence over Context.
-	App *astra.App
 	// Logger is used for Redis connection errors. Defaults to slog.Default().
 	Logger *slog.Logger
 	// Window is the sliding window duration for DistributedSlidingWindowWithConfig.
@@ -427,10 +421,6 @@ func DistributedRateLimitWithConfig(cfg DistributedRateLimitConfig) (astra.Handl
 	if cfg.KeyFunc == nil {
 		cfg.KeyFunc = func(c *astra.Ctx) string { return c.ClientIP() }
 	}
-	// Resolve deprecated ExceededHandler → ErrorHandler
-	if cfg.ErrorHandler == nil && cfg.ExceededHandler != nil {
-		cfg.ErrorHandler = ErrorHandler(cfg.ExceededHandler)
-	}
 	if cfg.ErrorHandler == nil {
 		cfg.ErrorHandler = func(c *astra.Ctx) error {
 			return astra.NewHTTPError(http.StatusTooManyRequests, "rate limit exceeded")
@@ -488,10 +478,6 @@ func DistributedRateLimit(redisAddr string, rate float64, burst int) (astra.Hand
 func DistributedSlidingWindowWithConfig(cfg DistributedRateLimitConfig) (astra.HandlerFunc, func()) {
 	if cfg.KeyFunc == nil {
 		cfg.KeyFunc = func(c *astra.Ctx) string { return c.ClientIP() }
-	}
-	// Resolve deprecated ExceededHandler → ErrorHandler
-	if cfg.ErrorHandler == nil && cfg.ExceededHandler != nil {
-		cfg.ErrorHandler = ErrorHandler(cfg.ExceededHandler)
 	}
 	if cfg.ErrorHandler == nil {
 		cfg.ErrorHandler = func(c *astra.Ctx) error {
