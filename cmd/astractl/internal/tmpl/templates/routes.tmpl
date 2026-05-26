@@ -1,0 +1,12 @@
+package main
+
+import "github.com/astra-go/astra"
+
+func registerRoutes(app *astra.App) {
+	v1 := app.Group("/api/v1")
+	_ = v1
+	// TODO: register your routes here
+	// Example:
+	//   h := handler.NewUserHandler(db)
+	//   h.Register(v1)
+}

@@ -1,0 +1,29 @@
+package {{.Pkg}}
+
+import (
+	"context"
+
+	"github.com/astra-go/astra/orm"
+	"gorm.io/gorm"
+)
+
+// {{.Name}}Repo handles database operations for {{.Name}} entities.
+type {{.Name}}Repo struct {
+	*orm.Repository[{{.Name}}Model]
+}
+
+// New{{.Name}}Repo creates a new {{.Name}}Repo.
+func New{{.Name}}Repo(db *gorm.DB) *{{.Name}}Repo {
+	return &{{.Name}}Repo{Repository: orm.NewRepository[{{.Name}}Model](db)}
+}
+
+// TODO: replace {{.Name}}Model with your actual model import.
+type {{.Name}}Model struct {
+	ID int64 `gorm:"primaryKey"`
+}
+
+// FindActive returns all active {{.NameLower}}s.
+// orm.FromCtx propagates any transaction from ctx automatically.
+func (r *{{.Name}}Repo) FindActive(ctx context.Context) ([]{{.Name}}Model, error) {
+	return r.WithCtx(ctx).FindWhere("deleted_at IS NULL")
+}

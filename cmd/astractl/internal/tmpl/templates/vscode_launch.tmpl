@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch {{.Name}}",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}",
+      "env": {
+        "APP_ENV": "dev"
+      },
+      "args": []
+    },
+    {
+      "name": "Test current file",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${file}"
+    }
+  ]
+}

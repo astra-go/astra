@@ -1,0 +1,33 @@
+BINARY := {{.NameLower}}
+IMAGE  := {{.NameLower}}:latest
+GO     := go
+PORT   := 8080
+
+.PHONY: build run test lint clean tidy docker-build docker-run docker-stop
+
+build:
+	$(GO) build -o $(BINARY) .
+
+run:
+	$(GO) run .
+
+test:
+	$(GO) test ./... -v -race
+
+lint:
+	golangci-lint run ./...
+
+clean:
+	rm -f $(BINARY)
+
+tidy:
+	$(GO) mod tidy
+
+docker-build:
+	docker build -t $(IMAGE) .
+
+docker-run:
+	docker run --rm -p $(PORT):$(PORT) --name $(BINARY) $(IMAGE)
+
+docker-stop:
+	docker stop $(BINARY) || true

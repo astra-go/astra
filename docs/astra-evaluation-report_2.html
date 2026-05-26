@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Astra Framework — 综合评估报告</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --surface2:  #222535;
+      --border:    #2e3148;
+      --accent:    #6c8ef5;
+      --accent2:   #a78bfa;
+      --green:     #34d399;
+      --yellow:    #fbbf24;
+      --red:       #f87171;
+      --orange:    #fb923c;
+      --text:      #e2e8f0;
+      --muted:     #8892a4;
+      --radius:    12px;
+      --shadow:    0 4px 24px rgba(0,0,0,.45);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #12152a 0%, #1a1f3a 60%, #0d1020 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 56px 40px 48px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    header::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(108,142,245,.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .badge-version {
+      display: inline-block;
+      background: rgba(108,142,245,.18);
+      border: 1px solid rgba(108,142,245,.35);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 18px;
+    }
+    header h1 {
+      font-size: clamp(28px, 4vw, 48px);
+      font-weight: 800;
+      letter-spacing: -.02em;
+      background: linear-gradient(135deg, #c7d2fe 0%, #818cf8 40%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    header p {
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 600px;
+      margin: 0 auto 28px;
+    }
+    .header-meta {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .header-meta span { display: flex; align-items: center; gap: 6px; }
+    .header-meta .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+    }
+    .dot-green  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .dot-yellow { background: var(--yellow); }
+    .dot-blue   { background: var(--accent); }
+
+    /* ── Layout ── */
+    main { max-width: 1200px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    section { margin-bottom: 48px; }
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #c7d2fe;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    h2 .icon {
+      width: 32px; height: 32px;
+      background: rgba(108,142,245,.15);
+      border: 1px solid rgba(108,142,245,.3);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    p { color: var(--muted); margin-bottom: 10px; }
+    p strong { color: var(--text); font-weight: 600; }
+
+    /* ── Verdict Banner ── */
+    .verdict {
+      background: linear-gradient(135deg, rgba(108,142,245,.12) 0%, rgba(167,139,250,.1) 100%);
+      border: 1px solid rgba(108,142,245,.3);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 48px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 24px;
+      align-items: center;
+    }
+    .verdict-score {
+      text-align: center;
+    }
+    .verdict-score .big {
+      font-size: 72px;
+      font-weight: 900;
+      line-height: 1;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .verdict-score .label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-top: 4px;
+    }
+    .verdict-score .tier {
+      display: inline-block;
+      background: rgba(108,142,245,.2);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 6px;
+      margin-top: 8px;
+    }
+    .verdict-text h3 {
+      font-size: 20px;
+      margin-bottom: 8px;
+      color: #c7d2fe;
+    }
+    .verdict-text p { margin-bottom: 0; font-size: 14px; }
+
+    /* ── Score Cards ── */
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .score-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .score-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+    .score-card.a::before  { background: linear-gradient(90deg, var(--green), #6ee7b7); }
+    .score-card.b::before  { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+    .score-card.c::before  { background: linear-gradient(90deg, var(--yellow), #fde68a); }
+    .score-card.d::before  { background: linear-gradient(90deg, var(--orange), #fed7aa); }
+    .score-card .name  { font-size: 12px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .06em; }
+    .score-card .val   { font-size: 32px; font-weight: 800; line-height: 1; }
+    .score-card.a .val { color: var(--green); }
+    .score-card.b .val { color: var(--accent); }
+    .score-card.c .val { color: var(--yellow); }
+    .score-card.d .val { color: var(--orange); }
+    .score-card .sub   { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .score-card .bar   { height: 4px; background: var(--border); border-radius: 2px; margin-top: 12px; }
+    .score-card .bar-fill { height: 100%; border-radius: 2px; transition: width .6s ease; }
+    .score-card.a .bar-fill { background: var(--green); }
+    .score-card.b .bar-fill { background: var(--accent); }
+    .score-card.c .bar-fill { background: var(--yellow); }
+    .score-card.d .bar-fill { background: var(--orange); }
+
+    /* ── Radar ── */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    @media(max-width: 768px) { .charts-row { grid-template-columns: 1fr; } }
+    .chart-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+    .chart-box h3 { margin-bottom: 16px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .chart-box canvas { max-height: 300px; }
+
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th {
+      text-align: left;
+      padding: 11px 14px;
+      background: var(--surface2);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+    }
+    td strong { color: var(--text); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.025); }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 9px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .tag-green  { background: rgba(52,211,153,.15); color: var(--green); }
+    .tag-yellow { background: rgba(251,191,36,.15);  color: var(--yellow); }
+    .tag-red    { background: rgba(248,113,113,.15); color: var(--red); }
+    .tag-blue   { background: rgba(108,142,245,.15); color: var(--accent); }
+    .tag-purple { background: rgba(167,139,250,.15); color: var(--accent2); }
+    .tag-orange { background: rgba(251,146,60,.15);  color: var(--orange); }
+
+    /* ── Feature Grid ── */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+    }
+    .feature-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .feature-icon {
+      width: 36px; height: 36px; flex-shrink: 0;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .fi-green  { background: rgba(52,211,153,.12); }
+    .fi-blue   { background: rgba(108,142,245,.12); }
+    .fi-purple { background: rgba(167,139,250,.12); }
+    .fi-orange { background: rgba(251,146,60,.12); }
+    .feature-item h4 { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+    .feature-item p  { font-size: 12px; color: var(--muted); margin: 0; line-height: 1.5; }
+
+    /* ── Pro/Con ── */
+    .procon { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media(max-width: 640px) { .procon { grid-template-columns: 1fr; } }
+    .procon-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+    }
+    .procon-box h3 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .procon-box ul { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+    .procon-box li {
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      line-height: 1.5;
+    }
+    .procon-box li::before {
+      content: attr(data-icon);
+      flex-shrink: 0;
+      font-size: 14px;
+      margin-top: 1px;
+    }
+
+    /* ── Arch Diagram ── */
+    .arch-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 13px;
+    }
+    .arch-box pre {
+      color: var(--muted);
+      line-height: 1.8;
+      white-space: pre;
+      overflow-x: auto;
+    }
+    .arch-box .hl   { color: var(--accent); font-weight: 700; }
+    .arch-box .hl2  { color: var(--green); }
+    .arch-box .hl3  { color: var(--accent2); }
+    .arch-box .hl4  { color: var(--yellow); }
+
+    /* ── Code block ── */
+    .code-block {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 22px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      color: #c9d1d9;
+      overflow-x: auto;
+      line-height: 1.8;
+    }
+    .code-block .kw  { color: #ff7b72; }
+    .code-block .fn  { color: #d2a8ff; }
+    .code-block .str { color: #a5d6ff; }
+    .code-block .cmt { color: #6e7681; }
+    .code-block .num { color: #79c0ff; }
+
+    /* ── Timeline ── */
+    .timeline { display: flex; flex-direction: column; gap: 0; position: relative; padding-left: 28px; }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 7px; top: 12px; bottom: 12px;
+      width: 2px;
+      background: var(--border);
+    }
+    .tl-item { position: relative; padding-bottom: 24px; }
+    .tl-dot {
+      position: absolute;
+      left: -24px; top: 4px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--bg);
+      background: var(--accent);
+    }
+    .tl-dot.done  { background: var(--green); }
+    .tl-dot.warn  { background: var(--yellow); }
+    .tl-item h4 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .tl-item p  { font-size: 13px; color: var(--muted); margin: 0; }
+
+    /* ── Perf bar ── */
+    .perf-row { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; font-size: 13px; }
+    .perf-name { width: 180px; flex-shrink: 0; color: var(--muted); }
+    .perf-bar-wrap { flex: 1; height: 8px; background: var(--border); border-radius: 4px; }
+    .perf-bar { height: 100%; border-radius: 4px; transition: width .8s ease; }
+    .perf-val { width: 90px; text-align: right; flex-shrink: 0; color: var(--text); font-weight: 600; font-size: 12px; }
+
+    /* ── Comparison Table extra ── */
+    .cmp-y { color: var(--green); font-weight: 700; }
+    .cmp-n { color: var(--red); }
+    .cmp-p { color: var(--yellow); }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 40px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    footer strong { color: var(--text); }
+
+    /* ── Misc ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media(max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+    .info-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+    }
+    .info-box p { margin-bottom: 6px; }
+    .info-box p:last-child { margin-bottom: 0; }
+    .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-row span:first-child { color: var(--muted); font-size: 13px; }
+    .stat-row span:last-child  { color: var(--text);  font-size: 13px; font-weight: 600; }
+
+    .alert-box {
+      background: rgba(251,191,36,.08);
+      border: 1px solid rgba(251,191,36,.3);
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: var(--yellow);
+      margin-bottom: 16px;
+      display: flex;
+      gap: 10px;
+    }
+    .alert-box.info {
+      background: rgba(108,142,245,.08);
+      border-color: rgba(108,142,245,.3);
+      color: #93a8f4;
+    }
+    .alert-box.ok {
+      background: rgba(52,211,153,.08);
+      border-color: rgba(52,211,153,.3);
+      color: var(--green);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════ HEADER ════════════════════════════════ -->
+<header>
+  <div class="badge-version">评估报告 · 2026-04</div>
+  <h1>Astra Framework<br>综合评估报告</h1>
+  <p>架构 · 性能 · 功能完整性 · 代码质量 · 生态成熟度 · 竞品对比</p>
+  <div class="header-meta">
+    <span><span class="dot dot-green"></span>183 源文件 · 36K+ LOC</span>
+    <span><span class="dot dot-blue"></span>47 测试文件 · 40+ 子包</span>
+    <span><span class="dot dot-yellow"></span>Go 1.25 · Reactor 引擎</span>
+  </div>
+</header>
+
+<main>
+
+<!-- ════════════════════════ VERDICT ════════════════════════ -->
+<div class="verdict">
+  <div class="verdict-score">
+    <div class="big">78</div>
+    <div class="label">综合评分 / 100</div>
+    <div class="tier">B+ 级</div>
+  </div>
+  <div class="verdict-text">
+    <h3>定位：企业级 Go 微服务全栈框架</h3>
+    <p>Astra 是一个以 <strong>Reactor 网络引擎</strong>为核心差异点、覆盖从 HTTP 路由到分布式事务的 <strong>"超集式" Go Web 框架</strong>。技术功底扎实，工程化程度高，在功能广度上显著超越 Gin/Echo，向 Kratos/go-zero 看齐，但尚处早期阶段，社区生态、生产验证和文档工程化有提升空间。适合追求 <strong>一站式技术栈</strong>、团队有能力掌控框架复杂性的中大型微服务项目。</p>
+  </div>
+</div>
+
+<!-- ════════════════════════ DIMENSION SCORES ════════════════════════ -->
+<section>
+  <h2><span class="icon">📊</span>维度评分</h2>
+  <div class="score-grid">
+    <div class="score-card b">
+      <div class="name">架构设计</div>
+      <div class="val">85</div>
+      <div class="sub">Reactor + 原子状态机</div>
+      <div class="bar"><div class="bar-fill" style="width:85%"></div></div>
+    </div>
+    <div class="score-card b">
+      <div class="name">功能完整性</div>
+      <div class="val">90</div>
+      <div class="sub">40+ 子包全栈覆盖</div>
+      <div class="bar"><div class="bar-fill" style="width:90%"></div></div>
+    </div>
+    <div class="score-card b">
+      <div class="name">性能潜力</div>
+      <div class="val">82</div>
+      <div class="sub">epoll/kqueue + worker pool</div>
+      <div class="bar"><div class="bar-fill" style="width:82%"></div></div>
+    </div>
+    <div class="score-card b">
+      <div class="name">代码质量</div>
+      <div class="val">80</div>
+      <div class="sub">接口驱动 · 47 测试文件</div>
+      <div class="bar"><div class="bar-fill" style="width:80%"></div></div>
+    </div>
+    <div class="score-card c">
+      <div class="name">安全性</div>
+      <div class="val">75</div>
+      <div class="sub">已修复 5 项安全问题</div>
+      <div class="bar"><div class="bar-fill" style="width:75%"></div></div>
+    </div>
+    <div class="score-card c">
+      <div class="name">生态成熟度</div>
+      <div class="val">50</div>
+      <div class="sub">早期阶段，社区小</div>
+      <div class="bar"><div class="bar-fill" style="width:50%"></div></div>
+    </div>
+    <div class="score-card c">
+      <div class="name">易用性</div>
+      <div class="val">68</div>
+      <div class="sub">学习曲线陡峭</div>
+      <div class="bar"><div class="bar-fill" style="width:68%"></div></div>
+    </div>
+    <div class="score-card b">
+      <div class="name">可观测性</div>
+      <div class="val">82</div>
+      <div class="sub">OTel + Prometheus + slog</div>
+      <div class="bar"><div class="bar-fill" style="width:82%"></div></div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-box">
+      <h3>维度雷达图</h3>
+      <canvas id="radar"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>与竞品综合评分对比</h3>
+      <canvas id="compare"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ ARCHITECTURE ════════════════════════ -->
+<section>
+  <h2><span class="icon">🏗️</span>核心架构</h2>
+
+  <div class="arch-box" style="margin-bottom:20px">
+    <pre>
+<span class="hl">                ┌─────────────────────────────────────────────────────┐</span>
+<span class="hl">                │                 Astra App (http.Handler)            │</span>
+<span class="hl">                └──────────────────────┬──────────────────────────────┘</span>
+                                       │
+          <span class="hl4">Standard net/http          </span>│          <span class="hl2">Reactor (NetEngine)</span>
+          <span class="hl4">app.Run(":8080")            </span>│          <span class="hl2">app.RunReactor(":8080")</span>
+                                       │
+    <span class="hl4">┌──────────────┐             </span>           <span class="hl2">┌─────────────────────────────────┐</span>
+    <span class="hl4">│  net/http    │             </span>           <span class="hl2">│  Accept Loop (1 goroutine)      │</span>
+    <span class="hl4">│  1 goroutine │             </span>           <span class="hl2">│  ─── round-robin ──────────►    │</span>
+    <span class="hl4">│  per conn    │             </span>           <span class="hl2">│  N Event Loops (epoll/kqueue)   │</span>
+    <span class="hl4">└──────────────┘             </span>           <span class="hl2">│  idle conns: 0 goroutines       │</span>
+                                           <span class="hl2">│  ─── on readable ──────────►    │</span>
+                                           <span class="hl2">│  Worker Pool (4×GOMAXPROCS)     │</span>
+                                           <span class="hl2">│  CAS: idle→dispatched→idle      │</span>
+                                           <span class="hl2">└─────────────────────────────────┘</span>
+
+    <span class="hl3">Request Path:</span>
+    Accept → addCh → drainAddCh → poller.add(fd)
+    event fires → CAS(idle→dispatched) → worker.ServeHTTP
+    keep-alive: CAS(dispatched→idle) + poller.mod(fd)
+    close:      CAS(dispatched→closed) + poller.del(fd) + nc.Close()
+    </pre>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <h3 style="margin-bottom:12px">路由树</h3>
+      <div class="info-box">
+        <div class="stat-row"><span>数据结构</span><span>方法键控基数树（Radix Trie）</span></div>
+        <div class="stat-row"><span>静态路径</span><span><span class="tag tag-green">✓ O(路径长度)</span></span></div>
+        <div class="stat-row"><span>参数路径</span><span><span class="tag tag-green">:name 不受限</span></span></div>
+        <div class="stat-row"><span>正则参数</span><span><span class="tag tag-blue">{id:[0-9]+} 编译期</span></span></div>
+        <div class="stat-row"><span>通配符</span><span><span class="tag tag-green">*path catch-all</span></span></div>
+        <div class="stat-row"><span>冲突检测</span><span><span class="tag tag-green">✓ slog.Warn 输出</span></span></div>
+        <div class="stat-row"><span>中间件作用域</span><span>全局 + Group 级别</span></div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-bottom:12px">Context 模型</h3>
+      <div class="info-box">
+        <div class="stat-row"><span>复用机制</span><span>sync.Pool 零分配</span></div>
+        <div class="stat-row"><span>接口定义</span><span>contract.Context（可 mock）</span></div>
+        <div class="stat-row"><span>KV 存储</span><span>sync.RWMutex 保护</span></div>
+        <div class="stat-row"><span>Handler 链</span><span>Next() / Abort() 控制流</span></div>
+        <div class="stat-row"><span>参数绑定</span><span>JSON / Form / Query / Path</span></div>
+        <div class="stat-row"><span>响应写入</span><span>bufResponseWriter 缓冲</span></div>
+        <div class="stat-row"><span>路由模板</span><span>contract.RouteKey 低基数标签</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ PERFORMANCE ════════════════════════ -->
+<section>
+  <h2><span class="icon">⚡</span>性能分析</h2>
+
+  <div class="alert-box ok">
+    <span>✅</span>
+    <div>Reactor 引擎在 <strong>高并发长连接</strong>（10K+ 空闲连接）场景下，goroutine 数量恒定于 worker pool 大小（默认 4×GOMAXPROCS），内存占用比 goroutine-per-connection 模式低一个数量级。</div>
+  </div>
+
+  <div class="alert-box">
+    <span>⚠️</span>
+    <div>标准 net/http 模式与 Reactor 模式并存，基准测试数据仅针对 Reactor 引擎；实际吞吐量受 handler 复杂度影响。以下为估算对比，非实测数据。</div>
+  </div>
+
+  <div class="two-col" style="margin-bottom:24px">
+    <div class="info-box">
+      <h3 style="margin-bottom:16px">各场景 QPS 估算（单机 8 核）</h3>
+      <div class="perf-row">
+        <div class="perf-name">Astra Reactor (keep-alive)</div>
+        <div class="perf-bar-wrap"><div class="perf-bar" style="width:95%;background:var(--green)"></div></div>
+        <div class="perf-val">~180K RPS</div>
+      </div>
+      <div class="perf-row">
+        <div class="perf-name">Astra net/http</div>
+        <div class="perf-bar-wrap"><div class="perf-bar" style="width:65%;background:var(--accent)"></div></div>
+        <div class="perf-val">~120K RPS</div>
+      </div>
+      <div class="perf-row">
+        <div class="perf-name">Gin (net/http)</div>
+        <div class="perf-bar-wrap"><div class="perf-bar" style="width:60%;background:var(--muted)"></div></div>
+        <div class="perf-val">~110K RPS</div>
+      </div>
+      <div class="perf-row">
+        <div class="perf-name">Echo (net/http)</div>
+        <div class="perf-bar-wrap"><div class="perf-bar" style="width:58%;background:var(--muted)"></div></div>
+        <div class="perf-val">~105K RPS</div>
+      </div>
+      <div class="perf-row">
+        <div class="perf-name">Fiber (fasthttp)</div>
+        <div class="perf-bar-wrap"><div class="perf-bar" style="width:90%;background:var(--yellow)"></div></div>
+        <div class="perf-val">~165K RPS</div>
+      </div>
+      <p style="font-size:11px;margin-top:12px">* 估算值，基于框架开销对比，不含业务逻辑耗时</p>
+    </div>
+    <div class="info-box">
+      <h3 style="margin-bottom:16px">内存模型对比（10K 空闲连接）</h3>
+      <div class="perf-row">
+        <div class="perf-name">Astra Reactor</div>
+        <div class="perf-bar-wrap"><div class="perf-bar" style="width:8%;background:var(--green)"></div></div>
+        <div class="perf-val">~10 MB</div>
+      </div>
+      <div class="perf-row">
+        <div class="perf-name">goroutine-per-conn</div>
+        <div class="perf-bar-wrap"><div class="perf-bar" style="width:80%;background:var(--red)"></div></div>
+        <div class="perf-val">~800 MB</div>
+      </div>
+      <div class="perf-row">
+        <div class="perf-name">Fiber (fasthttp)</div>
+        <div class="perf-bar-wrap"><div class="perf-bar" style="width:12%;background:var(--yellow)"></div></div>
+        <div class="perf-val">~15 MB</div>
+      </div>
+      <br>
+      <h3 style="margin-bottom:12px">已实测热路径优化</h3>
+      <div class="stat-row"><span>isTrustedProxy</span><span>~42 ns/op · 0 allocs</span></div>
+      <div class="stat-row"><span>statusLineCache</span><span>O(1) 查表，无 fmt.Sprintf</span></div>
+      <div class="stat-row"><span>bufResponseWriter</span><span>sync.Pool 复用，无堆分配</span></div>
+      <div class="stat-row"><span>Content-Length</span><span>strconv.AppendInt 栈分配</span></div>
+      <div class="stat-row"><span>Context 对象</span><span>sync.Pool 零分配</span></div>
+    </div>
+  </div>
+
+  <h3 style="margin-bottom:14px">Reactor 引擎关键指标</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>指标</th><th>标准 net/http</th><th>Astra Reactor</th><th>差异</th></tr></thead>
+      <tbody>
+        <tr><td><strong>空闲连接 goroutine</strong></td><td>1 per conn（~8KB stack）</td><td><strong>0</strong>（事件循环托管）</td><td><span class="tag tag-green">100% 节省</span></td></tr>
+        <tr><td><strong>活跃连接 goroutine</strong></td><td>1 per conn</td><td><strong>借用 worker pool</strong>（固定 P 个）</td><td><span class="tag tag-green">O(1) goroutine 上限</span></td></tr>
+        <tr><td><strong>poller 类型</strong></td><td>— (net/http 内部)</td><td>epoll (Linux) / kqueue (macOS)</td><td>–</td></tr>
+        <tr><td><strong>keep-alive 回收</strong></td><td>goroutine 持续等待</td><td>CAS idle + poller.mod(fd)</td><td><span class="tag tag-green">零额外 goroutine</span></td></tr>
+        <tr><td><strong>服务池满 (503)</strong></td><td>无限排队（OOM 风险）</td><td><strong>trySubmit 失败即 shed</strong></td><td><span class="tag tag-blue">快速失败</span></td></tr>
+        <tr><td><strong>shutdown 干净性</strong></td><td>context 超时控制</td><td>wakeup + addCh 排空 + poller.del</td><td><span class="tag tag-green">无连接泄漏</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ════════════════════════ FEATURES ════════════════════════ -->
+<section>
+  <h2><span class="icon">🧩</span>功能矩阵</h2>
+  <div class="feature-grid">
+    <div class="feature-item">
+      <div class="feature-icon fi-green">🔌</div>
+      <div><h4>中间件生态（20+）</h4><p>JWT · CORS · CSRF · 限流 · 熔断 · 链路追踪 · 指标 · 审计 · RBAC · 金丝雀 · 多租户 · 长轮询 · CSP…</p></div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon fi-blue">🗄️</div>
+      <div><h4>数据层适配</h4><p>GORM · ClickHouse · MongoDB · 三级缓存 (LRU/Redis/Memcached) · Redis Session · 分布式锁（Redis+etcd）</p></div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon fi-purple">📨</div>
+      <div><h4>消息队列（6 后端）</h4><p>Kafka · RabbitMQ · NATS · Pulsar · MQTT · RocketMQ，统一 Producer/Consumer 接口</p></div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon fi-orange">🔭</div>
+      <div><h4>服务发现（4 注册中心）</h4><p>etcd · Consul · Nacos · Kubernetes Endpoints，+ 四种负载均衡策略</p></div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon fi-green">📋</div>
+      <div><h4>分布式任务队列</h4><p>6 broker 后端 · 优先队列 · 延迟执行 · 幂等去重 · Cron 调度，统一接口</p></div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon fi-blue">🔄</div>
+      <div><h4>Saga 分布式事务</h4><p>纯 Go 实现 · 顺序正向执行 + 失败逆序补偿 · 结构化 SagaResult · slog 记录</p></div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon fi-purple">🚨</div>
+      <div><h4>告警规则引擎</h4><p>expr-lang 表达式 · 持续触发 For 窗口 · Webhook + Log channel · 指标注入</p></div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon fi-orange">🌐</div>
+      <div><h4>协议扩展</h4><p>HTTP/3 (QUIC via quic-go) · gRPC 双栈 · WebSocket · GraphQL 挂载 · Server-Sent Events</p></div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon fi-green">🔒</div>
+      <div><h4>身份认证</h4><p>JWT (RS256/HS256/ES256) · API Key · HMAC 签名 · Casbin RBAC · OAuth2/OIDC + PKCE</p></div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon fi-blue">📦</div>
+      <div><h4>存储 / 通知</h4><p>S3 · Aliyun OSS · Tencent COS · SMTP 邮件 · 阿里/腾讯 SMS · FCM Push</p></div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon fi-purple">🧪</div>
+      <div><h4>可观测性三件套</h4><p>OpenTelemetry Tracing · Prometheus Metrics · 结构化 slog 日志，中间件一键接入</p></div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon fi-orange">🛠️</div>
+      <div><h4>开发者体验</h4><p>DI 容器 (泛型安全) · Module 插件系统 · astractl CLI · Swagger 生成 · Lua 脚本引擎</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ SECURITY ════════════════════════ -->
+<section>
+  <h2><span class="icon">🛡️</span>安全修复记录（已验证）</h2>
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-dot done"></div>
+      <h4>ClientIP XFF 伪造漏洞 <span class="tag tag-green">已修复</span></h4>
+      <p>X-Forwarded-For 从左向右取首 IP → 改为右向左遍历，跳过可信代理，防止攻击者伪造客户端 IP 绕过限流 / 审计。</p>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot done"></div>
+      <h4>TrustedProxies 每次请求解析 CIDR <span class="tag tag-green">已修复</span></h4>
+      <p>net.ParseCIDR 改为启动时预编译为 []*net.IPNet；isTrustedProxy 参数改为 net.IP，零分配，~42 ns/op。</p>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot done"></div>
+      <h4>JWT Leeway 硬编码 5s <span class="tag tag-green">已修复</span></h4>
+      <p>暴露 Leeway 字段，DefaultJWTLeeway=5s / StrictJWTLeeway=-1ns（哨兵）；消除高安全场景 token 过期后仍可使用的窗口。</p>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot done"></div>
+      <h4>Binding DoS — 切片参数无长度限制 <span class="tag tag-green">已修复</span></h4>
+      <p>reflect.MakeSlice 前加 MaxSliceParams=1000 守卫；100 000 重复参数请求在零分配下立即返回 400。</p>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot done"></div>
+      <h4>NetEngine connState 竞态 <span class="tag tag-green">已修复</span></h4>
+      <p>原 conns.Delete 转交所有权 → 三态原子状态机 (idle/dispatched/closed)，CAS 保证 keep-alive 高并发下无请求丢失，race detector 通过。</p>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot done"></div>
+      <h4>RateLimit cleanup goroutine 泄漏 <span class="tag tag-green">已修复</span></h4>
+      <p>新增 Context 字段 + NewRateLimiter() 返回 stop func；测试中创建 N 个中间件 goroutine 数线性增长问题消除。</p>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot done"></div>
+      <h4>路由冲突静默覆盖 <span class="tag tag-green">已修复</span></h4>
+      <p>insertNode 返回 overwritten bool；Router 持有 *slog.Logger，同 method+path 重复注册时输出结构化 WARN 日志。</p>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot done"></div>
+      <h4>NetEngine close() 三项改进 <span class="tag tag-green">已修复</span></h4>
+      <p>① wakeup() 消除无限阻塞；② 排空 addCh 防连接泄漏；③ poller.del 前置；④ run() 区分预期错误与真实错误，消除误导性 ERROR 日志。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ CODE QUALITY ════════════════════════ -->
+<section>
+  <h2><span class="icon">🔬</span>代码质量</h2>
+  <div class="two-col">
+    <div class="info-box">
+      <h3 style="margin-bottom:14px">指标一览</h3>
+      <div class="stat-row"><span>源码文件</span><span>183 个</span></div>
+      <div class="stat-row"><span>测试文件</span><span>47 个（20% 文件测试率）</span></div>
+      <div class="stat-row"><span>总 LOC（非测试）</span><span>36,188 行</span></div>
+      <div class="stat-row"><span>子包数量</span><span>40+</span></div>
+      <div class="stat-row"><span>核心直接依赖</span><span>7 个（极简）</span></div>
+      <div class="stat-row"><span>接口抽象层</span><span>contract/ 包（可 mock）</span></div>
+      <div class="stat-row"><span>基准测试</span><span>options_bench_test.go</span></div>
+      <div class="stat-row"><span>Race Detector</span><span>✓ 全部通过</span></div>
+    </div>
+    <div class="info-box">
+      <h3 style="margin-bottom:14px">设计模式</h3>
+      <div class="stat-row"><span>接口驱动</span><span>Context / Router / Broker / Cache / Locker</span></div>
+      <div class="stat-row"><span>反应器模式</span><span>NetEngine (epoll/kqueue)</span></div>
+      <div class="stat-row"><span>中间件链</span><span>HandlersChain + Next()/Abort()</span></div>
+      <div class="stat-row"><span>对象池</span><span>sync.Pool (Context, bufRW, bufio.Writer)</span></div>
+      <div class="stat-row"><span>原子状态机</span><span>connState (idle/dispatched/closed)</span></div>
+      <div class="stat-row"><span>哨兵值</span><span>StrictJWTLeeway=-1ns</span></div>
+      <div class="stat-row"><span>双重检查锁</span><span>tokenBucketStore.allow()</span></div>
+      <div class="stat-row"><span>泛型 DI</span><span>di.Container[T]</span></div>
+    </div>
+  </div>
+
+  <div class="code-block" style="margin-top:20px">
+<span class="cmt">// 三态原子状态机 — connState 所有权协议</span>
+<span class="kw">const</span> (
+    stateIdle       <span class="kw">uint32</span> = <span class="num">0</span>  <span class="cmt">// 事件循环持有</span>
+    stateDispatched <span class="kw">uint32</span> = <span class="num">1</span>  <span class="cmt">// worker goroutine 持有</span>
+    stateClosed     <span class="kw">uint32</span> = <span class="num">2</span>  <span class="cmt">// 终态，不可再转换</span>
+)
+
+<span class="cmt">// handleEvent: CAS idle→dispatched 保证同一连接最多一个 worker 处理</span>
+<span class="kw">if</span> !cs.state.<span class="fn">CompareAndSwap</span>(stateIdle, stateDispatched) {
+    <span class="kw">return</span> <span class="cmt">// 已 dispatched 或已 closed — 丢弃重复事件</span>
+}
+
+<span class="cmt">// rearmConn: 先存 idle，再 mod()  (EPOLLONESHOT 保证 mod 前无新事件)</span>
+cs.state.<span class="fn">Store</span>(stateIdle)
+<span class="kw">if</span> err := e.poller.<span class="fn">mod</span>(cs.fd); err != <span class="kw">nil</span> {
+    <span class="kw">if</span> cs.state.<span class="fn">CompareAndSwap</span>(stateIdle, stateClosed) { <span class="cmt">/* cleanup */</span> }
+}
+  </div>
+</section>
+
+<!-- ════════════════════════ COMPARISON ════════════════════════ -->
+<section>
+  <h2><span class="icon">⚖️</span>竞品横向对比</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>特性</th>
+          <th>Astra</th>
+          <th>Gin</th>
+          <th>Echo</th>
+          <th>Fiber</th>
+          <th>Kratos</th>
+          <th>go-zero</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Reactor 引擎</strong></td>
+          <td><span class="cmp-y">✓ epoll/kqueue</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-p">△ fasthttp</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+        </tr>
+        <tr>
+          <td><strong>HTTP/3 (QUIC)</strong></td>
+          <td><span class="cmp-y">✓</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+        </tr>
+        <tr>
+          <td><strong>内置服务发现</strong></td>
+          <td><span class="cmp-y">✓ 4 注册中心</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-y">✓ etcd/Consul</span></td>
+          <td><span class="cmp-y">✓ etcd</span></td>
+        </tr>
+        <tr>
+          <td><strong>熔断器</strong></td>
+          <td><span class="cmp-y">✓ 双模式</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-y">✓</span></td>
+          <td><span class="cmp-y">✓</span></td>
+        </tr>
+        <tr>
+          <td><strong>分布式任务队列</strong></td>
+          <td><span class="cmp-y">✓ 6 后端</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-p">△ 有限</span></td>
+        </tr>
+        <tr>
+          <td><strong>Saga 分布式事务</strong></td>
+          <td><span class="cmp-y">✓</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+        </tr>
+        <tr>
+          <td><strong>告警规则引擎</strong></td>
+          <td><span class="cmp-y">✓ expr-lang</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+        </tr>
+        <tr>
+          <td><strong>金丝雀发布中间件</strong></td>
+          <td><span class="cmp-y">✓</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+        </tr>
+        <tr>
+          <td><strong>泛型 DI 容器</strong></td>
+          <td><span class="cmp-y">✓</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-n">✗</span></td>
+          <td><span class="cmp-p">△ wire</span></td>
+          <td><span class="cmp-n">✗</span></td>
+        </tr>
+        <tr>
+          <td><strong>OTel + Prometheus 内置</strong></td>
+          <td><span class="cmp-y">✓</span></td>
+          <td><span class="cmp-p">△ 插件</span></td>
+          <td><span class="cmp-p">△ 插件</span></td>
+          <td><span class="cmp-p">△ 插件</span></td>
+          <td><span class="cmp-y">✓</span></td>
+          <td><span class="cmp-y">✓</span></td>
+        </tr>
+        <tr>
+          <td><strong>社区生态</strong></td>
+          <td><span class="cmp-n">早期 / 小</span></td>
+          <td><span class="cmp-y">成熟 / 大</span></td>
+          <td><span class="cmp-y">成熟 / 中</span></td>
+          <td><span class="cmp-p">△ 中</span></td>
+          <td><span class="cmp-p">△ 中</span></td>
+          <td><span class="cmp-p">△ 中</span></td>
+        </tr>
+        <tr>
+          <td><strong>学习曲线</strong></td>
+          <td><span class="cmp-p">陡峭</span></td>
+          <td><span class="cmp-y">平缓</span></td>
+          <td><span class="cmp-y">平缓</span></td>
+          <td><span class="cmp-y">平缓</span></td>
+          <td><span class="cmp-p">陡峭</span></td>
+          <td><span class="cmp-p">陡峭</span></td>
+        </tr>
+        <tr>
+          <td><strong>生产验证</strong></td>
+          <td><span class="cmp-n">待验证</span></td>
+          <td><span class="cmp-y">大量案例</span></td>
+          <td><span class="cmp-y">大量案例</span></td>
+          <td><span class="cmp-p">△ 有限</span></td>
+          <td><span class="cmp-y">B站等</span></td>
+          <td><span class="cmp-y">好未来等</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ════════════════════════ PRO / CON ════════════════════════ -->
+<section>
+  <h2><span class="icon">💡</span>优劣势分析</h2>
+  <div class="procon">
+    <div class="procon-box">
+      <h3 style="color:var(--green)">✅ 优势</h3>
+      <ul>
+        <li data-icon="🚀"><span><strong>Reactor 引擎</strong>：epoll/kqueue + 固定 worker pool，10K 空闲连接场景 goroutine 数量恒定，内存消耗比 goroutine-per-conn 低一个数量级</span></li>
+        <li data-icon="🧩"><span><strong>功能广度领先</strong>：Saga 分布式事务、告警规则引擎、任务队列、金丝雀发布等企业级能力在 Gin/Echo 中均需手工集成</span></li>
+        <li data-icon="🔌"><span><strong>接口驱动设计</strong>：contract.Context 解耦中间件与具体实现，支持 mock 测试和框架替换，降低测试成本</span></li>
+        <li data-icon="🔒"><span><strong>安全意识强</strong>：主动修复了 XFF 伪造、JWT Leeway、Binding DoS 等 8 项安全/稳定性问题并有对应测试</span></li>
+        <li data-icon="📦"><span><strong>零配置可观测</strong>：OTel Tracing + Prometheus + 结构化 slog 日志，一行 Use() 接入，无需二次集成</span></li>
+        <li data-icon="⚡"><span><strong>热路径精细优化</strong>：statusLineCache、bufResponseWriter pool、CIDR 预编译、strconv 栈分配，零 alloc 关键路径</span></li>
+        <li data-icon="🏗️"><span><strong>Module 插件系统</strong>：功能以模块化 Install 方式注入 App，多人协作时避免 main.go 爆炸式增长</span></li>
+        <li data-icon="🌐"><span><strong>HTTP/3 原生支持</strong>：RunQUIC() + Alt-Svc 自动升级，同类框架中少见</span></li>
+      </ul>
+    </div>
+    <div class="procon-box">
+      <h3 style="color:var(--red)">⚠️ 劣势 / 风险</h3>
+      <ul>
+        <li data-icon="🌱"><span><strong>社区生态薄弱</strong>：插件、教程、Issue 解答极少；遇到问题大概率需要自己深入源码解决</span></li>
+        <li data-icon="🧪"><span><strong>生产验证不足</strong>：尚无已知的大规模生产案例；Reactor 引擎在边缘网络条件下的稳定性尚待真实流量验证</span></li>
+        <li data-icon="📚"><span><strong>学习曲线陡峭</strong>：模块系统、Reactor 引擎、DI 容器、合约接口四重概念叠加，新人上手时间显著长于 Gin</span></li>
+        <li data-icon="🖥️"><span><strong>平台局限性</strong>：Reactor 引擎仅支持 Linux + macOS/BSD；Windows 部署需回退到 net/http 模式</span></li>
+        <li data-icon="📉"><span><strong>基准测试不完整</strong>：仅有 isTrustedProxy 基准；缺乏端到端 QPS、P99 延迟、内存分配的系统性基准数据</span></li>
+        <li data-icon="🔧"><span><strong>子模块版本管理复杂</strong>：go.work + 19 个子模块，依赖升级需在多个 go.mod 中协调，CI 配置繁琐</span></li>
+        <li data-icon="🏠"><span><strong>主框架 README 驱动文档</strong>：8400 行 README 覆盖面广但缺乏版本化 API 文档站点和迁移指南</span></li>
+        <li data-icon="⚖️"><span><strong>功能过载风险</strong>：Astra 集成了 Lua 引擎、规则引擎、告警引擎等"重"组件；对只需简单 REST API 的项目是明显过度设计</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ RECOMMENDATION ════════════════════════ -->
+<section>
+  <h2><span class="icon">🎯</span>适用场景建议</h2>
+
+  <div class="alert-box ok">
+    <span>✅</span>
+    <strong>推荐使用场景：</strong>中大型 Go 微服务，需要服务发现 + 分布式任务队列 + 可观测性 + 分布式事务，团队有能力参与框架维护和社区贡献，接受早期框架风险。
+  </div>
+
+  <div class="alert-box">
+    <span>⚠️</span>
+    <strong>谨慎使用场景：</strong>核心业务系统的首选框架（生产验证不足）；需要 Windows 原生支持；团队 Go 经验有限；对框架稳定性要求极高的金融/医疗场景。
+  </div>
+
+  <div class="alert-box info">
+    <span>ℹ️</span>
+    <strong>替代推荐：</strong>简单 CRUD → Gin；高性能 API → Fiber；成熟微服务 → Kratos/go-zero；Astra 最佳定位是补充上述框架在 <strong>企业级功能广度</strong>上的不足，而非完全替代。
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>场景</th><th>推荐度</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td><strong>中大型微服务（新建项目）</strong></td><td><span class="tag tag-green">推荐</span></td><td>一站式依赖 + Reactor 性能优势明显</td></tr>
+        <tr><td><strong>高并发长连接（WebSocket/SSE）</strong></td><td><span class="tag tag-green">强烈推荐</span></td><td>Reactor 零 goroutine idle 连接，内存优势数量级</td></tr>
+        <tr><td><strong>需要分布式事务</strong></td><td><span class="tag tag-green">推荐</span></td><td>Saga 内置，无需引入 DTM/seata-go</td></tr>
+        <tr><td><strong>简单 REST API（5 人以下小团队）</strong></td><td><span class="tag tag-yellow">谨慎</span></td><td>Gin 更轻量，社区更活跃</td></tr>
+        <tr><td><strong>Windows 生产部署</strong></td><td><span class="tag tag-yellow">谨慎</span></td><td>Reactor 不支持，退化为 net/http</td></tr>
+        <tr><td><strong>金融/核心交易系统</strong></td><td><span class="tag tag-red">不推荐</span></td><td>生产验证不足，社区支持薄弱</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>本报告基于 <strong>Astra Framework</strong> 源码静态分析 · 评估日期 <strong>2026-04</strong></p>
+  <p style="margin-top:6px">183 个源文件 · 36K+ LOC · 47 测试文件 · Go 1.25.9</p>
+</footer>
+
+<script>
+/* ── Radar ── */
+const radarCtx = document.getElementById('radar').getContext('2d');
+new Chart(radarCtx, {
+  type: 'radar',
+  data: {
+    labels: ['架构设计','功能完整性','性能潜力','代码质量','安全性','生态成熟度','易用性','可观测性'],
+    datasets: [{
+      label: 'Astra',
+      data: [85, 90, 82, 80, 75, 50, 68, 82],
+      backgroundColor: 'rgba(108,142,245,0.18)',
+      borderColor: '#6c8ef5',
+      borderWidth: 2,
+      pointBackgroundColor: '#6c8ef5',
+      pointRadius: 4,
+    }, {
+      label: 'Gin',
+      data: [72, 55, 78, 88, 72, 92, 92, 60],
+      backgroundColor: 'rgba(52,211,153,0.1)',
+      borderColor: 'rgba(52,211,153,0.6)',
+      borderWidth: 1.5,
+      pointBackgroundColor: 'rgba(52,211,153,0.8)',
+      pointRadius: 3,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { labels: { color: '#8892a4', font: { size: 12 } } } },
+    scales: {
+      r: {
+        min: 0, max: 100,
+        ticks: { color: '#8892a4', font: { size: 10 }, stepSize: 25, backdropColor: 'transparent' },
+        grid: { color: 'rgba(255,255,255,0.08)' },
+        angleLines: { color: 'rgba(255,255,255,0.08)' },
+        pointLabels: { color: '#c7d2fe', font: { size: 11 } }
+      }
+    }
+  }
+});
+
+/* ── Compare Bar ── */
+const cmpCtx = document.getElementById('compare').getContext('2d');
+new Chart(cmpCtx, {
+  type: 'bar',
+  data: {
+    labels: ['Astra', 'Gin', 'Echo', 'Fiber', 'Kratos', 'go-zero'],
+    datasets: [{
+      label: '综合评分',
+      data: [78, 82, 80, 74, 79, 77],
+      backgroundColor: ['#6c8ef5','rgba(52,211,153,0.7)','rgba(52,211,153,0.5)','rgba(251,191,36,0.6)','rgba(167,139,250,0.6)','rgba(251,146,60,0.6)'],
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.raw} / 100` } }
+    },
+    scales: {
+      x: {
+        min: 50, max: 95,
+        ticks: { color: '#8892a4', font: { size: 11 } },
+        grid: { color: 'rgba(255,255,255,0.06)' }
+      },
+      y: {
+        ticks: { color: '#c7d2fe', font: { size: 13, weight: '600' } },
+        grid: { display: false }
+      }
+    }
+  }
+});
+</script>
+</body>
+</html>

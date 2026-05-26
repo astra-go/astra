@@ -1,0 +1,136 @@
+site_name: Astra — 星辰 Go Web 框架
+site_description: 高性能、全功能 Go Web 框架文档
+site_url: https://astra-go.github.io/astra/
+repo_url: https://github.com/astra-go/astra
+repo_name: astra-go/astra
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2024–2026 Astra Contributors — MIT License
+
+# ─── Theme ───────────────────────────────────────────────────────────────────
+theme:
+  name: material
+  language: zh
+  logo: assets/logo.svg
+  favicon: assets/favicon.png
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/weather-night
+        name: 切换深色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/weather-sunny
+        name: 切换浅色模式
+  features:
+    - navigation.tabs          # top-level sections as tabs
+    - navigation.tabs.sticky
+    - navigation.sections      # collapsible sections in sidebar
+    - navigation.indexes       # section index pages
+    - navigation.top           # back-to-top button
+    - navigation.instant       # SPA-style navigation
+    - navigation.tracking      # anchor tracking in URL
+    - search.highlight
+    - search.suggest
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link        # linked content tabs (language switching)
+    - toc.follow
+    - toc.integrate
+
+# ─── Versioning (mike) ───────────────────────────────────────────────────────
+# Deploy with:
+#   pip install mkdocs-material mike
+#   mike deploy --push --update-aliases 1.0 latest
+#   mike set-default --push latest
+extra:
+  version:
+    provider: mike
+    default: latest
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/astra-go/astra
+    - icon: fontawesome/brands/go
+      link: https://pkg.go.dev/github.com/astra-go/astra
+
+# ─── Plugins ─────────────────────────────────────────────────────────────────
+plugins:
+  - search:
+      lang: [zh, en]
+  - minify:
+      minify_html: true
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: date
+
+# ─── Markdown extensions ─────────────────────────────────────────────────────
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      title: 本页目录
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# ─── Navigation ──────────────────────────────────────────────────────────────
+nav:
+  - 首页: index.md
+  - 快速开始:
+      - 安装: getting-started/installation.md
+      - 快速上手（三步）: getting-started/quickstart.md
+      - 第一个应用: getting-started/first-app.md
+      - 项目结构: getting-started/project-structure.md
+  - API 参考:
+      - api/index.md
+      - 核心 (App / Context / Router): api/core.md
+      - 内置中间件: api/middleware.md
+      - 扩展模块: api/modules.md
+  - 指南:
+      - 部署: guides/deployment.md
+      - 安全加固: guides/security.md
+      - 性能调优: guides/performance.md
+  - 版本说明:
+      - 版本策略: versioning.md
+      - Changelog: changelog.md
+  - 迁移指南:
+      - 总览: migration/overview.md
+      - v0.x → v1.0: migration/v0-to-v1.md
+      - v1.x → v2.0: migration/v1-to-v2.md
+  - 贡献指南: contributing.md

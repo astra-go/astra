@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package showcase.inventory.v1;
+
+option go_package = "github.com/astra-go/astra/examples/showcase/internal/pb/inventorypb";
+
+// InventoryService exposes stock management over gRPC.
+// All RPCs are tenant-scoped: callers must supply tenant_id.
+service InventoryService {
+  // GetStock returns the current stock level for a single product.
+  rpc GetStock(GetStockRequest) returns (StockResponse);
+
+  // BatchGetStock returns stock levels for multiple products in one call.
+  rpc BatchGetStock(BatchGetStockRequest) returns (BatchStockResponse);
+
+  // DecrStock atomically decrements stock. Returns the updated level.
+  // Returns NOT_FOUND if the product does not exist.
+  // Returns FAILED_PRECONDITION if stock is insufficient.
+  rpc DecrStock(DecrStockRequest) returns (StockResponse);
+
+  // ListLowStock streams products whose stock is at or below the threshold.
+  rpc ListLowStock(ListLowStockRequest) returns (stream StockItem);
+}
+
+message GetStockRequest {
+  uint64 tenant_id  = 1;
+  uint64 product_id = 2;
+}
+
+message BatchGetStockRequest {
+  uint64          tenant_id   = 1;
+  repeated uint64 product_ids = 2;
+}
+
+message BatchStockResponse {
+  repeated StockResponse items = 1;
+}
+
+message DecrStockRequest {
+  uint64 tenant_id  = 1;
+  uint64 product_id = 2;
+  uint32 quantity   = 3;
+}
+
+message StockResponse {
+  uint64 product_id = 1;
+  uint32 stock      = 2;
+}
+
+message ListLowStockRequest {
+  uint64 tenant_id = 1;
+  uint32 threshold = 2; // products with stock <= threshold are returned
+}
+
+message StockItem {
+  uint64 product_id   = 1;
+  string product_name = 2;
+  uint32 stock        = 3;
+}

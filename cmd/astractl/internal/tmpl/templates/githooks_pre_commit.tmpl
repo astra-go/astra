@@ -1,0 +1,14 @@
+#!/bin/sh
+# Pre-commit hook: run go vet and golangci-lint on staged Go files.
+set -e
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+[ -z "$STAGED" ] && exit 0
+
+echo "▶  go vet ./..."
+go vet ./...
+
+if command -v golangci-lint >/dev/null 2>&1; then
+  echo "▶  golangci-lint run (fast)"
+  golangci-lint run --fast ./...
+fi

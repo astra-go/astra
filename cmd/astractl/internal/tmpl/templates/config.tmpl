@@ -1,0 +1,17 @@
+server:
+  port: 8080
+  mode: prod          # dev | staging | prod | test
+  shutdown_timeout: 10
+
+database:
+  dsn: "host=localhost user=postgres password='' dbname={{.NameLower}} sslmode=disable"
+  max_open: 25
+  max_idle: 5
+
+cache:
+  redis_addr: "localhost:6379"
+  key_prefix: "{{.NameLower}}:"
+
+log:
+  level: info
+  format: json

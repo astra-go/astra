@@ -1,0 +1,49 @@
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  precision: 1
+  round: down
+  range: "50...90"
+
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: 60%
+
+flags:
+  core:
+    paths:
+      - "."
+    carryforward: true
+  middleware:
+    paths:
+      - "middleware/"
+    carryforward: true
+  cache:
+    paths:
+      - "cache/"
+    carryforward: true
+  orm:
+    paths:
+      - "orm/"
+    carryforward: true
+
+ignore:
+  - "examples/**"
+  - "benchmarks/**"
+  - "cmd/**"
+  - "docs/**"
+  - "scripts/**"
+  - "testutil/**"
+  - "**/*_test.go"
+  - "**/export_test.go"
+
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: true

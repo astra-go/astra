@@ -1,0 +1,17 @@
+server:
+  port: 8080
+  mode: prod
+  shutdown_timeout: 30
+
+database:
+  dsn: "${DATABASE_DSN}"
+  max_open: 25
+  max_idle: 5
+
+cache:
+  redis_addr: "${REDIS_ADDR}"
+  key_prefix: "{{.NameLower}}:"
+
+log:
+  level: info
+  format: json

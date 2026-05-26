@@ -1,0 +1,17 @@
+# Showcase RBAC policy
+# Format: p, role, resource_pattern, action_regex
+
+# admin — full access
+p, admin, /api/v1/*, (GET|POST|PUT|DELETE|PATCH)
+
+# seller — manage own products, view orders
+p, seller, /api/v1/products,     (GET|POST)
+p, seller, /api/v1/products/:id, (GET|PUT|DELETE)
+p, seller, /api/v1/orders,       GET
+p, seller, /api/v1/orders/:id,   GET
+
+# buyer — browse products, manage own orders
+p, buyer, /api/v1/products,     GET
+p, buyer, /api/v1/products/:id, GET
+p, buyer, /api/v1/orders,       (GET|POST)
+p, buyer, /api/v1/orders/:id,   GET

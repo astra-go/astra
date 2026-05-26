@@ -1,0 +1,25 @@
+{
+  "go.toolsManagement.autoUpdate": true,
+  "editor.formatOnSave": true,
+  "[go]": {
+    "editor.defaultFormatter": "golang.go",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "gopls": {
+    "ui.semanticTokens": true,
+    "formatting.gofumpt": true
+  },
+  "go.lintTool": "golangci-lint",
+  "go.lintFlags": ["--fast"],
+  "files.exclude": {
+    "**/vendor": true,
+    "**/.git": true,
+    "**/bin": true
+  },
+  "files.watcherExclude": {
+    "**/vendor/**": true,
+    "**/bin/**": true
+  }
+}

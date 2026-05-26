@@ -1,0 +1,26 @@
+module github.com/astra-go/astra/runner
+
+// go 1.22.0 — downgraded from 1.25.9.
+go 1.25.8
+
+// Standalone task-runner module — unified scheduler interface with four backends.
+require (
+	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000
+	github.com/go-co-op/gocron/v2 v2.11.0
+)
+
+require (
+	github.com/google/uuid v1.6.0 // indirect
+	github.com/jonboulle/clockwork v0.4.0 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
+)
+
+replace (
+	github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../
+	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
+	github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ../discovery
+	github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 => ../taskqueue
+	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil
+)

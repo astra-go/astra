@@ -1,0 +1,31 @@
+# Kustomize base for Astra — shared resources for all environments
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+commonLabels:
+  app.kubernetes.io/name: astra
+  app.kubernetes.io/part-of: astra-app
+
+namespace: astra
+
+# Replicas can be overridden per overlay
+replicas:
+  - name: astra-app
+    count: 2
+
+images:
+  - name: myorg/astra-app
+    newName: myorg/astra-app
+    newTag: latest   # override per environment: kustomize edit set image myorg/astra-app:prod
+
+configMapGenerator:
+  - name: astra-config
+    literals:
+      - LOG_LEVEL=info
+      - GIN_MODE=release
+    # Optionally mount a config file from a secret or configmap
+    # behavior: replace merges; behavior: create replaces entirely

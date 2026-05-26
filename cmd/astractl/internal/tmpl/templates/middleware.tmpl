@@ -1,0 +1,18 @@
+package {{.Pkg}}
+
+import "github.com/astra-go/astra"
+
+// {{.Name}} is a custom Astra middleware.
+func {{.Name}}(/* options */) astra.MiddlewareFunc {
+	return func(c *astra.Context) error {
+		// ── Before handler ────────────────────────────────────────────────────
+		// c.Set("myKey", "myValue")
+
+		c.Next()
+
+		// ── After handler ─────────────────────────────────────────────────────
+		// status := c.Writer.Status()
+
+		return nil
+	}
+}

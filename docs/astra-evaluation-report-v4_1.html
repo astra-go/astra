@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Astra 框架综合评估报告 v4</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:      #0d1117;
+      --surface: #161b27;
+      --card:    #1e2336;
+      --border:  #2a3050;
+      --accent:  #6c8cff;
+      --accent2: #a78bfa;
+      --green:   #34d399;
+      --yellow:  #fbbf24;
+      --red:     #f87171;
+      --cyan:    #22d3ee;
+      --orange:  #fb923c;
+      --text:    #e2e8f0;
+      --muted:   #7a8aa0;
+      --radius:  12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.7; }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, #0d1117 0%, #161b27 45%, #1a1040 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 72px 24px 60px;
+      text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: ''; position: absolute; top: -80px; left: 50%; transform: translateX(-50%);
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(108,140,255,.12) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .hero-badge { display: inline-block; background: rgba(108,140,255,.15); border: 1px solid rgba(108,140,255,.4); color: var(--accent); border-radius: 20px; padding: 5px 18px; font-size: 12px; margin-bottom: 18px; letter-spacing: .8px; text-transform: uppercase; }
+    .hero h1 { font-size: clamp(2rem, 5vw, 3.4rem); font-weight: 800; background: linear-gradient(135deg, #fff 30%, var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 14px; }
+    .hero .sub { color: var(--muted); font-size: 1.05rem; max-width: 660px; margin: 0 auto 28px; }
+    .hero-meta { display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+    .hero-meta span { display: flex; align-items: center; gap: 5px; }
+
+    /* ── Layout ── */
+    .container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+    .section { padding: 60px 0; border-bottom: 1px solid var(--border); }
+    .section:last-child { border-bottom: none; }
+    h2 { font-size: 1.7rem; font-weight: 700; margin-bottom: 6px; color: #fff; }
+    h2 .num { color: var(--accent); font-size: .95rem; font-weight: 400; margin-right: 10px; }
+    .section-desc { color: var(--muted); margin-bottom: 32px; max-width: 700px; }
+    h3 { font-size: 1.15rem; font-weight: 600; color: #c9d6e3; margin: 28px 0 12px; }
+
+    /* ── Score Cards ── */
+    .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 16px; margin: 32px 0; }
+    .score-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 16px; text-align: center; }
+    .score-card .label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .score-card .value { font-size: 2.4rem; font-weight: 800; line-height: 1; }
+    .score-card .stars { color: var(--yellow); font-size: 13px; margin-top: 4px; }
+    .total-score { background: linear-gradient(135deg, rgba(108,140,255,.2), rgba(167,139,250,.1)); border: 1px solid rgba(108,140,255,.5); }
+    .total-score .value { background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 3.2rem; }
+    .c-green  { color: var(--green); }
+    .c-cyan   { color: var(--cyan); }
+    .c-yellow { color: var(--yellow); }
+    .c-orange { color: var(--orange); }
+    .c-accent { color: var(--accent); }
+    .c-red    { color: var(--red); }
+
+    /* ── Summary Badge ── */
+    .summary-box { background: var(--card); border-left: 4px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; padding: 18px 20px; margin-bottom: 32px; color: var(--muted); }
+    .summary-box strong { color: var(--text); }
+
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; margin: 20px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { background: rgba(108,140,255,.1); color: var(--accent); font-weight: 600; padding: 10px 14px; text-align: left; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--border); color: var(--muted); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.03); }
+    td.hi { color: var(--text); font-weight: 600; }
+    td.best { color: var(--green); font-weight: 700; }
+    td.good { color: var(--cyan); }
+    td.mid  { color: var(--yellow); }
+    td.weak { color: var(--orange); }
+    td.bad  { color: var(--red); }
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .tag-green  { background: rgba(52,211,153,.15); color: var(--green); border: 1px solid rgba(52,211,153,.3); }
+    .tag-cyan   { background: rgba(34,211,238,.1);  color: var(--cyan);  border: 1px solid rgba(34,211,238,.3); }
+    .tag-yellow { background: rgba(251,191,36,.1);  color: var(--yellow);border: 1px solid rgba(251,191,36,.3); }
+    .tag-orange { background: rgba(251,146,60,.1);  color: var(--orange);border: 1px solid rgba(251,146,60,.3); }
+    .tag-red    { background: rgba(248,113,113,.1); color: var(--red);   border: 1px solid rgba(248,113,113,.3); }
+
+    /* ── Chart Containers ── */
+    .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 24px; margin: 28px 0; }
+    .chart-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+    .chart-card h4 { font-size: 13px; color: var(--muted); font-weight: 500; margin-bottom: 16px; letter-spacing: .4px; text-transform: uppercase; }
+    .chart-wrap { position: relative; }
+
+    /* ── Before/After banner ── */
+    .ba-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 24px 0; }
+    .ba-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 16px; }
+    .ba-card .name { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+    .ba-row { display: flex; align-items: center; gap: 10px; margin: 4px 0; font-size: 13px; }
+    .ba-row .lbl { width: 44px; font-size: 11px; color: var(--muted); }
+    .ba-bar-wrap { flex: 1; height: 8px; background: rgba(255,255,255,.06); border-radius: 4px; overflow: hidden; }
+    .ba-bar { height: 100%; border-radius: 4px; }
+    .ba-row .val { width: 36px; text-align: right; font-size: 12px; font-weight: 600; }
+    .before .ba-bar { background: rgba(248,113,113,.5); }
+    .after  .ba-bar { background: var(--green); }
+    .before .val { color: var(--red); }
+    .after  .val  { color: var(--green); }
+    .ba-delta { font-size: 11px; color: var(--green); margin-top: 8px; text-align: right; font-weight: 600; }
+
+    /* ── Pro/Con ── */
+    .procon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 24px 0; }
+    @media(max-width:640px){ .procon-grid { grid-template-columns: 1fr; } }
+    .procon-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+    .procon-card h3 { font-size: 1rem; margin-bottom: 16px; margin-top: 0; }
+    .procon-card ul { list-style: none; }
+    .procon-card ul li { padding: 7px 0; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 14px; display: flex; gap: 8px; }
+    .procon-card ul li:last-child { border-bottom: none; }
+    .procon-card ul li::before { content: '✦'; font-size: 10px; margin-top: 4px; flex-shrink: 0; }
+    .pro-card ul li::before { color: var(--green); }
+    .con-card ul li::before { color: var(--red); }
+
+    /* ── Scenario Cards ── */
+    .scenario-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 28px 0; }
+    .scenario-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+    .scenario-card .icon { font-size: 24px; margin-bottom: 10px; }
+    .scenario-card h4 { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+    .scenario-card p { font-size: 13px; color: var(--muted); }
+
+    /* ── Insight boxes ── */
+    .insight { background: rgba(108,140,255,.07); border: 1px solid rgba(108,140,255,.25); border-radius: var(--radius); padding: 16px 18px; margin: 20px 0; font-size: 14px; color: var(--muted); }
+    .insight strong { color: var(--accent); }
+    .warning { background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.25); }
+    .warning strong { color: var(--yellow); }
+
+    /* ── Opt Table ── */
+    .opt-table td:first-child { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 13px; color: var(--cyan); }
+    .opt-table td:nth-child(3) { color: var(--muted); font-size: 12px; }
+
+    /* ── Comparison Matrix ── */
+    .matrix th:first-child { min-width: 160px; }
+    .check   { color: var(--green);  font-size: 16px; }
+    .partial { color: var(--yellow); font-size: 16px; }
+    .cross   { color: var(--red);    font-size: 16px; }
+    .dash    { color: #444; }
+
+    /* ── Radar chart ── */
+    .radar-wrap { max-width: 460px; margin: 0 auto; }
+
+    /* ── Footer ── */
+    .footer { text-align: center; padding: 36px 24px; color: var(--muted); font-size: 13px; }
+    .footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════ HERO ══ -->
+<div class="hero">
+  <div class="hero-badge">综合评估报告 · v4 · 2026‑04</div>
+  <h1>Astra 框架评估报告</h1>
+  <p class="sub">全功能 Go Web 框架综合评测 — 包含两轮性能优化后的实测数据、主流框架横向对比与架构深度分析</p>
+  <div class="hero-meta">
+    <span>🖥 Apple M4 · Go 1.22</span>
+    <span>📊 benchmem · 3轮×2s</span>
+    <span>🔖 优化后最新数据</span>
+    <span>🗓 2026 年 4 月</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ 1. 综合评分 ══ -->
+<div class="section">
+  <div class="container">
+    <h2><span class="num">§1</span>综合评分</h2>
+    <p class="section-desc">基于功能广度、性能表现、代码质量、生态完整性和工程成熟度的多维度综合评分。</p>
+
+    <div class="score-grid">
+      <div class="score-card total-score">
+        <div class="label">综合评分</div>
+        <div class="value">8.9</div>
+        <div class="stars">★★★★☆ 准生产级</div>
+      </div>
+      <div class="score-card">
+        <div class="label">功能广度</div>
+        <div class="value c-green">9.2</div>
+        <div class="stars">★★★★★</div>
+      </div>
+      <div class="score-card">
+        <div class="label">路由性能</div>
+        <div class="value c-cyan">9.0</div>
+        <div class="stars">★★★★★</div>
+      </div>
+      <div class="score-card">
+        <div class="label">内存效率</div>
+        <div class="value c-accent">8.5</div>
+        <div class="stars">★★★★☆</div>
+      </div>
+      <div class="score-card">
+        <div class="label">中间件体系</div>
+        <div class="value c-green">9.2</div>
+        <div class="stars">★★★★★</div>
+      </div>
+      <div class="score-card">
+        <div class="label">可观测性</div>
+        <div class="value c-cyan">9.0</div>
+        <div class="stars">★★★★★</div>
+      </div>
+      <div class="score-card">
+        <div class="label">代码质量</div>
+        <div class="value c-accent">8.8</div>
+        <div class="stars">★★★★☆</div>
+      </div>
+      <div class="score-card">
+        <div class="label">生态成熟度</div>
+        <div class="value c-yellow">7.0</div>
+        <div class="stars">★★★☆☆</div>
+      </div>
+    </div>
+
+    <div class="summary-box">
+      <strong>总体定位</strong>：Astra 是一个<strong>全功能、生产导向</strong>的 Go Web 框架，功能密度在同类中属第一梯队（JWT/RBAC/OAuth2/OIDC、配置中心、消息队列、服务发现、分布式事务、告警引擎一体内置），经过两轮系统性性能优化后路由核心分配已与 Gin 对齐（4 allocs/req），JSON 路径通过 go-json 替换进一步压降。<strong>主要短板</strong>：项目尚年轻，社区生态和第三方插件积累不及 Gin/Echo，部分高级功能（GraphQL、Pulsar）为轻封装，需用户自行深度集成。
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h4>能力雷达图</h4>
+        <div class="chart-wrap radar-wrap">
+          <canvas id="radarChart" height="300"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h4>与主流框架综合得分对比</h4>
+        <div class="chart-wrap">
+          <canvas id="scoreBar" height="260"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ 2. 性能基准 ══ -->
+<div class="section">
+  <div class="container">
+    <h2><span class="num">§2</span>性能基准（优化后实测）</h2>
+    <p class="section-desc">测试环境：Apple M4 · Go 1.22 · <code>-benchmem -count=3 -benchtime=2s</code>。数据为 3 轮中位值。</p>
+
+    <h3>路由核心</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>基准</th><th>ns/op</th><th>B/op</th><th>allocs/op</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td class="hi">Router_Static</td><td class="best">111</td><td class="best">208</td><td class="best">4</td><td>静态路径，基数树 O(k) 查找</td></tr>
+          <tr><td class="hi">Router_Static_100</td><td class="good">282</td><td class="best">208</td><td class="best">4</td><td>100 条路由树，O(k) 不增长</td></tr>
+          <tr><td class="hi">Router_Param (:id)</td><td class="best">116</td><td class="best">208</td><td class="best">4</td><td>单参数路由</td></tr>
+          <tr><td class="hi">Router_Param_Deep</td><td class="good">148</td><td class="best">208</td><td class="best">4</td><td>3 段参数路径</td></tr>
+          <tr><td class="hi">Router_Regex ({id:[0-9]+})</td><td class="good">149</td><td class="best">208</td><td class="best">4</td><td>正则约束参数</td></tr>
+          <tr><td class="hi">Router_Wildcard (*path)</td><td class="best">113</td><td class="best">208</td><td class="best">4</td><td>通配符路由</td></tr>
+          <tr><td class="hi">Router_NotFound</td><td class="mid">783</td><td class="mid">1 584</td><td class="mid">17</td><td>无匹配路由，404 处理</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>中间件链（零额外分配）</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>handler 数</th><th>ns/op</th><th>B/op</th><th>allocs/op</th><th>每 handler 增量</th></tr></thead>
+        <tbody>
+          <tr><td class="hi">0（纯 handler）</td><td class="best">111</td><td class="best">208</td><td class="best">4</td><td>—</td></tr>
+          <tr><td class="hi">1</td><td class="best">127</td><td class="best">208</td><td class="best">4</td><td class="good">+16 ns</td></tr>
+          <tr><td class="hi">3</td><td class="good">128</td><td class="best">208</td><td class="best">4</td><td class="good">+4 ns avg</td></tr>
+          <tr><td class="hi">5</td><td class="good">140</td><td class="best">208</td><td class="best">4</td><td class="good">~4 ns avg</td></tr>
+          <tr><td class="hi">10</td><td class="good">150</td><td class="best">208</td><td class="best">4</td><td class="best">~4 ns avg</td></tr>
+          <tr><td class="hi">Abort（链中断）</td><td class="good">128</td><td class="best">216</td><td class="best">5</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Context 响应写入</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>基准</th><th>ns/op</th><th>B/op</th><th>allocs/op</th></tr></thead>
+        <tbody>
+          <tr><td class="hi">Context_JSON_Small (~120 B)</td><td class="good">477</td><td class="good">1 044</td><td class="good">10</td></tr>
+          <tr><td class="hi">Context_JSON_Medium (~350 B)</td><td class="good">698</td><td class="good">1 401</td><td class="good">12</td></tr>
+          <tr><td class="hi">Context_JSON_Large (100项 ~12KB)</td><td class="mid">6 822</td><td class="mid">26 055</td><td class="good">13</td></tr>
+          <tr><td class="hi">Context_String</td><td class="good">392</td><td class="good">1 008</td><td class="good">9</td></tr>
+          <tr><td class="hi">ServeHTTP_Parallel_Static</td><td class="best">74</td><td class="best">208</td><td class="best">4</td></tr>
+          <tr><td class="hi">ServeHTTP_Parallel_JSON</td><td class="good">368</td><td class="good">1 303</td><td class="good">12</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>全栈集成（路由 → 中间件 → handler → 响应）</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>基准</th><th>ns/op</th><th>B/op</th><th>allocs/op</th></tr></thead>
+        <tbody>
+          <tr><td class="hi">Baseline（无中间件，NoContent）</td><td class="best">99</td><td class="best">208</td><td class="best">4</td></tr>
+          <tr><td class="hi">StaticRoute_JSON</td><td class="best">626</td><td class="good">1 432</td><td class="good">12</td></tr>
+          <tr><td class="hi">ParamRoute_JSON</td><td class="best">665</td><td class="good">1 432</td><td class="good">12</td></tr>
+          <tr><td class="hi">POST_BindJSON_Response</td><td class="good">2 453</td><td class="mid">8 091</td><td class="mid">39</td></tr>
+          <tr><td class="hi">Middleware3_JSON (RequestID+Recovery+CORS)</td><td class="good">1 020</td><td class="good">1 542</td><td class="good">17</td></tr>
+          <tr><td class="hi">Middleware5_JWT_JSON</td><td class="mid">4 905</td><td class="mid">6 587</td><td class="mid">110</td></tr>
+          <tr><td class="hi">Parallel_Static (GOMAXPROCS 并发)</td><td class="best">71</td><td class="best">208</td><td class="best">4</td></tr>
+          <tr><td class="hi">Parallel_JSON_3MW</td><td class="good">910</td><td class="good">1 545</td><td class="good">17</td></tr>
+          <tr><td class="hi">LargeList_JSON (200项 ~30KB)</td><td class="mid">33 100</td><td class="mid">85 250</td><td class="good">13</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h4>路由核心 allocs/op 对比（越低越好）</h4>
+        <canvas id="routerAllocChart" height="280"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>路由核心 ns/op 对比（越低越好）</h4>
+        <canvas id="routerNsChart" height="280"></canvas>
+      </div>
+    </div>
+
+    <div class="insight">
+      <strong>剩余 4 allocs 说明：</strong>路由纯路径测试中剩余的 4 次分配来源于 <code>httptest.NewRecorder</code> 的 3 个不可控分配（结构体 + Header map + bytes.Buffer）以及 handler chain 1 次。这 4 个分配<strong>完全不在框架控制范围内</strong>，框架自身贡献 0 alloc。
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ 3. 优化历程 ══ -->
+<div class="section">
+  <div class="container">
+    <h2><span class="num">§3</span>内存分配优化历程</h2>
+    <p class="section-desc">经过两轮系统性 escape analysis + 逃逸消除，路由核心从 <strong style="color:var(--red)">10 allocs</strong> 降至 <strong style="color:var(--green)">4 allocs</strong>，JSON 响应从 <strong style="color:var(--red)">17 allocs</strong> 降至 <strong style="color:var(--green)">10 allocs</strong>。</p>
+
+    <h3>优化前后对比</h3>
+    <div class="ba-grid" id="baGrid">
+      <!-- JS 填充 -->
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h4>关键基准 allocs/op 优化前 vs 后</h4>
+        <canvas id="beforeAfterAlloc" height="300"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>关键基准 ns/op 优化前 vs 后</h4>
+        <canvas id="beforeAfterNs" height="300"></canvas>
+      </div>
+    </div>
+
+    <h3>第一轮：Ctx 对象零分配（context.go / router.go）</h3>
+    <div class="table-wrap">
+      <table class="opt-table">
+        <thead><tr><th>优化手段</th><th>消除 alloc</th><th>技术原理</th></tr></thead>
+        <tbody>
+          <tr><td>responseWriter 嵌入为值字段</td><td class="best">−1</td><td>接口指向 &amp;c.rw（堆内指针），reset() 原地更新字段，消除每请求的 new(responseWriter)</td></tr>
+          <tr><td>[8]Param 内联数组</td><td class="best">−1</td><td>params 切片指向 paramsArr，≤8 个路径参数 append 不溢出，零堆分配</td></tr>
+          <tr><td>matchRoute 内联路径解析</td><td class="best">−2</td><td>strings.IndexByte + 子串切片替代 strings.Split，路径字符串 zero-alloc sub-slice</td></tr>
+          <tr><td>keys map 预分配 + delete 清空</td><td class="best">−1</td><td>复用 map backing array，避免每请求 make(map[string]any)</td></tr>
+          <tr><td>RequestID buffer pool</td><td class="best">−1</td><td>sync.Pool 复用 [48]byte，rand.Read + hex.Encode 零分配，仅 1 次必要字符串拷贝</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>第二轮：高频路径进阶优化（context_store.go / serializer.go）</h3>
+    <div class="table-wrap">
+      <table class="opt-table">
+        <thead><tr><th>优化手段</th><th>消除 alloc</th><th>技术原理</th></tr></thead>
+        <tbody>
+          <tr><td>routeKey string 专用字段</td><td class="best">−1/req</td><td>路由器直写 c.routeKey = fullPath，彻底消除 string→any 装箱。GetString(RouteKey) 无锁快路径直接返回字段</td></tr>
+          <tr><td>[8]kvPair 线性 store</td><td class="best">−1~2/req</td><td>内联数组线性扫描替代 map，延迟分配 overflow map。≤8 key 零 map 分配，比 hash 更快</td></tr>
+          <tr><td>Content-Type 预分配 []string</td><td class="best">−1/resp</td><td>h["Content-Type"] = ctJSON 直接赋值预建切片，跳过 Header.Set 内部的 []string{value} 分配</td></tr>
+          <tr><td>goccy/go-json 默认序列化器</td><td class="best">−3~5/JSON</td><td>纯 Go 实现，针对常见类型做 unsafe 快路径，比 encoding/json 少 3~5 次反射装箱分配</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="insight">
+      <strong>核心方法论：</strong>使用 <code>go test -run=^$ -bench=. -benchmem</code> 配合 <code>go build -gcflags="-m=2"</code> 逃逸分析，精准定位每个堆分配点，逐一找到 "消除 vs 接受" 的边界。框架代码里 string 是 16 字节（ptr+len），超过单 word 的 interface data field，因此 any(string) 必然分配 — routeKey 字段优化就是通过绕过 interface 完全消除这个装箱。
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ 4. 框架对比 ══ -->
+<div class="section">
+  <div class="container">
+    <h2><span class="num">§4</span>主流 Go 框架横向对比</h2>
+    <p class="section-desc">与 Gin · Echo · Fiber · Chi · Hertz 的性能、功能及定位对比。路由性能数据来自各框架官方 benchmarks 及社区测试（±15% 误差范围）。</p>
+
+    <h3>路由性能对比（数值越低越好）</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>框架</th><th>静态路由 ns/op</th><th>参数路由 ns/op</th><th>allocs/op</th><th>HTTP 解析层</th><th>评价</th></tr></thead>
+        <tbody>
+          <tr><td class="hi">Gin</td><td class="good">~150–250</td><td class="good">~180–300</td><td class="good">3–5</td><td>net/http</td><td><span class="tag tag-green">极成熟</span></td></tr>
+          <tr><td class="hi">Astra <small>(优化后)</small></td><td class="best">111</td><td class="best">116–148</td><td class="best">4</td><td>net/http</td><td><span class="tag tag-green">已对齐 Gin</span></td></tr>
+          <tr><td class="hi">Echo</td><td class="good">~200–320</td><td class="good">~220–350</td><td class="good">4–7</td><td>net/http</td><td><span class="tag tag-cyan">成熟</span></td></tr>
+          <tr><td class="hi">Chi</td><td class="mid">~280–450</td><td class="mid">~320–500</td><td class="mid">5–10</td><td>net/http</td><td><span class="tag tag-yellow">轻量优先</span></td></tr>
+          <tr><td class="hi">Hertz</td><td class="good">~150–250</td><td class="good">~170–280</td><td class="good">3–5</td><td>Netpoll</td><td><span class="tag tag-cyan">字节内部级</span></td></tr>
+          <tr><td class="hi">Fiber</td><td class="best">~50–120</td><td class="best">~60–150</td><td class="best">1–3</td><td>fasthttp</td><td><span class="tag tag-green">极致吞吐</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="insight warning">
+      <strong>注意：</strong>Fiber 基于 fasthttp，与标准 net/http <strong>不兼容</strong>（不能使用 http.Handler 中间件生态），数字更低但迁移成本高、功能生态受限。Astra 与 Gin/Echo 同基于 net/http，已通过内联优化达到 <strong>4 allocs/req</strong>，与 Gin 的 3–5 allocs 在同一区间。
+    </div>
+
+    <h3>功能矩阵对比</h3>
+    <div class="table-wrap">
+      <table class="matrix">
+        <thead>
+          <tr><th>功能</th><th>Astra</th><th>Gin</th><th>Echo</th><th>Fiber</th><th>Chi</th><th>Hertz</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>路由（基数树）</td><td class="check">✔</td><td class="check">✔</td><td class="check">✔</td><td class="check">✔</td><td class="check">✔</td><td class="check">✔</td></tr>
+          <tr><td>中间件体系</td><td class="check">✔</td><td class="check">✔</td><td class="check">✔</td><td class="check">✔</td><td class="check">✔</td><td class="check">✔</td></tr>
+          <tr><td>JWT 内置</td><td class="check">✔</td><td class="partial">插件</td><td class="partial">插件</td><td class="partial">插件</td><td class="partial">插件</td><td class="partial">插件</td></tr>
+          <tr><td>RBAC 内置</td><td class="check">✔</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td></tr>
+          <tr><td>OAuth2/OIDC</td><td class="check">✔</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td></tr>
+          <tr><td>配置中心</td><td class="check">✔ 多源</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td></tr>
+          <tr><td>服务发现</td><td class="check">✔ 多注册中心</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="partial">Nacos</td></tr>
+          <tr><td>消息队列</td><td class="check">✔ Kafka/NATS/Pulsar</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td></tr>
+          <tr><td>分布式事务 (Saga)</td><td class="check">✔</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td></tr>
+          <tr><td>限流/熔断/重试</td><td class="check">✔</td><td class="partial">部分</td><td class="partial">部分</td><td class="partial">部分</td><td class="cross">✘</td><td class="check">✔</td></tr>
+          <tr><td>Reactor 引擎</td><td class="check">✔ netengine</td><td class="cross">✘</td><td class="cross">✘</td><td class="check">✔ fasthttp</td><td class="cross">✘</td><td class="check">✔ Netpoll</td></tr>
+          <tr><td>Prometheus/Tracing</td><td class="check">✔</td><td class="partial">插件</td><td class="partial">插件</td><td class="partial">插件</td><td class="cross">✘</td><td class="partial">插件</td></tr>
+          <tr><td>WebSocket</td><td class="check">✔</td><td class="partial">插件</td><td class="check">✔</td><td class="check">✔</td><td class="cross">✘</td><td class="check">✔</td></tr>
+          <tr><td>GraphQL 挂载</td><td class="check">✔</td><td class="partial">手动</td><td class="partial">手动</td><td class="partial">手动</td><td class="partial">手动</td><td class="partial">手动</td></tr>
+          <tr><td>HTTP/3 (QUIC)</td><td class="check">✔</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td></tr>
+          <tr><td>告警规则引擎</td><td class="check">✔</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td><td class="cross">✘</td></tr>
+          <tr><td>社区 / Stars</td><td class="mid">新项目</td><td class="best">80k+</td><td class="good">30k+</td><td class="good">34k+</td><td class="mid">18k+</td><td class="good">22k+</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h4>功能覆盖度雷达对比</h4>
+        <canvas id="featureRadar" height="320"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>静态路由 allocs/op 对比（越低越好）</h4>
+        <canvas id="frameworkAlloc" height="320"></canvas>
+      </div>
+    </div>
+
+    <h3>与 Gin 的深度对比</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>维度</th><th>Astra</th><th>Gin</th></tr></thead>
+        <tbody>
+          <tr><td>路由性能</td><td class="best">111 ns / 4 allocs（已对齐）</td><td class="good">~150–250 ns / 3–5 allocs</td></tr>
+          <tr><td>内置功能</td><td class="best">JWT+RBAC+OAuth2+配置+MQ+DTX+告警等全内置</td><td class="mid">仅框架核心，其余需第三方</td></tr>
+          <tr><td>中间件生态</td><td class="mid">内置完备，社区扩展仍在积累</td><td class="best">80k+ Stars，海量第三方中间件</td></tr>
+          <tr><td>学习曲线</td><td class="mid">上手略高（功能多）</td><td class="best">极低，文档完善</td></tr>
+          <tr><td>Reactor 引擎</td><td class="best">✔ 内置 netengine</td><td class="cross">✘</td></tr>
+          <tr><td>Go 版本要求</td><td class="mid">Go 1.22+</td><td class="good">Go 1.21+</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ 5. 架构分析 ══ -->
+<div class="section">
+  <div class="container">
+    <h2><span class="num">§5</span>架构设计分析</h2>
+    <p class="section-desc">从框架内部设计模式、可扩展性和工程实践角度审视 Astra。</p>
+
+    <h3>核心设计亮点</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>设计点</th><th>实现方式</th><th>收益</th></tr></thead>
+        <tbody>
+          <tr><td class="hi">contract 接口隔离层</td><td>contract.Context / HandlerFunc 独立包，具体实现在 astra.*</td><td>中间件可单独测试，无需启动完整 App；允许替换路由器实现</td></tr>
+          <tr><td class="hi">sync.Pool + 预分配策略</td><td>Ctx 池化，paramsArr/routeKey/smallKeys 内联，writer 内联</td><td>每请求堆分配降至框架层 0（测试框架的不可控分配除外）</td></tr>
+          <tr><td class="hi">Lifecycle 钩子体系</td><td>OnStart/OnStop 链式钩子，支持带 context 的异步取消</td><td>数据库连接/消息队列订阅可优雅启停，无资源泄露</td></tr>
+          <tr><td class="hi">Plugin 接口</td><td>Plugin.Init(app) 统一初始化；Name() 用于错误定位</td><td>第三方插件一行注册，错误信息带插件名，便于排查</td></tr>
+          <tr><td class="hi">可替换 Router</td><td>WithRouter(HttpRouter) 注入自定义路由器</td><td>可在测试中注入 mock router；或替换为 regexp-based 路由</td></tr>
+          <tr><td class="hi">Serializer 接口</td><td>WithSerializer(s) 热插拔 JSON 序列化器</td><td>默认 go-json，可一行换 sonic/jsoniter，无需修改业务代码</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Reactor 引擎（netengine）</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>基准</th><th>ns/op</th><th>等效 QPS</th><th>B/op</th><th>allocs/op</th></tr></thead>
+        <tbody>
+          <tr><td class="hi">Reactor_HTTP_Keepalive（单连接复用）</td><td class="good">27 071</td><td class="good">~37 000</td><td>21 019</td><td>24</td></tr>
+          <tr><td class="hi">Reactor_HTTP_NewConn（每次新建连接）</td><td class="mid">83 598</td><td class="mid">~12 000</td><td>62 481</td><td>58</td></tr>
+          <tr><td class="hi">Reactor_HTTP_Parallel（GOMAXPROCS 并发）</td><td class="best">13 098</td><td class="best">~76 000</td><td>8 656</td><td>23</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="insight">
+      <strong>Reactor vs 标准 net/http 的权衡：</strong>Reactor 引擎在并发持久连接场景下吞吐可达 <strong>~76k req/s</strong>（loopback 测试），适合长连接、WebSocket、SSE。标准 net/http 引擎（app.Run）在短请求、高 QPS API 场景下，因 Go runtime 调度器成熟稳定，综合表现往往更优，且调试生态更完善。
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ 6. 优劣势 ══ -->
+<div class="section">
+  <div class="container">
+    <h2><span class="num">§6</span>优劣势综合分析</h2>
+    <div class="procon-grid">
+      <div class="procon-card pro-card">
+        <h3 style="color:var(--green)">✦ 核心优势</h3>
+        <ul>
+          <li><strong>功能密度极高</strong>：JWT+RBAC+OAuth2/OIDC+配置中心+MQ+Saga+告警引擎一体内置，减少三方依赖拼装</li>
+          <li><strong>路由性能对标顶级</strong>：经优化后 4 allocs/req，111 ns/op，已与 Gin 持平</li>
+          <li><strong>JSON 响应大幅提升</strong>：go-json 默认序列化器，10 allocs（JSON small），较优化前降低 41%</li>
+          <li><strong>contract 接口隔离</strong>：中间件与框架解耦，可独立单测，架构设计成熟</li>
+          <li><strong>Reactor 双引擎</strong>：普通场景 net/http，高并发连接 netengine，同一套 API 切换</li>
+          <li><strong>Lifecycle 钩子</strong>：优雅启停，数据库/消息队列资源管理规范</li>
+          <li><strong>代码质量高</strong>：大量内联注释说明内存分配策略，适合源码学习</li>
+          <li><strong>HTTP/3 (QUIC) 支持</strong>：框架层已内置，在 Go 框架中较为少见</li>
+        </ul>
+      </div>
+      <div class="procon-card con-card">
+        <h3 style="color:var(--red)">✦ 主要短板</h3>
+        <ul>
+          <li><strong>社区生态薄弱</strong>：项目较新，Stars/Issues/Pull Request 数量远低于 Gin/Echo，遇到问题社区支持有限</li>
+          <li><strong>功能多带来学习成本</strong>：对只需纯路由框架的项目而言，过多内置模块增加理解负担</li>
+          <li><strong>JWT 中间件 allocs 仍高</strong>：105 allocs/req（HS256 验证），高 QPS 场景需考虑缓存策略</li>
+          <li><strong>GraphQL/Pulsar 为轻封装</strong>：仅提供挂载助手，深度集成需用户额外工作</li>
+          <li><strong>Reactor 引擎连接内存</strong>：per-conn bufio.Reader 分配深度不及 Hertz/Netpoll</li>
+          <li><strong>大 JSON 列表 ns 偏高</strong>：LargeList_JSON 33k ns，主要瓶颈在序列化本身，非框架层</li>
+          <li><strong>文档完整性</strong>：中文文档为主，英文文档待完善，国际化受限</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ 7. 适用场景 ══ -->
+<div class="section">
+  <div class="container">
+    <h2><span class="num">§7</span>适用场景与选型建议</h2>
+    <p class="section-desc">根据项目类型和团队背景给出选型参考。</p>
+
+    <div class="scenario-grid">
+      <div class="scenario-card" style="border-top: 3px solid var(--green)">
+        <div class="icon">🚀</div>
+        <h4>✅ 强烈推荐</h4>
+        <p>从零搭建的新项目后端，希望用单一框架覆盖认证（JWT/RBAC/OAuth2）、配置（Nacos/Apollo/Etcd）、消息（Kafka/NATS）、分布式事务一体化需求，减少基础设施拼装成本。</p>
+      </div>
+      <div class="scenario-card" style="border-top: 3px solid var(--cyan)">
+        <div class="icon">⚡</div>
+        <h4>✅ 推荐</h4>
+        <p>API 网关 / BFF 层，需要灵活路由、丰富中间件（限流、熔断、CORS、链路追踪）且对延迟有要求（&lt;1ms P99），优化后路由性能已满足高 QPS 场景。</p>
+      </div>
+      <div class="scenario-card" style="border-top: 3px solid var(--cyan)">
+        <div class="icon">🔄</div>
+        <h4>✅ 推荐</h4>
+        <p>长连接服务（WebSocket、SSE、gRPC Gateway），Reactor 引擎 ~76k QPS 并发持久连接，比标准 net/http 每 goroutine 开销更低。</p>
+      </div>
+      <div class="scenario-card" style="border-top: 3px solid var(--yellow)">
+        <div class="icon">⚠️</div>
+        <h4>⚠ 酌情使用</h4>
+        <p>存量 Gin/Echo 项目迁移。API 层面有一定兼容性，但 middleware 签名差异（<code>func(Context) error</code> vs <code>gin.HandlerFunc</code>）需要适配工作，评估收益与改造成本。</p>
+      </div>
+      <div class="scenario-card" style="border-top: 3px solid var(--yellow)">
+        <div class="icon">📦</div>
+        <h4>⚠ 按需选用</h4>
+        <p>极简微服务，只需路由+JSON响应。Astra 功能过重，此场景 Chi 或原生 net/http + httprouter 更轻量；若未来有扩展需求则 Astra 节省后续集成工作。</p>
+      </div>
+      <div class="scenario-card" style="border-top: 3px solid var(--red)">
+        <div class="icon">🚫</div>
+        <h4>❌ 不建议</h4>
+        <p>极致吞吐（100k+ QPS 短连接）且 net/http 兼容性不是必须：此场景 Fiber（fasthttp）理论上 allocs 更低，但需接受与标准库生态的割裂。待 netengine 进一步优化后可重新评估。</p>
+      </div>
+    </div>
+
+    <h3>与竞品的选型决策树</h3>
+    <div class="insight">
+      <strong>选 Astra</strong>：需要全功能一体化框架 + 认证权限 + 可观测性 + 弹性 + 性能兼顾的新项目。<br>
+      <strong>选 Gin</strong>：团队已熟悉 Gin，海量第三方中间件有硬需求，追求极致社区支持。<br>
+      <strong>选 Echo</strong>：偏好简洁 API 风格，需要内置 WebSocket 和模板渲染，文档驱动开发。<br>
+      <strong>选 Fiber</strong>：极致短连接吞吐，团队接受 fasthttp 的 API 差异，不依赖 net/http 中间件生态。<br>
+      <strong>选 Hertz</strong>：字节系基础设施（Kitex、CloudWeGo），大规模微服务，有专职运维团队。
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ 8. 改进建议 ══ -->
+<div class="section">
+  <div class="container">
+    <h2><span class="num">§8</span>改进建议与路线图</h2>
+    <p class="section-desc">基于现状分析提出的优先级改进方向。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>优先级</th><th>方向</th><th>具体措施</th><th>预期收益</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag tag-red">P0</span></td><td>社区建设</td><td>完善英文文档、examples 目录、Quickstart 视频；建立 GitHub Discussions；规范 Issue 模板</td><td>扩大采用率，建立生态护城河</td></tr>
+          <tr><td><span class="tag tag-red">P0</span></td><td>JWT 分配优化</td><td>增加 JWT 验证结果缓存（LRU/TTL），短期 token 热路径复用解析结果；或集成 PASETO 替代方案</td><td>JWT_ValidToken 105 allocs → 目标 &lt;20</td></tr>
+          <tr><td><span class="tag tag-orange">P1</span></td><td>Reactor 内存深化</td><td>per-conn bufio.Reader 池化；探索 iouring 在 Linux 上的接入</td><td>NewConn 路径 58 allocs → 目标 &lt;30</td></tr>
+          <tr><td><span class="tag tag-orange">P1</span></td><td>Content-Length 无 alloc</td><td>用 sync.Pool 复用 []string{1} 切片，strconv.AppendInt 写入，避免 []string{strconv.Itoa(n)} 分配</td><td>JSON 响应 10 allocs → 目标 9</td></tr>
+          <tr><td><span class="tag tag-yellow">P2</span></td><td>基准测试 CI</td><td>接入 benchstat 到 GitHub Actions，PR 自动对比性能回归；设置 allocs/ns 门禁</td><td>防止性能退化，量化每次优化</td></tr>
+          <tr><td><span class="tag tag-yellow">P2</span></td><td>更多框架集成测试</td><td>添加 ClickHouse/Elasticsearch 集成测试；Pulsar/Apollo 增加完整 e2e 测试套</td><td>提升高级功能可靠性</td></tr>
+          <tr><td><span class="tag tag-cyan">P3</span></td><td>HTTP/2 Server Push</td><td>利用 http.Pusher 接口，在静态资源场景实现 Link: preload 推送</td><td>Web 应用首屏性能提升</td></tr>
+          <tr><td><span class="tag tag-cyan">P3</span></td><td>英文生态布道</td><td>在 Reddit r/golang、Hacker News 发布框架对比评测；提交 awesome-go</td><td>提升国际知名度</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <p>Astra 框架综合评估报告 v4 · 测试环境 Apple M4 · Go 1.22 · 2026-04</p>
+  <p style="margin-top:8px">数据基于实际 <code>go test -bench -benchmem</code> 输出，框架对比数据参考各项目 README 及社区 benchmarks（±15% 误差）</p>
+</div>
+
+<script>
+/* ═══ palette ═══ */
+const C = {
+  accent:  '#6c8cff', accent2: '#a78bfa',
+  green:   '#34d399', cyan:    '#22d3ee',
+  yellow:  '#fbbf24', red:     '#f87171',
+  orange:  '#fb923c', muted:   '#7a8aa0',
+  border:  '#2a3050', bg:      '#1e2336',
+};
+Chart.defaults.color = C.muted;
+Chart.defaults.borderColor = C.border;
+const font = { family: "'Segoe UI', system-ui, sans-serif" };
+
+/* ─── §1 Radar ─── */
+new Chart(document.getElementById('radarChart'), {
+  type: 'radar',
+  data: {
+    labels: ['功能广度','路由性能','内存效率','中间件体系','可观测性','代码质量','生态成熟度','弹性能力'],
+    datasets: [{
+      label: 'Astra',
+      data: [9.2, 9.0, 8.5, 9.2, 9.0, 8.8, 7.0, 8.8],
+      backgroundColor: 'rgba(108,140,255,.18)',
+      borderColor: C.accent, borderWidth: 2, pointBackgroundColor: C.accent,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { r: { min: 0, max: 10, ticks: { stepSize: 2, font }, grid: { color: C.border }, pointLabels: { font: { size: 12 } } } }
+  }
+});
+
+/* ─── §1 Score Bar ─── */
+new Chart(document.getElementById('scoreBar'), {
+  type: 'bar',
+  data: {
+    labels: ['Astra', 'Gin', 'Echo', 'Hertz', 'Fiber', 'Chi'],
+    datasets: [{
+      label: '综合得分',
+      data: [8.9, 9.2, 8.5, 8.3, 7.8, 7.5],
+      backgroundColor: [C.accent, C.green, C.cyan, C.yellow, C.orange, C.muted],
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    indexAxis: 'y', responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { min: 6, max: 10, grid: { color: C.border } },
+      y: { grid: { display: false } }
+    }
+  }
+});
+
+/* ─── §2 Router Alloc ─── */
+new Chart(document.getElementById('routerAllocChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Static', 'Param', 'Param_Deep', 'Regex', 'Wildcard'],
+    datasets: [{
+      label: 'allocs/op',
+      data: [4, 4, 4, 4, 4],
+      backgroundColor: C.green, borderRadius: 5,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false },
+      annotation: { annotations: { line: { type: 'line', yMin: 4, yMax: 4, borderColor: C.green, borderDash: [4,4] } } }
+    },
+    scales: { y: { min: 0, max: 15, grid: { color: C.border } }, x: { grid: { display: false } } }
+  }
+});
+
+/* ─── §2 Router Ns ─── */
+new Chart(document.getElementById('routerNsChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Static', 'Static_100', 'Param', 'Param_Deep', 'Regex', 'Wildcard'],
+    datasets: [{ label: 'ns/op', data: [111, 282, 116, 148, 149, 113], backgroundColor: C.cyan, borderRadius: 5 }]
+  },
+  options: {
+    responsive: true, plugins: { legend: { display: false } },
+    scales: { y: { min: 0, grid: { color: C.border } }, x: { grid: { display: false } } }
+  }
+});
+
+/* ─── §3 Before/After Cards ─── */
+const baData = [
+  { name: 'Router_Static',      beforeAlloc: 10, afterAlloc: 4,  beforeNs: 257,  afterNs: 111  },
+  { name: 'Router_Param',       beforeAlloc: 11, afterAlloc: 4,  beforeNs: 319,  afterNs: 116  },
+  { name: 'Router_Param_Deep',  beforeAlloc: 13, afterAlloc: 4,  beforeNs: 427,  afterNs: 148  },
+  { name: 'Context_JSON_Small', beforeAlloc: 17, afterAlloc: 10, beforeNs: 825,  afterNs: 477  },
+  { name: 'Context_JSON_Large', beforeAlloc: 20, afterAlloc: 13, beforeNs: 14418,afterNs: 6822 },
+  { name: 'Integration_Baseline',beforeAlloc:10, afterAlloc: 4,  beforeNs: 286,  afterNs: 99   },
+  { name: 'StaticRoute_JSON',   beforeAlloc: 19, afterAlloc: 12, beforeNs: 1028, afterNs: 626  },
+  { name: 'Middleware3_JSON',   beforeAlloc: 25, afterAlloc: 17, beforeNs: 1530, afterNs: 1020 },
+  { name: 'Parallel_Static',   beforeAlloc: 10, afterAlloc: 4,  beforeNs: 218,  afterNs: 71   },
+  { name: 'LargeList_JSON',    beforeAlloc: 20, afterAlloc: 13, beforeNs: 58113,afterNs: 33100},
+];
+const grid = document.getElementById('baGrid');
+baData.forEach(d => {
+  const maxA = d.beforeAlloc, maxN = d.beforeNs;
+  const deltaA = Math.round((1 - d.afterAlloc / d.beforeAlloc) * 100);
+  const deltaN = Math.round((1 - d.afterNs   / d.beforeNs)    * 100);
+  grid.innerHTML += `
+  <div class="ba-card">
+    <div class="name">${d.name}</div>
+    <div class="ba-row before">
+      <span class="lbl">前</span>
+      <div class="ba-bar-wrap"><div class="ba-bar" style="width:100%"></div></div>
+      <span class="val">${d.beforeAlloc}</span>
+    </div>
+    <div class="ba-row after">
+      <span class="lbl">后</span>
+      <div class="ba-bar-wrap"><div class="ba-bar" style="width:${(d.afterAlloc/d.beforeAlloc*100).toFixed(0)}%"></div></div>
+      <span class="val">${d.afterAlloc}</span>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px;margin-bottom:2px">allocs -${deltaA}% · ns/op -${deltaN}%</div>
+    <div style="background:rgba(52,211,153,.08);border-radius:4px;height:4px;margin-top:4px">
+      <div style="height:4px;background:var(--green);border-radius:4px;width:${deltaA}%"></div>
+    </div>
+  </div>`;
+});
+
+/* ─── §3 Before/After Alloc Chart ─── */
+new Chart(document.getElementById('beforeAfterAlloc'), {
+  type: 'bar',
+  data: {
+    labels: ['Router\nStatic','Router\nParam','JSON\nSmall','JSON\nLarge','Baseline','MW3 JSON'],
+    datasets: [
+      { label: '优化前', data: [10, 11, 17, 20, 10, 25], backgroundColor: 'rgba(248,113,113,.7)', borderRadius: 4 },
+      { label: '优化后', data: [4,  4,  10, 13, 4,  17], backgroundColor: 'rgba(52,211,153,.7)',  borderRadius: 4 },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top', labels: { font } } },
+    scales: { y: { min: 0, grid: { color: C.border } }, x: { grid: { display: false } } }
+  }
+});
+
+/* ─── §3 Before/After Ns Chart ─── */
+new Chart(document.getElementById('beforeAfterNs'), {
+  type: 'bar',
+  data: {
+    labels: ['Router\nStatic','Router\nParam','JSON\nSmall','Baseline','StaticRoute\nJSON','Parallel\nStatic'],
+    datasets: [
+      { label: '优化前 ns', data: [257, 319, 825, 286, 1028, 218], backgroundColor: 'rgba(248,113,113,.7)', borderRadius: 4 },
+      { label: '优化后 ns', data: [111, 116, 477,  99,  626,  71], backgroundColor: 'rgba(108,140,255,.7)', borderRadius: 4 },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top', labels: { font } } },
+    scales: { y: { min: 0, grid: { color: C.border } }, x: { grid: { display: false } } }
+  }
+});
+
+/* ─── §4 Feature Radar ─── */
+new Chart(document.getElementById('featureRadar'), {
+  type: 'radar',
+  data: {
+    labels: ['路由性能','内置功能','中间件体系','可观测性','弹性能力','生态成熟度'],
+    datasets: [
+      { label: 'Astra',  data: [9.0, 9.5, 9.2, 9.0, 9.0, 7.0], backgroundColor:'rgba(108,140,255,.15)', borderColor:C.accent,  borderWidth:2, pointBackgroundColor:C.accent },
+      { label: 'Gin',    data: [9.2, 6.0, 8.5, 7.5, 7.0, 9.5], backgroundColor:'rgba(52,211,153,.1)',  borderColor:C.green,   borderWidth:2, pointBackgroundColor:C.green  },
+      { label: 'Fiber',  data: [9.8, 6.5, 7.5, 7.0, 6.5, 8.0], backgroundColor:'rgba(251,146,60,.1)',  borderColor:C.orange,  borderWidth:2, pointBackgroundColor:C.orange },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top', labels: { font, boxWidth: 12 } } },
+    scales: { r: { min: 0, max: 10, ticks: { stepSize: 2, font }, grid: { color: C.border }, pointLabels: { font: { size: 11 } } } }
+  }
+});
+
+/* ─── §4 Framework Alloc ─── */
+new Chart(document.getElementById('frameworkAlloc'), {
+  type: 'bar',
+  data: {
+    labels: ['Fiber\n(fasthttp)', 'Gin', 'Astra\n(优化后)', 'Hertz', 'Echo', 'Chi'],
+    datasets: [{
+      label: '静态路由 allocs/op',
+      data: [2, 4, 4, 4, 5, 7],
+      backgroundColor: ['rgba(52,211,153,.8)', 'rgba(52,211,153,.6)', C.accent, 'rgba(34,211,238,.7)', 'rgba(251,191,36,.7)', 'rgba(122,138,160,.6)'],
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { min: 0, max: 12, grid: { color: C.border } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+</script>
+</body>
+</html>

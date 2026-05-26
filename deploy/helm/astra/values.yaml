@@ -1,0 +1,219 @@
+# =============================================================================
+# Astra Helm Chart — Values
+# =============================================================================
+
+# ── Global defaults ────────────────────────────────────────────────────────────
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  # Set labels on all resources, e.g. environment: production
+  labels: {}
+  annotations: {}
+
+# ── Image ─────────────────────────────────────────────────────────────────────
+image:
+  repository: myorg/astra-app
+  tag: latest          # Overridden by AppVersion; use "" for chart default
+  pullPolicy: IfNotPresent
+  pullSecrets: []      # Per-chart image pull secret (merged with global)
+
+# ── Replica count ─────────────────────────────────────────────────────────────
+replicaCount: 2
+
+# ── Application configuration ─────────────────────────────────────────────────
+app:
+  # Command and args; defaults work for most Astra apps built with `go run .`
+  command: []
+  args: []
+
+  # Environment variables injected as a ConfigMap (non-sensitive).
+  # Sensitive values should use the `secretEnv` map instead.
+  env:
+    LOG_LEVEL: info
+    GIN_MODE: release
+    # EXAMPLE: Set Astra app mode (Run / RunTLS / RunReactor / RunReactorTLS)
+    # ASTRA_MODE: RunReactor
+  envFrom: []          # list of EnvVarSource; e.g. { configMapRef: { name: my-cm } }
+
+  # Key = ConfigMap/Secret volume mount name, value = mount path.
+  # Use for injecting certificates, private keys, or config files.
+  extraVolumes: []
+  # e.g.
+  # - name: tls-cert
+  #   secret:
+  #     secretName: astra-tls-cert
+  # - name: config
+  #   configMap:
+  #     name: astra-config
+  #     optional: true
+  extraVolumeMounts: []
+  # e.g.
+  # - name: tls-cert
+  #   mountPath: /etc/astra/tls
+  # - name: config
+  #   mountPath: /etc/astra/config
+
+# ── Service ───────────────────────────────────────────────────────────────────
+service:
+  enabled: true
+  type: ClusterIP   # ClusterIP | NodePort | LoadBalancer | ExternalName
+  port: 8080
+  # For LoadBalancer: set .spec.loadBalancerIP and .spec.loadBalancerSourceRanges
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  # Additional labels/annotations for the Service
+  labels: {}
+  annotations: {}
+  # Extra ports to expose (list of ServicePort objects)
+  extraPorts: []
+  # e.g.
+  # - name: grpc
+  #   port: 9090
+  #   targetPort: 9090
+  #   protocol: TCP
+
+# ── Health checks ─────────────────────────────────────────────────────────────
+# Astra's built-in /live /ready /health endpoints
+healthCheck:
+  enabled: true
+  # Readiness probe checks /ready
+  readiness:
+    path: /ready
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  # Liveness probe checks /live
+  liveness:
+    path: /live
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  # Startup probe (optional, for slow-starting apps)
+  startup:
+    path: /live
+    failureThreshold: 30
+    periodSeconds: 10
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: false
+  className: nginx        # "" = default, "nginx" = Nginx Ingress Controller
+  # hostname or list of hostnames; each generates a rule
+  hosts:
+    - host: astra.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []                # list of Secret TLS configs; see standard k8s Ingress TLS
+  # e.g.
+  # - secretName: astra-tls
+  #   hosts:
+  #     - astra.local
+  labels: {}
+  annotations: {}
+  # e.g. for cert-manager:
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+
+# ── HPA ────────────────────────────────────────────────────────────────────────
+hpa:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  # Metric source; cpu is supported out of the box by k8s Metrics Server
+  targetCPUUtilizationPercentage: 70
+  # targetMemoryUtilizationPercentage: 80   # uncomment if you add custom metrics
+
+# ── Pod Disruption Budget ────────────────────────────────────────────────────
+pdb:
+  enabled: false
+  minAvailable: 1        # set to nil for maxUnavailable
+  # maxUnavailable: 1
+
+# ── Pod-level settings ─────────────────────────────────────────────────────────
+pod:
+  # Annotations and labels applied directly to the Pod spec
+  annotations: {}
+  labels: {}
+  # Override the container name (default: .Chart.Name)
+  containerName: ""
+  # SecurityContext at pod level (runs pods as non-root, etc.)
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  # SecurityContext per container
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  # Pod Disruption Budget style: "Always" | "IfNotPresent" | "Never"
+  imagePullPolicy: ""
+  # Termination grace period (seconds); Astra needs ~5s for graceful shutdown
+  terminationGracePeriodSeconds: 30
+  # Liveness probe command or exec
+  # priorityClassName: ""
+  # nodeSelector: {}
+  # tolerations: []
+  # affinity: {}
+
+# ── Resources ─────────────────────────────────────────────────────────────────
+resources:
+  enabled: false        # set to true to enforce .requests and .limits
+  limits:
+    cpu: 2000m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# ── Init containers ────────────────────────────────────────────────────────────
+initContainers: []
+# e.g. migrations:
+# - name: migrate
+#   image: myorg/astra-app:latest
+#   command: ["/app/astra", "migrate", "--config", "/etc/astra/config/app.yaml"]
+
+# ── Sidecar containers ────────────────────────────────────────────────────────
+sidecars: []
+# e.g. telemetry sidecar:
+# - name: otel-collector
+#   image: otel/opentelemetry-collector:0.100.0
+#   args: ["--config=/etc/otel/collector.yaml"]
+#   volumeMounts:
+#     - name: otel-config
+#       mountPath: /etc/otel
+
+# ── Strategy ──────────────────────────────────────────────────────────────────
+# Astra supports graceful shutdown on SIGINT/SIGTERM
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0      # keep all pods during rollout (zero-downtime)
+
+# ── Service Account ───────────────────────────────────────────────────────────
+serviceAccount:
+  create: true
+  name: ""               # leave "" to auto-generate; set to override
+  annotations: {}
+  labels: {}
+
+# ── Autoscaler (KEDA) ─────────────────────────────────────────────────────────
+# Install KEDA first: helm repo add kedacore https://kedacore.github.io/charts
+keda:
+  enabled: false
+  # Trigger configuration; example: scale on Kafka lag
+  triggers: []
+  # e.g. for Prometheus-based custom metric:
+  # triggers:
+  #   - type: prometheus
+  #     metadata:
+  #       serverAddress: http://prometheus:9090
+  #       metricName: astra_http_requests_total
+  #       threshold: "1000"

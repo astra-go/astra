@@ -1,0 +1,29 @@
+package migrations
+
+import (
+	"database/sql"
+
+	"github.com/astra-go/astra/migrate"
+)
+
+// Migration{{.ID}} — {{.Description}}
+var Migration{{.ID}} = &migrate.Migration{
+	ID: "{{.IDStr}}",
+	Up: func(db *sql.DB) error {
+		_, err := db.Exec(`
+			-- TODO: add your SQL here
+			-- CREATE TABLE IF NOT EXISTS example (
+			--     id BIGSERIAL PRIMARY KEY,
+			--     name TEXT NOT NULL
+			-- )
+		`)
+		return err
+	},
+	Down: func(db *sql.DB) error {
+		_, err := db.Exec(`
+			-- TODO: reverse the migration
+			-- DROP TABLE IF EXISTS example
+		`)
+		return err
+	},
+}

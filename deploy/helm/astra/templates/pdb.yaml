@@ -1,0 +1,21 @@
+{{/*
+pdb.yaml — Pod Disruption Budget
+*/}}
+{{- if and .Values.pdb.enabled (gt (int .Values.replicaCount) 1) -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "astra.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "astra.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.pdb.minAvailable }}
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  {{- else if .Values.pdb.maxUnavailable }}
+  maxUnavailable: {{ .Values.pdb.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "astra.selectorLabels" . | nindent 6 }}
+{{- end }}

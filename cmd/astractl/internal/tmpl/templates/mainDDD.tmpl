@@ -1,0 +1,36 @@
+package main
+
+import (
+	"net/http"
+
+	"github.com/astra-go/astra"
+	"github.com/astra-go/astra/middleware"
+)
+
+func main() {
+	app := astra.New(
+		astra.WithMode(astra.ModeProd),
+		astra.WithShutdownTimeout(30),
+	)
+
+	app.Use(
+		middleware.RequestID(),
+		middleware.Logger(),
+		middleware.Recovery(),
+		middleware.CORS(),
+	)
+
+	// Kubernetes health probes — must NOT sit behind auth middleware.
+	app.GET("/health/live", func(c *astra.Context) error {
+		return c.JSON(http.StatusOK, astra.Map{"status": "ok"})
+	})
+	app.GET("/health/ready", func(c *astra.Context) error {
+		// TODO: check DB/Redis connectivity; return 503 on failure.
+		return c.JSON(http.StatusOK, astra.Map{"status": "ok"})
+	})
+
+	v1 := app.Group("/api/v1")
+	_ = v1 // TODO: wire handlers — e.g. handler.NewUserHandler(...).Register(v1)
+
+	app.Run(":8080")
+}

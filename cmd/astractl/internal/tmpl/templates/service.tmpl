@@ -1,0 +1,70 @@
+package {{.Pkg}}
+
+import "context"
+
+// ─── DTOs ─────────────────────────────────────────────────────────────────────
+
+// Create{{.Name}}Request is the input for creating a {{.NameLower}}.
+type Create{{.Name}}Request struct {
+	// TODO: add fields
+}
+
+// Update{{.Name}}Request is the input for updating a {{.NameLower}}.
+type Update{{.Name}}Request struct {
+	// TODO: add fields
+}
+
+// {{.Name}}Response is the output DTO for {{.NameLower}} operations.
+type {{.Name}}Response struct {
+	ID int64 `json:"id"`
+	// TODO: add fields matching your model
+}
+
+// ─── Interface ────────────────────────────────────────────────────────────────
+
+// {{.Name}}Service defines the business-logic interface for {{.NameLower}} operations.
+type {{.Name}}Service interface {
+	List(ctx context.Context, page, limit int, keyword string) ([]*{{.Name}}Response, int64, error)
+	Get(ctx context.Context, id int64) (*{{.Name}}Response, error)
+	Create(ctx context.Context, req *Create{{.Name}}Request) (*{{.Name}}Response, error)
+	Update(ctx context.Context, id int64, req *Update{{.Name}}Request) (*{{.Name}}Response, error)
+	Delete(ctx context.Context, id int64) error
+}
+
+// ─── Implementation ───────────────────────────────────────────────────────────
+
+// {{.Name}}ServiceImpl is the default implementation of {{.Name}}Service.
+type {{.Name}}ServiceImpl struct {
+	// TODO: inject repository, e.g.:
+	// repo *repository.{{.Name}}Repo
+}
+
+// New{{.Name}}Service creates a new {{.Name}}ServiceImpl.
+func New{{.Name}}Service( /* repo *repository.{{.Name}}Repo */ ) *{{.Name}}ServiceImpl {
+	return &{{.Name}}ServiceImpl{}
+}
+
+func (s *{{.Name}}ServiceImpl) List(ctx context.Context, page, limit int, keyword string) ([]*{{.Name}}Response, int64, error) {
+	// TODO: implement
+	return nil, 0, nil
+}
+
+func (s *{{.Name}}ServiceImpl) Get(ctx context.Context, id int64) (*{{.Name}}Response, error) {
+	// TODO: implement
+	return nil, nil
+}
+
+func (s *{{.Name}}ServiceImpl) Create(ctx context.Context, req *Create{{.Name}}Request) (*{{.Name}}Response, error) {
+	// TODO: implement
+	return nil, nil
+}
+
+func (s *{{.Name}}ServiceImpl) Update(ctx context.Context, id int64, req *Update{{.Name}}Request) (*{{.Name}}Response, error) {
+	// TODO: implement
+	return nil, nil
+}
+
+func (s *{{.Name}}ServiceImpl) Delete(ctx context.Context, id int64) error {
+	// TODO: implement
+	return nil
+}

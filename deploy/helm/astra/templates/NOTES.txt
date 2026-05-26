@@ -1,0 +1,82 @@
+{{/*
+NOTES.txt — Post-install/user-facing instructions
+*/}}
+{{- $svcType := .Values.service.type -}}
+{{- $svcPort := .Values.service.port -}}
+{{- $svcName := include "astra.fullname" . -}}
+
+1. The Astra application has been deployed!
+
+   Release:  {{ .Release.Name }}
+   Chart:    {{ .Chart.Name }} ({{ .Chart.Version }})
+   Image:    {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+   Replicas: {{ .Values.replicaCount }}
+
+2. Check the deployment:
+
+   kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+   kubectl get svc {{ $svcName }} -n {{ .Release.Namespace }}
+
+3. Access the application:
+
+{{- if eq $svcType "LoadBalancer" }}
+   # Wait for the LoadBalancer IP to be assigned:
+   kubectl get svc {{ $svcName }} -n {{ .Release.Namespace }} -w
+
+   # Then access:
+   http://<EXTERNAL-IP>:{{ $svcPort }}/ready
+
+{{- else if eq $svcType "NodePort" }}
+   # Find the NodePort:
+   kubectl get svc {{ $svcName }} -n {{ .Release.Namespace }}
+
+   # Access via any cluster node:
+   http://<NODE-IP>:<NODE-PORT>/ready
+
+{{- else if eq $svcType "ClusterIP" }}
+   # Port-forward to access locally:
+   kubectl port-forward svc/{{ $svcName }} {{ $svcPort }}:{{ $svcPort }} -n {{ .Release.Namespace }}
+
+   # Then access:
+   http://localhost:{{ $svcPort }}/ready
+
+{{- else }}
+   # Access via the configured service type: {{ $svcType }}
+   http://<SERVICE-IP>:{{ $svcPort }}/ready
+{{- end }}
+
+4. Recommended health endpoints (built into Astra):
+
+   /ready  — readiness probe (is the app ready to serve traffic?)
+   /live   — liveness probe (is the app alive?)
+   /health — detailed health status (includes component checks if configured)
+
+5. Key configuration values (override in values.yaml or via --set):
+
+   service.type            = {{ $svcType }}
+   replicaCount            = {{ .Values.replicaCount }}
+   image.repository        = {{ .Values.image.repository }}
+   image.tag               = {{ .Values.image.tag | default (printf "(chart default: %s)" .Chart.AppVersion) }}
+   healthCheck.enabled     = {{ .Values.healthCheck.enabled }}
+   hpa.enabled             = {{ .Values.hpa.enabled }}
+   ingress.enabled         = {{ .Values.ingress.enabled }}
+
+{{- if .Values.hpa.enabled }}
+6. HPA is enabled:
+   Min replicas: {{ .Values.hpa.minReplicas }}
+   Max replicas: {{ .Values.hpa.maxReplicas }}
+   CPU target:   {{ .Values.hpa.targetCPUUtilizationPercentage }}%
+{{- end }}
+
+{{- if .Values.ingress.enabled }}
+7. Ingress is configured:
+   Hosts: {{ range .Values.ingress.hosts }}{{ .host }} {{ end }}
+   TLS:   {{ if .Values.ingress.tls }}enabled{{ else }}not configured{{ end }}
+{{- end }}
+
+---
+For production, set the following minimum overrides:
+  --set image.tag=latest   # use a specific immutable tag, never :latest
+  --set replicaCount=3     # at least 3 for zero-downtime rolling updates
+  --set resources.enabled=true
+  --set pod.containerSecurityContext.readOnlyRootFilesystem=true

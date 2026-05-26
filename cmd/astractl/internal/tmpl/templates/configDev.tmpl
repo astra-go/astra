@@ -1,0 +1,17 @@
+server:
+  port: 8080
+  mode: dev
+  shutdown_timeout: 5
+
+database:
+  dsn: "host=localhost user=postgres password='' dbname={{.NameLower}}_dev sslmode=disable"
+  max_open: 5
+  max_idle: 2
+
+cache:
+  redis_addr: "localhost:6379"
+  key_prefix: "{{.NameLower}}:dev:"
+
+log:
+  level: debug
+  format: text

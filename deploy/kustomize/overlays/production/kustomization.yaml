@@ -1,0 +1,133 @@
+# Kustomize overlay for Production
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: astra-prod
+
+resources:
+  - ../../base
+
+namePrefix: prod-
+
+commonLabels:
+  environment: production
+
+replicas:
+  - name: prod-astra-app
+    count: 3   # minimum for zero-downtime rolling updates
+
+images:
+  - name: myorg/astra-app
+    newTag: v1.2.4   # immutable tag from your release process; never :latest
+
+patches:
+  # Production env vars
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: prod-astra-app
+      spec:
+        replicas: 3
+        template:
+          spec:
+            containers:
+              - name: astra
+                env:
+                  - name: LOG_LEVEL
+                    value: warn
+                  - name: GIN_MODE
+                    value: release
+                  # Point to production infrastructure — mount via SecretRef in real usage
+                  # - name: DATABASE_URL
+                  #   valueFrom:
+                  #     secretKeyRef:
+                  #       name: prod-astra-secret
+                  #       key: DATABASE_URL
+                resources:
+                  requests:
+                    cpu: 200m
+                    memory: 256Mi
+                  limits:
+                    cpu: 4000m
+                    memory: 1Gi
+
+# HPA for production
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: prod-astra-app
+  labels:
+    environment: production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: prod-astra-app
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+
+# Pod Disruption Budget — minimum 2 pods available during disruptions
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: prod-astra-app
+  labels:
+    environment: production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: astra
+      environment: production
+
+# Production Ingress with TLS
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prod-astra-app
+  labels:
+    environment: production
+  annotations:
+    # cert-manager: uncomment the next line and apply cert-manager ClusterIssuer first
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prod-astra-app
+                port:
+                  number: 80
+  # Uncomment TLS section after setting up cert-manager:
+  # tls:
+  #   - hosts:
+  #       - api.example.com
+  #     secretName: prod-astra-tls

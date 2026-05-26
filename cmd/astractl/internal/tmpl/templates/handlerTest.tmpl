@@ -1,0 +1,45 @@
+package {{.Pkg}}_test
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/astra-go/astra"
+)
+
+func setup{{.Name}}App(t *testing.T) *astra.App {
+	t.Helper()
+	app := astra.New()
+	// TODO: wire up handler
+	// h := New{{.Name}}Handler(/* deps */)
+	// h.Register(app.Group("/api/v1"))
+	return app
+}
+
+func TestList{{.Name}}s(t *testing.T) {
+	app := setup{{.Name}}App(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/{{.NameLower}}s?page=1&limit=10", nil)
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 got %d", rec.Code)
+	}
+}
+
+func TestCreate{{.Name}}(t *testing.T) {
+	app := setup{{.Name}}App(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/{{.NameLower}}s", nil)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, req)
+	_ = rec // TODO: assert expected status and body
+}
+
+func TestGet{{.Name}}(t *testing.T) {
+	app := setup{{.Name}}App(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/{{.NameLower}}s/1", nil)
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, req)
+	_ = rec // TODO: assert expected status and body
+}

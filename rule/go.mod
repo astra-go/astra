@@ -1,0 +1,5 @@
+module github.com/astra-go/astra/rule
+
+go 1.25.1
+
+require github.com/expr-lang/expr v1.17.8

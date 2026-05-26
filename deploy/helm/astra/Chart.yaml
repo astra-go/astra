@@ -1,0 +1,18 @@
+apiVersion: v2
+name: astra
+description: A Helm chart for deploying Astra Go Web Framework applications on Kubernetes
+type: application
+version: 1.0.0
+appVersion: "1.0"
+keywords:
+  - astra
+  - go
+  - web
+  - framework
+  - reactor
+  - http
+  - grpc
+maintainers:
+  - name: astra-go
+    url: https://github.com/astra-go/astra
+home: https://github.com/astra-go/astra

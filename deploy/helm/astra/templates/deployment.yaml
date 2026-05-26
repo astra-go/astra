@@ -1,0 +1,183 @@
+{{- /*
+deployment.yaml — Astra Application Deployment
+*/ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "astra.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "astra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  {{- with .Values.pod.labels }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.pod.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: {{ .Values.strategy.type }}
+    {{- if eq .Values.strategy.type "RollingUpdate" }}
+    rollingUpdate:
+      maxSurge: {{ .Values.strategy.rollingUpdate.maxSurge | default 1 }}
+      maxUnavailable: {{ .Values.strategy.rollingUpdate.maxUnavailable | default 0 }}
+    {{- end }}
+
+  selector:
+    matchLabels:
+      {{- include "astra.selectorLabels" . | nindent 6 }}
+
+  template:
+    metadata:
+      labels:
+        {{- include "astra.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+      {{- with .Values.pod.labels }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") $ | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") $ | sha256sum }}
+
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      serviceAccountName: {{ include "astra.serviceAccountName" . }}
+      {{- if .Values.pod.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.pod.terminationGracePeriodSeconds }}
+      {{- end }}
+
+      {{- if .Values.pod.securityContext }}
+      securityContext:
+        {{- toYaml .Values.pod.securityContext | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      containers:
+        - name: {{ .Values.pod.containerName | default (include "astra.name" .) }}
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.pod.containerSecurityContext }}
+          securityContext:
+            {{- toYaml .Values.pod.containerSecurityContext | nindent 12 }}
+          {{- end }}
+
+          {{- if .Values.app.command }}
+          command:
+            {{- toYaml .Values.app.command | nindent 10 }}
+          {{- end }}
+          {{- if .Values.app.args }}
+          args:
+            {{- toYaml .Values.app.args | nindent 10 }}
+          {{- end }}
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          {{- range .Values.service.extraPorts }}
+            - name: {{ .name }}
+              containerPort: {{ .targetPort }}
+              protocol: {{ .protocol | default "TCP" }}
+          {{- end }}
+
+          env:
+            {{- range $k, $v := .Values.app.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- with .Values.app.envFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            # Astra graceful shutdown support
+            - name: ASTRA_SHUTDOWN_TIMEOUT
+              value: "{{ .Values.pod.terminationGracePeriodSeconds }}"
+
+          {{- if .Values.resources.enabled }}
+          resources:
+            limits:
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+              memory: {{ .Values.resources.limits.memory | quote }}
+            requests:
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+              memory: {{ .Values.resources.requests.memory | quote }}
+          {{- end }}
+
+          {{- if .Values.healthCheck.enabled }}
+          {{- if .Values.healthCheck.startup }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.startup.path }}
+              port: http
+            failureThreshold: {{ .Values.healthCheck.startup.failureThreshold }}
+            periodSeconds: {{ .Values.healthCheck.startup.periodSeconds }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.healthCheck.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthCheck.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthCheck.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.healthCheck.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthCheck.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthCheck.liveness.failureThreshold }}
+          {{- end }}
+
+          volumeMounts:
+            {{- with .Values.app.extraVolumeMounts }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+
+          lifecycle:
+            preStop:
+              exec:
+                # Astra needs SIGTERM + time to drain connections; preStop sleep gives
+                # kube-proxy ~5s to drain before pod is terminated
+                command:
+                  - /bin/sh
+                  - -c
+                  - sleep 5
+
+        {{- with .Values.sidecars }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+
+      {{- with .Values.app.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.pod.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.pod.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.pod.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

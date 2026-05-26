@@ -1,0 +1,75 @@
+go 1.25.8
+
+// Astra monorepo workspace.
+// Each sub-module can evolve and be versioned independently; the workspace file
+// wires them together for local development so that cross-module imports resolve
+// to the local tree rather than a published tag.
+//
+// Usage:
+//   go work use ./foo   — add a new module to the workspace
+//   GOWORK=off go build — disable workspace (use published versions)
+//
+// Intra-workspace require directives use the conventional Go zero-version
+//   v0.0.0-00010101000000-000000000000
+// paired with local-path replace directives so that `go mod tidy` never
+// tries to resolve these modules from VCS (they have no published tag yet).
+
+use (
+	.
+	./alert
+	./auth
+	./benchmarks
+	./cache
+	./client
+	./config
+	./discovery
+	./dtx/orm
+	./dtx/redis
+	./e2e
+	./e2e/orm
+	./examples/crud
+	./examples/orm
+	./examples/techempower
+	./grpc
+	./lock
+	./lua
+	./middleware/observability
+	./middleware/security
+	./mongodb
+	./mq
+	./notify
+	./observability
+	./orm
+	./orm/clickhouse
+	./otel
+	./runner
+	./search
+	./session
+	./storage
+	./stream
+	./taskqueue
+	./testutil
+)
+
+// Intra-workspace replace directives.
+// ALL internal module cross-references use the zero pseudo-version so that
+// `go mod tidy` skips VCS resolution and reads the local go.mod directly.
+replace (
+	github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ./rule
+	github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./
+	github.com/astra-go/astra/alert v0.0.0-00010101000000-000000000000 => ./alert
+	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ./cache
+	github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ./discovery
+	github.com/astra-go/astra/dtx/orm v0.0.0-00010101000000-000000000000 => ./dtx/orm
+	github.com/astra-go/astra/dtx/redis v0.0.0-00010101000000-000000000000 => ./dtx/redis
+	github.com/astra-go/astra/e2e/orm v0.0.0-00010101000000-000000000000 => ./e2e/orm
+	github.com/astra-go/astra/grpc v0.0.0-00010101000000-000000000000 => ./grpc
+	github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000 => ./middleware/observability
+	github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ./middleware/security
+	github.com/astra-go/astra/observability v0.0.0-00010101000000-000000000000 => ./observability
+	github.com/astra-go/astra/orm v0.0.0-00010101000000-000000000000 => ./orm
+	github.com/astra-go/astra/orm/clickhouse v0.0.0-00010101000000-000000000000 => ./orm/clickhouse
+	github.com/astra-go/astra/otel v0.0.0-00010101000000-000000000000 => ./otel
+	github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 => ./taskqueue
+	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ./testutil
+)

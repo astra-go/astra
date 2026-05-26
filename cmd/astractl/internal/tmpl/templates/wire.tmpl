@@ -1,0 +1,30 @@
+//go:build wireinject
+
+package main
+
+import "github.com/google/wire"
+
+// InitializeApp wires up the full application dependency graph.
+// Run 'wire gen .' in this directory after adding providers.
+//
+// Tip: Astra also ships a built-in DI container (no code generation required):
+//
+//	go get github.com/astra-go/astra
+//	astractl gen container --dir ./cmd/server
+//
+// Example:
+//
+//	func InitializeApp() (*App, error) {
+//	    wire.Build(
+//	        NewApp,
+//	        handler.NewUserHandler,
+//	        service.NewUserService,
+//	        repository.NewUserRepo,
+//	        provideDB,
+//	    )
+//	    return nil, nil
+//	}
+func InitializeApp() (string, error) {
+	wire.Build(wire.Value("app"))
+	return "", nil
+}

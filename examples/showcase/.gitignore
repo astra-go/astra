@@ -1,0 +1,14 @@
+# Binaries
+bin/
+worker
+
+# Test output
+perf/results.json
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,117 @@
+package {{.Pkg}}
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/astra-go/astra"
+)
+
+// {{.Name}}Handler handles {{.NameLower}}-related HTTP requests.
+type {{.Name}}Handler struct {
+	// TODO: inject service/repository dependencies
+	// svc {{.Name}}Service
+}
+
+// New{{.Name}}Handler creates a new {{.Name}}Handler.
+func New{{.Name}}Handler( /* svc {{.Name}}Service */ ) *{{.Name}}Handler {
+	return &{{.Name}}Handler{}
+}
+
+// Register mounts all {{.NameLower}} routes onto the given route group.
+func (h *{{.Name}}Handler) Register(g *astra.Group) {
+	g.GET("/{{.NameLower}}s",        h.List)
+	g.POST("/{{.NameLower}}s",       h.Create)
+	g.GET("/{{.NameLower}}s/:id",    h.Get)
+	g.PUT("/{{.NameLower}}s/:id",    h.Update)
+	g.DELETE("/{{.NameLower}}s/:id", h.Delete)
+}
+
+// ─── DTOs ─────────────────────────────────────────────────────────────────────
+
+// {{.Name}}ListQuery holds pagination and filter parameters.
+type {{.Name}}ListQuery struct {
+	Page    int    `form:"page"    validate:"min=1"`
+	Limit   int    `form:"limit"   validate:"min=1,max=100"`
+	Keyword string `form:"keyword"`
+}
+
+// Create{{.Name}}Request is the request body for creating a {{.NameLower}}.
+type Create{{.Name}}Request struct {
+	// TODO: add fields, e.g.:
+	// Name string `json:"name" validate:"required,min=2,max=100"`
+}
+
+// Update{{.Name}}Request is the request body for updating a {{.NameLower}}.
+type Update{{.Name}}Request struct {
+	// TODO: add fields
+}
+
+// ─── Handlers ─────────────────────────────────────────────────────────────────
+
+// List returns a paginated list of {{.NameLower}}s.
+func (h *{{.Name}}Handler) List(c *astra.Context) error {
+	var q {{.Name}}ListQuery
+	if err := c.ShouldBindQuery(&q); err != nil {
+		return err
+	}
+	if q.Page == 0 {
+		q.Page = 1
+	}
+	if q.Limit == 0 {
+		q.Limit = 20
+	}
+	ctx := c.Request.Context()
+	_ = ctx // TODO: items, total, err := h.svc.List(ctx, q.Page, q.Limit, q.Keyword)
+	return c.JSON(http.StatusOK, astra.Map{"data": []any{}, "total": 0, "page": q.Page, "limit": q.Limit})
+}
+
+// Create creates a new {{.NameLower}}.
+func (h *{{.Name}}Handler) Create(c *astra.Context) error {
+	var req Create{{.Name}}Request
+	if err := c.ShouldBindJSON(&req); err != nil {
+		return err
+	}
+	ctx := c.Request.Context()
+	_ = ctx // TODO: item, err := h.svc.Create(ctx, req)
+	return c.JSON(http.StatusCreated, astra.Map{"data": req})
+}
+
+// Get returns a {{.NameLower}} by ID.
+func (h *{{.Name}}Handler) Get(c *astra.Context) error {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return astra.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	ctx := c.Request.Context()
+	_ = ctx // TODO: item, err := h.svc.Get(ctx, id)
+	return c.JSON(http.StatusOK, astra.Map{"id": id})
+}
+
+// Update updates a {{.NameLower}} by ID.
+func (h *{{.Name}}Handler) Update(c *astra.Context) error {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return astra.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req Update{{.Name}}Request
+	if err := c.ShouldBindJSON(&req); err != nil {
+		return err
+	}
+	ctx := c.Request.Context()
+	_ = ctx // TODO: item, err := h.svc.Update(ctx, id, req)
+	_ = id
+	return c.JSON(http.StatusOK, astra.Map{"data": req})
+}
+
+// Delete removes a {{.NameLower}} by ID.
+func (h *{{.Name}}Handler) Delete(c *astra.Context) error {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return astra.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	ctx := c.Request.Context()
+	_ = ctx // TODO: err := h.svc.Delete(ctx, id)
+	_ = id
+	return c.NoContent(http.StatusNoContent)
+}

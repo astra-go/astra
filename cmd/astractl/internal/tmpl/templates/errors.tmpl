@@ -1,0 +1,25 @@
+package {{.Pkg}}
+
+import "github.com/astra-go/astra"
+
+// Application-level error sentinels.
+// Use astra.NewHTTPError(statusCode, message) for HTTP-aware errors.
+var (
+	// ErrNotFound is returned when a resource does not exist.
+	ErrNotFound = astra.NewHTTPError(404, "resource not found")
+
+	// ErrUnauthorized is returned when the caller is not authenticated.
+	ErrUnauthorized = astra.NewHTTPError(401, "unauthorized")
+
+	// ErrForbidden is returned when the caller lacks permission.
+	ErrForbidden = astra.NewHTTPError(403, "forbidden")
+
+	// ErrBadRequest is returned for invalid input.
+	ErrBadRequest = astra.NewHTTPError(400, "bad request")
+
+	// ErrConflict is returned when a resource already exists.
+	ErrConflict = astra.NewHTTPError(409, "conflict")
+
+	// ErrInternal is returned for unexpected server errors.
+	ErrInternal = astra.NewHTTPError(500, "internal server error")
+)

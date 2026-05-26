@@ -1,0 +1,17 @@
+{{/*
+configmap.yaml — ConfigMap for non-sensitive environment variables and config files
+*/}}
+{{- if .Values.app.configFiles -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astra.fullname" . }}-env
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "astra.labels" . | nindent 4 }}
+data:
+  {{- range $k, $v := .Values.app.configFiles }}
+  {{ $k }}: |
+    {{- $v | nindent 4 }}
+  {{- end }}
+{{- end }}

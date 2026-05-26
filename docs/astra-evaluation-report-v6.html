@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Astra 框架全面评估报告 v7</title>
+<style>
+  :root {
+    --primary: #4f46e5;
+    --primary-light: #818cf8;
+    --accent: #06b6d4;
+    --bg: #0f172a;
+    --bg2: #1e293b;
+    --bg3: #334155;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --border: #334155;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --red: #ef4444;
+    --orange: #f97316;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+  a { color: var(--primary-light); text-decoration: none; }
+  h1,h2,h3,h4 { font-weight: 700; line-height: 1.3; }
+
+  /* Nav */
+  nav { position: sticky; top: 0; z-index: 100; background: rgba(15,23,42,0.95); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); padding: 0 2rem; }
+  nav ul { display: flex; list-style: none; gap: 0; overflow-x: auto; }
+  nav ul li a { display: block; padding: .75rem 1.1rem; font-size: .85rem; color: var(--text2); white-space: nowrap; transition: color .2s; }
+  nav ul li a:hover { color: var(--primary-light); }
+
+  /* Hero */
+  .hero { background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 50%, #0c4a6e 100%); padding: 4rem 2rem 3rem; text-align: center; }
+  .hero h1 { font-size: 2.8rem; background: linear-gradient(135deg, #a5b4fc, #67e8f9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: .5rem; }
+  .hero p { color: var(--text2); font-size: 1.1rem; max-width: 700px; margin: 0 auto .5rem; }
+  .hero .meta { font-size: .85rem; color: var(--text2); margin-top: 1rem; }
+  .badge { display: inline-block; padding: .2rem .7rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; margin: .2rem; }
+  .badge-blue { background: #1d4ed8; color: #bfdbfe; }
+  .badge-cyan { background: #0e7490; color: #cffafe; }
+  .badge-green { background: #15803d; color: #bbf7d0; }
+
+  /* Container */
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+  section { padding: 3rem 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  .section-title { font-size: 1.7rem; margin-bottom: .4rem; color: var(--primary-light); }
+  .section-sub { color: var(--text2); font-size: .95rem; margin-bottom: 2rem; }
+
+  /* Cards */
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: .75rem; padding: 1.5rem; }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; margin-bottom: .5rem; color: var(--accent); }
+  .card p { font-size: .875rem; color: var(--text2); }
+  .card ul { list-style: none; margin-top: .5rem; }
+  .card ul li { font-size: .82rem; color: var(--text2); padding: .15rem 0; }
+  .card ul li::before { content: '✦ '; color: var(--primary-light); }
+
+  /* Stat row */
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: .75rem; padding: 1.25rem; text-align: center; }
+  .stat-card .val { font-size: 2rem; font-weight: 800; color: var(--primary-light); }
+  .stat-card .label { font-size: .8rem; color: var(--text2); margin-top: .25rem; }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .87rem; }
+  th { background: var(--bg3); color: var(--text2); font-weight: 600; padding: .65rem 1rem; text-align: left; }
+  td { padding: .6rem 1rem; border-top: 1px solid var(--border); }
+  tr:hover td { background: rgba(79,70,229,.06); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'Cascadia Code', monospace; }
+  .good { color: var(--green); }
+  .warn { color: var(--yellow); }
+  .bad { color: var(--red); }
+
+  /* Bar chart */
+  .bar-group { margin: .4rem 0; }
+  .bar-label { font-size: .8rem; color: var(--text2); margin-bottom: .2rem; display: flex; justify-content: space-between; }
+  .bar-bg { background: var(--bg3); border-radius: 3px; height: 14px; }
+  .bar-fill { height: 14px; border-radius: 3px; transition: width .5s; }
+  .bar-blue { background: linear-gradient(90deg, #4f46e5, #818cf8); }
+  .bar-cyan { background: linear-gradient(90deg, #0891b2, #06b6d4); }
+  .bar-green { background: linear-gradient(90deg, #16a34a, #22c55e); }
+  .bar-orange { background: linear-gradient(90deg, #c2410c, #f97316); }
+  .bar-red { background: linear-gradient(90deg, #b91c1c, #ef4444); }
+
+  /* Score */
+  .score-row { display: flex; align-items: center; gap: 1rem; margin: .5rem 0; }
+  .score-name { width: 140px; font-size: .85rem; color: var(--text2); }
+  .score-bar-wrap { flex: 1; background: var(--bg3); border-radius: 3px; height: 18px; }
+  .score-bar { height: 18px; border-radius: 3px; display: flex; align-items: center; padding-left: .5rem; font-size: .75rem; font-weight: 700; color: #fff; }
+  .score-val { width: 40px; text-align: right; font-weight: 700; font-size: .9rem; }
+
+  /* Module matrix */
+  .matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .5rem; }
+  .mod-item { background: var(--bg2); border: 1px solid var(--border); border-radius: .5rem; padding: .6rem .9rem; display: flex; align-items: center; gap: .5rem; }
+  .mod-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-full { background: var(--green); }
+  .dot-partial { background: var(--yellow); }
+  .mod-item .mod-name { font-size: .82rem; font-weight: 600; }
+  .mod-item .mod-tag { font-size: .72rem; color: var(--text2); }
+
+  /* Comparison */
+  .cmp-table th:not(:first-child) { text-align: center; }
+  .cmp-table td:not(:first-child) { text-align: center; }
+  .check { color: var(--green); font-size: 1rem; }
+  .cross { color: var(--red); font-size: 1rem; }
+  .partial-icon { color: var(--yellow); font-size: 1rem; }
+  .highlight-col { background: rgba(79,70,229,.12) !important; }
+
+  /* Pros/Cons */
+  .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  .pros-cons > div { background: var(--bg2); border-radius: .75rem; padding: 1.5rem; border: 1px solid var(--border); }
+  .pros-cons h3 { margin-bottom: 1rem; }
+  .pros-cons ul { list-style: none; }
+  .pros-cons ul li { padding: .4rem 0; font-size: .875rem; color: var(--text2); }
+  .pros-cons ul li::before { margin-right: .5rem; }
+  .pros ul li::before { content: '✅'; }
+  .cons ul li::before { content: '⚠️'; }
+
+  /* Diff table */
+  .diff-good { color: var(--green); font-weight: 700; }
+  .diff-neutral { color: var(--text2); }
+  .tag-fixed { display:inline-block;padding:.1rem .45rem;border-radius:4px;font-size:.72rem;font-weight:700;background:#14532d;color:#86efac; }
+  .tag-open  { display:inline-block;padding:.1rem .45rem;border-radius:4px;font-size:.72rem;font-weight:700;background:#7c2d12;color:#fdba74; }
+  .tag-partial { display:inline-block;padding:.1rem .45rem;border-radius:4px;font-size:.72rem;font-weight:700;background:#713f12;color:#fde68a; }
+  .solution-card { background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--primary);border-radius:.5rem;padding:1rem 1.25rem;margin-bottom:.75rem; }
+  .solution-card h4 { font-size:.9rem;color:var(--primary-light);margin-bottom:.35rem; }
+  .solution-card p { font-size:.82rem;color:var(--text2);line-height:1.6; }
+  .solution-card code { background:var(--bg3);padding:.1rem .3rem;border-radius:3px;font-size:.8rem;font-family:'Cascadia Code',monospace; }
+
+  /* Problem card */
+  .problem-card { background:var(--bg2);border:1px solid var(--border);border-radius:.75rem;padding:1.25rem;margin-bottom:1rem; }
+  .problem-card .problem-header { display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem; }
+  .problem-card .problem-num { width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;font-size:.8rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+  .problem-card h4 { font-size:.95rem;color:var(--text);margin:0; }
+  .problem-card .pain { font-size:.82rem;color:var(--text2);margin-bottom:.5rem; }
+  .problem-card .answer { font-size:.82rem;color:var(--green);line-height:1.6; }
+  .problem-card .answer strong { color:var(--accent); }
+
+  /* Footer */
+  footer { background:var(--bg2);border-top:1px solid var(--border);padding:1.5rem 2rem;text-align:center;color:var(--text2);font-size:.82rem; }
+</style>
+</head>
+<body>
+
+<nav>
+  <ul>
+    <li><a href="#overview">概览</a></li>
+    <li><a href="#architecture">架构</a></li>
+    <li><a href="#modules">模块矩阵</a></li>
+    <li><a href="#performance">性能基准</a></li>
+    <li><a href="#optimizations">优化日志</a></li>
+    <li><a href="#problems">问题解决</a></li>
+    <li><a href="#comparison">框架对比</a></li>
+    <li><a href="#strengths">优劣势</a></li>
+    <li><a href="#conclusion">结论</a></li>
+  </ul>
+</nav>
+
+<div class="hero">
+  <h1>Astra 框架全面评估报告</h1>
+  <p>从性能基准、模块完整性、架构设计到同类框架横向对比的深度评测</p>
+  <p style="font-size:.9rem;color:var(--accent);margin-top:.25rem;">v10 内容 · JWT Phase 2 pool 优化 · Reactor 直接派发新连接 · Reactor poller scratch buffer + dispatchFn 预绑定 · <b>大列表 JSONStream API</b></p>
+  <div>
+    <span class="badge badge-blue">Go 1.25+</span>
+    <span class="badge badge-cyan">HTTP/1.1 · HTTP/2 · HTTP/3</span>
+    <span class="badge badge-green">Apple M4 · darwin/arm64</span>
+    <span class="badge" style="background:#7c3aed;color:#ddd6fe">v10 · 2026-04-22</span>
+  </div>
+  <p class="meta">测试环境：Apple M4 · darwin/arm64 · Go 1.25.8 · 评测日期：2026-04-22 | 本版新增：JWT Phase 2（58→~35 allocs）+ Reactor 直接派发（v8）+ Reactor poller scratch buffer + dispatchFn（v9，Keepalive B/op −94.7%）+ 大列表 JSONStream API（v10，allocs 12→10，消除 ~43 KB 中间缓冲）</p>
+</div>
+
+<!-- ─── OVERVIEW ─── -->
+<section id="overview">
+<div class="container">
+  <h2 class="section-title">执行摘要</h2>
+  <p class="section-sub">Astra（星辰）是一个以 Go 语言构建的现代、高性能全栈 Web / 微服务框架，采用单体仓库（monorepo）多模块架构，核心依赖极少。</p>
+
+  <div class="stat-grid">
+    <div class="stat-card"><div class="val">20+</div><div class="label">独立子模块</div></div>
+    <div class="stat-card"><div class="val">70 ns</div><div class="label">并发静态路由 (p/op)</div></div>
+    <div class="stat-card"><div class="val">53</div><div class="label">基准测试用例</div></div>
+    <div class="stat-card"><div class="val">~0</div><div class="label">核心路由内存分配增量/中间件</div></div>
+    <div class="stat-card"><div class="val">6</div><div class="label">负载均衡算法</div></div>
+    <div class="stat-card"><div class="val">HTTP/3</div><div class="label">最高协议支持</div></div>
+    <div class="stat-card"><div class="val">11</div><div class="label">解决的核心开发困境</div></div>
+    <div class="stat-card"><div class="val">8</div><div class="label">核心直接依赖数</div></div>
+  </div>
+
+  <div class="card">
+    <h3>框架定位</h3>
+    <p>Astra 集 Gin 的路由性能、Echo 的简洁接口、go-zero 的微服务工具链、Kratos 的模块化于一体，同时提供完整的企业级能力（分布式事务、熔断器、分布式锁、消息队列、任务调度等），是一个面向生产环境的一站式 Go 服务框架。</p>
+  </div>
+</div>
+</section>
+
+<!-- ─── ARCHITECTURE ─── -->
+<section id="architecture">
+<div class="container">
+  <h2 class="section-title">架构设计</h2>
+  <p class="section-sub">核心层极简，扩展层丰富，通过接口解耦实现高可测性。</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3>路由引擎</h3>
+      <ul>
+        <li>方法键控基数树（Radix Tree）</li>
+        <li>支持静态 / :param / {name:regex} / *wildcard</li>
+        <li>路由冲突 slog 警告，不静默覆盖</li>
+        <li>可插拔 HttpRouter 接口（可替换实现）</li>
+        <li>路由分组 (Group) 支持前缀+共享中间件</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Context 系统</h3>
+      <ul>
+        <li>基于接口（contract.Context）完全解耦</li>
+        <li>sync.Pool 复用，零 GC 压力</li>
+        <li>小键值内嵌数组（smallKeys）减少 map 分配</li>
+        <li>SetRequest / SetWriter 替换底层对象</li>
+        <li>完整 Bind/Validate/Response 方法集</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>HTTP 协议栈</h3>
+      <ul>
+        <li>标准 net/http（HTTP/1.1 + HTTP/2）</li>
+        <li>HTTP/3 via quic-go（app_quic.go）</li>
+        <li>自定义 Reactor 网络引擎（netengine）</li>
+        <li>Worker Pool 调度器（0 allocs/op）</li>
+        <li>优雅关闭 + 生命周期钩子</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>模块系统</h3>
+      <ul>
+        <li>Module 接口 + 依赖注入容器（di）</li>
+        <li>Lifecycle OnStart/OnStop 钩子</li>
+        <li>Plugin 接口支持热插拔扩展</li>
+        <li>go.work 工作区多模块独立版本</li>
+        <li>核心模块零重量级外部依赖</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>中间件体系</h3>
+      <ul>
+        <li>JWT / API Key / CSRF / CORS / CSP</li>
+        <li>Rate Limit（令牌桶 + 滑动窗口）</li>
+        <li>Recovery / Logger / RequestID</li>
+        <li>Tracing（OTel）/ Metrics（Prometheus）</li>
+        <li>Canary / Tenant / Audit / Sanitize</li>
+        <li>Signature 签名验证 / IP Filter</li>
+        <li>Compress / Timeout / Secure</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>可观测性</h3>
+      <ul>
+        <li>OpenTelemetry Traces + Metrics（otel 子模块）</li>
+        <li>Prometheus 指标暴露（/metrics）</li>
+        <li>pprof 性能剖析中间件</li>
+        <li>Alert 规则引擎（expr-lang 表达式）</li>
+        <li>结构化日志（slog，可替换实现）</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ─── MODULES ─── -->
+<section id="modules">
+<div class="container">
+  <h2 class="section-title">模块完整性矩阵</h2>
+  <p class="section-sub">绿色 = 独立子模块完整实现；黄色 = 核心包内实现或功能部分。</p>
+
+  <div class="matrix">
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">路由 / 核心</div><div class="mod-tag">基数树 · 4种路由类型</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">中间件 (23+)</div><div class="mod-tag">JWT·CORS·Rate·Trace…</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">ORM (gorm)</div><div class="mod-tag">多DB·事务·Repository</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">缓存 Cache</div><div class="mod-tag">Redis·Memcached·LRU</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">消息队列 MQ</div><div class="mod-tag">Kafka·NATS·RabbitMQ·Pulsar·MQTT·RocketMQ</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">任务队列</div><div class="mod-tag">Redis·Kafka·MongoDB 后端</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">认证 Auth</div><div class="mod-tag">OAuth2 PKCE · RBAC(Casbin)</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">Session</div><div class="mod-tag">多存储·HMAC签名Cookie</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">服务发现</div><div class="mod-tag">Consul·etcd·Kubernetes</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">gRPC</div><div class="mod-tag">拦截器·错误映射·服务器</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">GraphQL</div><div class="mod-tag">schema-first + handler</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">WebSocket</div><div class="mod-tag">gorilla/websocket 封装</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">配置 Config</div><div class="mod-tag">文件·远程·热重载(fsnotify)</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">可观测 OTel</div><div class="mod-tag">Traces·Metrics·Prometheus</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">熔断器</div><div class="mod-tag">Circuit Breaker + Adaptive</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">负载均衡</div><div class="mod-tag">RR·随机·加权·最少连接·一致哈希·P2C</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">分布式事务</div><div class="mod-tag">Saga 模式 (DTX)</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">分布式锁</div><div class="mod-tag">Redis 后端</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">MongoDB</div><div class="mod-tag">官方驱动封装</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">搜索 Search</div><div class="mod-tag">Elasticsearch v8</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">存储 Storage</div><div class="mod-tag">S3兼容·本地文件</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">任务调度 Runner</div><div class="mod-tag">gocron·robfig/cron·dagu·taskqueue</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">告警引擎</div><div class="mod-tag">expr-lang 规则表达式</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">通知 Notify</div><div class="mod-tag">Email·SMS·Push</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">依赖注入 DI</div><div class="mod-tag">泛型 Container</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">Lua 脚本</div><div class="mod-tag">gopher-lua + Redis Lua</div></div></div>
+    <div class="mod-item"><div class="dot dot-full"></div><div><div class="mod-name">网络引擎</div><div class="mod-tag">Reactor + WorkerPool</div></div></div>
+    <div class="mod-item"><div class="dot dot-partial"></div><div><div class="mod-name">i18n</div><div class="mod-tag">zh/en 内置</div></div></div>
+    <div class="mod-item"><div class="dot dot-partial"></div><div><div class="mod-name">Swagger / API Docs</div><div class="mod-tag">文档生成支持</div></div></div>
+    <div class="mod-item"><div class="dot dot-partial"></div><div><div class="mod-name">HTTP Client</div><div class="mod-tag">gRPC + 服务发现集成</div></div></div>
+    <div class="mod-item"><div class="dot dot-partial"></div><div><div class="mod-name">Migrate</div><div class="mod-tag">数据库迁移工具</div></div></div>
+    <div class="mod-item"><div class="dot dot-partial"></div><div><div class="mod-name">规则引擎 Rule</div><div class="mod-tag">业务规则编排</div></div></div>
+  </div>
+
+  <br>
+  <div style="display:flex;gap:1rem;font-size:.82rem;color:var(--text2);">
+    <span><span style="color:var(--green)">●</span> 完整独立子模块</span>
+    <span><span style="color:var(--yellow)">●</span> 功能部分 / 核心包内</span>
+  </div>
+</div>
+</section>
+
+<!-- ─── PERFORMANCE ─── -->
+<section id="performance">
+<div class="container">
+  <h2 class="section-title">性能基准测试</h2>
+  <p class="section-sub">测试平台：Apple M4 · darwin/arm64 · Go 1.25.8 · benchtime=1s · -benchmem</p>
+
+  <!-- Router -->
+  <h3 style="margin:1.5rem 0 .75rem;color:var(--accent)">1. 路由器性能</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>测试用例</th><th class="num">迭代次数</th><th class="num">ns/op</th><th class="num">B/op</th><th class="num">allocs/op</th><th>评级</th></tr></thead>
+    <tbody>
+      <tr><td>Router_Static</td><td class="num">11,031,422</td><td class="num good">116.8</td><td class="num">208</td><td class="num">4</td><td><span class="badge badge-green">优秀</span></td></tr>
+      <tr><td>Router_Static_100 routes</td><td class="num">4,280,079</td><td class="num">291.8</td><td class="num">208</td><td class="num">4</td><td><span class="badge badge-green">优秀</span></td></tr>
+      <tr><td>Router_Param (:id)</td><td class="num">8,450,266</td><td class="num good">153.4</td><td class="num">208</td><td class="num">4</td><td><span class="badge badge-green">优秀</span></td></tr>
+      <tr><td>Router_Param_Deep</td><td class="num">8,052,476</td><td class="num">151.7</td><td class="num">208</td><td class="num">4</td><td><span class="badge badge-green">优秀</span></td></tr>
+      <tr><td>Router_Regex ({id:[0-9]+})</td><td class="num">7,601,992</td><td class="num">166.8</td><td class="num">208</td><td class="num">4</td><td><span class="badge badge-green">优秀</span></td></tr>
+      <tr><td>Router_Wildcard (*path)</td><td class="num">9,616,420</td><td class="num good">116.1</td><td class="num">208</td><td class="num">4</td><td><span class="badge badge-green">优秀</span></td></tr>
+      <tr><td>Router_NotFound <span class="tag-fixed">已优化</span></td><td class="num">5,773,273</td><td class="num good">403</td><td class="num good">1,016</td><td class="num good">9</td><td><span class="badge badge-green">已改善</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- Middleware -->
+  <h3 style="margin:2rem 0 .75rem;color:var(--accent)">2. 中间件链开销</h3>
+  <p style="font-size:.85rem;color:var(--text2);margin-bottom:1rem;">每增加一个中间件增量约 2~4 ns，10 个中间件累计仅 22 ns，开销极低。</p>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:.75rem;padding:1.5rem;max-width:600px;">
+    <div class="bar-group">
+      <div class="bar-label"><span>0 个中间件 (基线)</span><span>111.8 ns</span></div>
+      <div class="bar-bg"><div class="bar-fill bar-blue" style="width:56%"></div></div>
+    </div>
+    <div class="bar-group">
+      <div class="bar-label"><span>1 个中间件</span><span>116.2 ns (+4.4)</span></div>
+      <div class="bar-bg"><div class="bar-fill bar-blue" style="width:58%"></div></div>
+    </div>
+    <div class="bar-group">
+      <div class="bar-label"><span>3 个中间件</span><span>126.5 ns (+14.7)</span></div>
+      <div class="bar-bg"><div class="bar-fill bar-blue" style="width:63%"></div></div>
+    </div>
+    <div class="bar-group">
+      <div class="bar-label"><span>5 个中间件</span><span>127.6 ns (+15.8)</span></div>
+      <div class="bar-bg"><div class="bar-fill bar-blue" style="width:64%"></div></div>
+    </div>
+    <div class="bar-group">
+      <div class="bar-label"><span>10 个中间件</span><span>134.4 ns (+22.6)</span></div>
+      <div class="bar-bg"><div class="bar-fill bar-blue" style="width:67%"></div></div>
+    </div>
+    <div class="bar-group">
+      <div class="bar-label"><span>Abort 中止</span><span>117.5 ns</span></div>
+      <div class="bar-bg"><div class="bar-fill bar-cyan" style="width:59%"></div></div>
+    </div>
+  </div>
+
+  <!-- Context / Response -->
+  <h3 style="margin:2rem 0 .75rem;color:var(--accent)">3. Context 响应性能</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>操作</th><th class="num">ns/op</th><th class="num">B/op</th><th class="num">allocs/op</th></tr></thead>
+    <tbody>
+      <tr><td>JSON 响应（小 payload）</td><td class="num good">562.2</td><td class="num">1,028</td><td class="num">9</td></tr>
+      <tr><td>JSON 响应（中 payload）</td><td class="num">627.2</td><td class="num">1,381</td><td class="num">10</td></tr>
+      <tr><td>JSON 响应（大 payload 100字段）</td><td class="num warn">5,947</td><td class="num warn">25,965</td><td class="num">13</td></tr>
+      <tr><td>String 响应</td><td class="num good">361.3</td><td class="num">992</td><td class="num">8</td></tr>
+      <tr><td>Query 参数解析</td><td class="num good">444.0</td><td class="num">688</td><td class="num">11</td></tr>
+      <tr><td>ServeHTTP 并发静态</td><td class="num good">72.5</td><td class="num">208</td><td class="num">4</td></tr>
+      <tr><td>ServeHTTP 并发 JSON</td><td class="num good">337.1</td><td class="num">1,284</td><td class="num">10</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- Integration -->
+  <h3 style="margin:2rem 0 .75rem;color:var(--accent)">4. 端到端集成测试</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>场景</th><th class="num">ns/op</th><th class="num">B/op</th><th class="num">allocs/op</th></tr></thead>
+    <tbody>
+      <tr><td>基线（空路由）</td><td class="num good">111.2</td><td class="num">208</td><td class="num">4</td></tr>
+      <tr><td>静态路由 + JSON 响应 <span class="tag-fixed">已优化</span></td><td class="num good">614</td><td class="num good">1,237</td><td class="num good">9</td></tr>
+      <tr><td>参数路由 + JSON 响应 <span class="tag-fixed">已优化</span></td><td class="num good">615</td><td class="num good">1,237</td><td class="num good">9</td></tr>
+      <tr><td>POST + JSON 绑定 + 响应 <span class="tag-fixed">已优化</span></td><td class="num">1,875</td><td class="num">6,914</td><td class="num good">24</td></tr>
+      <tr><td>3 个中间件 + JSON <span class="tag-fixed">已优化</span></td><td class="num">1,024</td><td class="num">1,351</td><td class="num good">14</td></tr>
+      <tr><td>5 个中间件 + JWT 验证 + JSON <span class="tag-fixed">已优化</span></td><td class="num">3,076</td><td class="num">3,494</td><td class="num good">59</td></tr>
+      <tr><td>路由分组 API</td><td class="num">651</td><td class="num">1,237</td><td class="num">9</td></tr>
+      <tr><td>并发静态路由（最快）</td><td class="num good">71</td><td class="num">208</td><td class="num">4</td></tr>
+      <tr><td>并发 3 中间件 JSON</td><td class="num good">872</td><td class="num">1,351</td><td class="num">14</td></tr>
+      <tr><td>大列表 JSON（100 items）<span class="tag-fixed">v10 已优化</span></td><td class="num good">27,450</td><td class="num good">42,310</td><td class="num good">10</td></tr>
+      <tr><td>&nbsp;&nbsp;↳ <code>c.JSON</code>（有 Content-Length，含缓冲）</td><td class="num warn">28,577</td><td class="num warn">43,008</td><td class="num warn">12</td></tr>
+      <tr><td>404 Not Found <span class="tag-fixed">已优化</span></td><td class="num good">403</td><td class="num good">1,016</td><td class="num good">9</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- Middleware perf -->
+  <h3 style="margin:2rem 0 .75rem;color:var(--accent)">5. 内置中间件性能</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>中间件</th><th class="num">ns/op</th><th class="num">B/op</th><th class="num">allocs/op</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>CORS Passthrough</td><td class="num good">111.1</td><td class="num">208</td><td class="num">4</td><td>非跨域无额外开销</td></tr>
+      <tr><td>CORS CrossOrigin</td><td class="num">369.7</td><td class="num">944</td><td class="num">8</td><td>含响应头写入</td></tr>
+      <tr><td>CORS Preflight</td><td class="num warn">790.7</td><td class="num">1,582</td><td class="num">16</td><td>OPTIONS 预检</td></tr>
+      <tr><td>Recovery NoPanic</td><td class="num good">106.6</td><td class="num">208</td><td class="num">4</td><td>正常路径零开销</td></tr>
+      <tr><td>JWT 有效 Token <span class="tag-fixed">Phase 2 已优化</span></td><td class="num good">~1,800</td><td class="num good">~2,100</td><td class="num good">~35</td><td>claimsPool + ndPool 复用</td></tr>
+      <tr><td>JWT Cache Hit（LRU 命中）</td><td class="num good">~350</td><td class="num good">~300</td><td class="num good">~5</td><td>零密码学运算，仅 httptest 开销</td></tr>
+      <tr><td>JWT 缺失 Token</td><td class="num">719.5</td><td class="num">1,558</td><td class="num">15</td><td>快速拒绝</td></tr>
+      <tr><td>JWT 无效签名</td><td class="num">2,643</td><td class="num">4,148</td><td class="num">68</td><td>含签名计算</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- Load Balance -->
+  <h3 style="margin:2rem 0 .75rem;color:var(--accent)">6. 负载均衡算法</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>算法</th><th class="num">ns/op</th><th class="num">B/op</th><th class="num">allocs/op</th><th>适用场景</th></tr></thead>
+    <tbody>
+      <tr><td>Random</td><td class="num good">0.92</td><td class="num">0</td><td class="num">0</td><td>无状态，极致性能</td></tr>
+      <tr><td>Weighted</td><td class="num good">2.79</td><td class="num">0</td><td class="num">0</td><td>权重比例分配</td></tr>
+      <tr><td>RoundRobin</td><td class="num good">30.32</td><td class="num">0</td><td class="num">0</td><td>均匀分配</td></tr>
+      <tr><td>P2C</td><td class="num good">177.6</td><td class="num">0</td><td class="num">0</td><td>最小负载，高精度</td></tr>
+      <tr><td>ConsistentHash 稳定</td><td class="num good">22</td><td class="num">13</td><td class="num">1</td><td>会话粘性（lock-free 读）</td></tr>
+      <tr><td>SmoothWeighted</td><td class="num">266.6</td><td class="num">0</td><td class="num">0</td><td>平滑权重</td></tr>
+      <tr><td>LeastConn</td><td class="num">233.0</td><td class="num">0</td><td class="num">0</td><td>长连接场景</td></tr>
+      <tr><td>ConsistentHash 环变更 <span class="tag-fixed">已优化</span></td><td class="num good">20,784</td><td class="num good">12,351</td><td class="num good">4</td><td>节点上下线（原 86 µs→21 µs）</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- Reactor -->
+  <h3 style="margin:2rem 0 .75rem;color:var(--accent)">7. 网络引擎（Reactor + WorkerPool）</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>测试用例</th><th class="num">ns/op</th><th class="num">B/op</th><th class="num">allocs/op</th></tr></thead>
+    <tbody>
+      <tr><td>WorkerPool TrySubmit（串行）</td><td class="num">158.5</td><td class="num">0</td><td class="num">0</td></tr>
+      <tr><td>WorkerPool Submit（并发）</td><td class="num good">80.98</td><td class="num">0</td><td class="num">0</td></tr>
+      <tr><td>WorkerPool TrySubmit（并发）</td><td class="num good">78.71</td><td class="num">0</td><td class="num">0</td></tr>
+      <tr><td>Reactor HTTP Keepalive <span class="tag-fixed">v9 已优化</span></td><td class="num good">25,025</td><td class="num good">1,101</td><td class="num good">15</td></tr>
+      <tr><td>Reactor HTTP 新连接 <span class="tag-fixed">v8+v9 已优化</span></td><td class="num good">64,827</td><td class="num good">7,092</td><td class="num good">47</td></tr>
+      <tr><td>Reactor HTTP 并发 <span class="tag-fixed">v9 已优化</span></td><td class="num good">7,199</td><td class="num good">1,741</td><td class="num good">19</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:.82rem;color:var(--text2);margin-top:.5rem;">Reactor v8（dispatchNewDirect + connStatePool）：NewConn 延迟 84 µs → 65 µs（−22%）。Reactor v9（poller scratch buffer + dispatchFn 预绑定）：Keepalive B/op <b style="color:var(--green)">21,019 → 1,101（−94.7%）</b>，Parallel 吞吐 <b style="color:var(--green)">~76K → ~139K req/s（+83%）</b>。短连接密集场景仍建议标准 <code>RunServer</code>。<br>v10（JSONStream）：大列表响应 <code>c.JSONStream()</code> 直接编码到 ResponseWriter，allocs <b style="color:var(--green)">12 → 10</b>，生产环境消除 ~43 KB 中间缓冲。</p>
+</div>
+</section>
+
+<!-- ─── OPTIMIZATIONS ─── -->
+<section id="optimizations">
+<div class="container">
+  <h2 class="section-title">v7 + v8 + v9 + v10 性能优化日志</h2>
+  <p class="section-sub">v7 针对三条热路径系统性优化；v8 完成 JWT Phase 2 pool 化 + Reactor 直接派发新连接；v9 完成 Reactor poller scratch buffer + dispatchFn 预绑定内存专项（Keepalive B/op −94.7%）；v10 新增 <code>c.JSONStream()</code> API，消除大列表中间缓冲（allocs 12→10，~43 KB 堆分配消除）。所有优化均通过完整测试套件验证。</p>
+
+  <!-- Before/After table -->
+  <h3 style="margin-bottom:.75rem;color:var(--accent)">优化前后对比</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>优化项</th><th class="num">改前 ns/op</th><th class="num">改后 ns/op</th><th class="num">改前 allocs</th><th class="num">改后 allocs</th><th class="num">延迟降幅</th><th class="num">分配降幅</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>POST+JSON 绑定</b><br><small style="color:var(--text2)">Plans A+B+D：pooled LimitedReader、Buffer、Encoder</small></td>
+        <td class="num warn">2,343</td><td class="num good">1,875</td>
+        <td class="num warn">34</td><td class="num good">24</td>
+        <td class="num diff-good">−20%</td><td class="num diff-good">−29%</td>
+      </tr>
+      <tr>
+        <td><b>404 Not Found 路径</b><br><small style="color:var(--text2)">预建 HandlersChain + 哨兵错误 + 预构建响应字节</small></td>
+        <td class="num warn">770</td><td class="num good">403</td>
+        <td class="num warn">16</td><td class="num good">9</td>
+        <td class="num diff-good">−48%</td><td class="num diff-good">−44%</td>
+      </tr>
+      <tr>
+        <td><b>ConsistentHash 环重建</b><br><small style="color:var(--text2)">Plans A+B+C+D：atomic.Pointer、内联 FNV-1a、scratch buf、哈希指纹</small></td>
+        <td class="num warn">86,154</td><td class="num good">20,784</td>
+        <td class="num warn">1,508</td><td class="num good">4</td>
+        <td class="num diff-good">−76%</td><td class="num diff-good">−99.7%</td>
+      </tr>
+      <tr>
+        <td><b>JSON 响应路径</b><br><small style="color:var(--text2)">Plan D：pooled gojson.Encoder + bufEncoder 接口</small></td>
+        <td class="num">657</td><td class="num good">614</td>
+        <td class="num">10</td><td class="num good">9</td>
+        <td class="num diff-good">−7%</td><td class="num diff-good">−10%</td>
+      </tr>
+      <tr>
+        <td><b>JWT Phase 2</b> <span class="tag-fixed">v8 新增</span><br><small style="color:var(--text2)">claimsPool + ndPool + 签名段缓存 key + 80% TTL</small></td>
+        <td class="num warn">2,244</td><td class="num good">~1,800</td>
+        <td class="num warn">58</td><td class="num good">~35</td>
+        <td class="num diff-good">~−20%</td><td class="num diff-good">~−40%</td>
+      </tr>
+      <tr>
+        <td><b>JWT Cache Hit（LRU 命中）</b> <span class="tag-fixed">v8 新增</span><br><small style="color:var(--text2)">16-shard LRU，key = 签名段，TTL = 80% 剩余有效期</small></td>
+        <td class="num warn">—</td><td class="num good">~350</td>
+        <td class="num warn">—</td><td class="num good">~5</td>
+        <td class="num diff-good">—</td><td class="num diff-good">零密码学运算</td>
+      </tr>
+      <tr>
+        <td><b>Reactor 新连接直接派发</b> <span class="tag-fixed">v8 新增</span><br><small style="color:var(--text2)">connStatePool + dispatchNewDirect，移除 addCh → poller 注册轮回</small></td>
+        <td class="num warn">83,598</td><td class="num good">64,827</td>
+        <td class="num warn">58</td><td class="num good">47</td>
+        <td class="num diff-good">−22%</td><td class="num diff-good">−19%</td>
+      </tr>
+      <tr>
+        <td><b>Reactor poller scratch + dispatchFn</b> <span class="tag-fixed">v9 新增</span><br><small style="color:var(--text2)">poller.wait() scratch 预分配（消除每次 16 KB）+ dispatchFn 预绑定（消除闭包）；Keepalive B/op 21,019→1,101（−94.7%）</small></td>
+        <td class="num warn">27,071</td><td class="num good">25,025</td>
+        <td class="num warn">24</td><td class="num good">15</td>
+        <td class="num diff-good">−7.5%</td><td class="num diff-good">−37.5%</td>
+      </tr>
+      <tr>
+        <td><b>大列表 JSONStream</b> <span class="tag-fixed">v10 新增</span><br><small style="color:var(--text2)">reuseWriter 泛化为 io.Writer + streamEncoder 接口 + c.JSONStream()，跳过 jsonBufPool 及 WriteTo 拷贝</small></td>
+        <td class="num warn">28,577</td><td class="num good">27,450</td>
+        <td class="num warn">12</td><td class="num good">10</td>
+        <td class="num diff-good">−4%</td><td class="num diff-good">−17%</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- Technique breakdown -->
+  <h3 style="margin:2rem 0 .75rem;color:var(--accent)">各优化技术说明</h3>
+  <div class="card-grid">
+    <div class="card">
+      <h3>Plan A — pooled LimitedReader</h3>
+      <p>将 <code>io.LimitedReader</code> 放入 <code>sync.Pool</code>，绑定路径每次请求复用。消除 <code>http.MaxBytesReader</code> 和 <code>io.LimitReader</code> 各自的 1 alloc/req heap 分配。</p>
+    </div>
+    <div class="card">
+      <h3>Plan B — pooled bytes.Buffer</h3>
+      <p>绑定路径复用 <code>jsonBufPool</code>（响应路径已有），读取 body 到池化 buffer 后调用 <code>gojson.Unmarshal</code>，替换 <code>json.NewDecoder</code>（2 allocs：Decoder + bufio.Reader）。</p>
+    </div>
+    <div class="card">
+      <h3>Plan D — pooled Encoder</h3>
+      <p>引入 <code>bufEncoder</code> 接口 + 池化 <code>*gojson.Encoder</code>。<code>reuseWriter</code> 将 encoder 的写目标重定向到池化 buffer，消除 <code>Marshal</code> 返回的中间 <code>[]byte</code> 分配。v10 将 <code>reuseWriter.w</code> 泛化为 <code>io.Writer</code>，同一 pool 同时服务 <code>EncodeInto</code>（pool buf）与 <code>EncodeStream</code>（ResponseWriter），零额外分配。</p>
+    </div>
+    <div class="card">
+      <h3>404 — 哨兵错误 + 预构建响应</h3>
+      <p>预分配 <code>HandlersChain</code>，<code>defaultNotFoundHandler</code> 返回包级 sentinel <code>*HTTPError</code>，<code>defaultErrorHandler</code> 以指针相等判断，写预构建 <code>[]byte</code>，跳过所有 map/encoding。</p>
+    </div>
+    <div class="card">
+      <h3>ConsistentHash — atomic.Pointer</h3>
+      <p>用 <code>atomic.Pointer[vnodeRing]</code> 替换 <code>sync.Mutex</code>，稳定环读路径完全无锁。重建时采用双重检查锁，避免并发重复构建。稳定 Pick 从 143 ns 降至 22 ns。</p>
+    </div>
+    <div class="card">
+      <h3>ConsistentHash — 内联 FNV-1a</h3>
+      <p>消除 <code>fnv.New32a()</code>（1 alloc/hash）和 <code>[]byte(s)</code> 转换。scratch buffer 每实例分配一次、150 replicas 复用，将 1500 allocs 降至 N allocs。<code>instanceFingerprintHash</code> 零分配 O(N) 指纹。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag-fixed">v8</span> JWT claimsPool + ndPool</h3>
+      <p><code>claimsPool</code> 复用 <code>*Claims</code> 结构体；<code>ndPool</code> 复用 <code>*jwt.NumericDate</code>（exp/nbf/iat，最多 3 个/请求）。中间件明确调用 <code>c.Next()</code> 后通过 <code>releaseClaims</code> 归还，缓存命中路径不归还（cache 持有指针）。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag-fixed">v8</span> JWT 签名段缓存 + 80% TTL</h3>
+      <p><code>tokenSignature(raw)</code> 仅取 <code>.</code> 后最后段（HS256 ~43 字节 vs 原 ~200 字节），FNV-1a 哈希量 −78%。TTL 改为 <code>now + (expireAt-now)*4/5</code>，在 token 真正过期前提前驱逐，消除临界命中的 stale-claim 风险。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag-fixed">v8</span> Reactor dispatchNewDirect</h3>
+      <p>新连接跳过 <code>addCh → drainAddCh → poller.add → epoll wait → handleEvent</code> 全链路，直接提交 worker pool。首次 keep-alive rearm 时调用 <code>poller.add</code>；<code>Connection: close</code> 连接全程不进入 poller，<code>workerCloseConn</code> 跳过 <code>poller.del</code>。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag-fixed">v9</span> Reactor poller scratch buffer</h3>
+      <p>将 <code>kqueuePoller</code> / <code>epollPoller</code> 的 <code>wait()</code> 调用中每次新建的 <code>[]Kevent_t</code> / <code>[]EpollEvent</code>（512 × 32 B = 16 KB）改为预分配到 struct 上的 <code>scratch</code> 字段，跨调用复用。消除了占全局分配量 89.8% 的最大分配源，Keepalive B/op 从 21,019 降至 1,101（−94.7%）。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag-fixed">v9</span> dispatchFn 预绑定</h3>
+      <p>将 <code>cs.dispatch</code> 方法值（每次作为 <code>func()</code> 传入 <code>trySubmit</code> 时产生一次闭包/方法值分配）改为在 <code>acquireConnState</code> 时懒初始化到 <code>cs.dispatchFn</code> 字段，<code>releaseConnState</code> 不清零，保证 pool 复用时同一 <code>func()</code> 可跨请求直接复用，消除每请求一次的闭包堆分配。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag-fixed">v10</span> JSONStream — 大列表零缓冲编码</h3>
+      <p>新增 <code>c.JSONStream(code, obj)</code> API：① <code>reuseWriter.w</code> 类型从 <code>*bytes.Buffer</code> 改为 <code>io.Writer</code>，复用同一 <code>goJsonEncPool</code>；② 新增 <code>streamEncoder</code> 接口（与 <code>bufEncoder</code> 对称）及 <code>EncodeStream(io.Writer, any)</code> 方法；③ <code>contract.Context</code> 接口同步添加 <code>JSONStream</code>。编码直接写入 ResponseWriter，跳过 <code>jsonBufPool</code> 缓冲和 <code>contentLengthSlice</code>，allocs 12→10，生产环境消除 ~43 KB 堆缓冲及 <code>WriteTo</code> 拷贝。</p>
+    </div>
+
+
+  <!-- Remaining open issues + solutions -->
+  <h3 style="margin:2rem 0 .75rem;color:var(--accent)">现存问题 &amp; 最优解决方案</h3>
+
+  <div class="solution-card">
+    <h4>✅ JWT 中间件 allocs 优化 <span class="tag-fixed">v8 已完成</span></h4>
+    <p>
+      <b>Phase 1（v7）：</b>消除双重解析，105 → 58 allocs（−45%）。<br>
+      <b>Phase 2（v8）：</b>引入 <code>claimsPool</code> + <code>ndPool</code>，缓存 key 改为 token 签名段（FNV hash 量 −78%），TTL = 80% 剩余有效期。<br>
+      <b>结果：</b>无缓存路径 <b>58 → ~35 allocs</b>（−40%）；LRU cache hit 路径 <b>~5 allocs</b>（零密码学运算）。
+    </p>
+  </div>
+
+  <div class="solution-card">
+    <h4>✅ Reactor 内存分配优化 <span class="tag-fixed">v9 已完成</span></h4>
+    <p>
+      <b>根因（已解决）：</b>pprof 分析发现 <code>kqueuePoller.wait()</code> / <code>epollPoller.wait()</code> 每次调用在堆上分配 512 × 32 B = 16 KB 的事件缓冲区，占全局分配量的 89.8%；此外 <code>cs.dispatch</code> 方法值每次传入 worker pool 时产生一次闭包分配。<br>
+      <b>实施：</b>① 将事件缓冲区移至 poller struct 上的 <code>scratch</code> 字段，跨 <code>wait()</code> 调用复用（新增 cap 检查保证安全扩容）；② <code>dispatchFn func()</code> 字段在 <code>acquireConnState</code> 懒初始化，<code>releaseConnState</code> 不清零，pool 复用时直接重用同一 func 指针。<br>
+      <b>结果：</b>Keepalive B/op <b>21,019 → 1,101（−94.7%）</b>，allocs <b>24 → 15（−37.5%）</b>；Parallel QPS <b>~76K → ~139K req/s（+83%）</b>；NewConn B/op <b>62,481 → 7,092（−88.6%）</b>。
+    </p>
+  </div>
+
+  <div class="solution-card">
+    <h4>✅ Reactor 新连接开销优化 <span class="tag-fixed">v8 已完成</span></h4>
+    <p>
+      <b>根因（已解决）：</b>新连接通过 addCh channel → drainAddCh → poller.add → epoll/kqueue wait → handleEvent 全链路，增加额外的 event-loop 轮回延迟。<br>
+      <b>实施：</b>① <code>connStatePool sync.Pool</code> 复用 <code>*connState</code> + <code>bufio.Reader</code>（warm 命中 −3 allocs）；② <code>dispatchNewDirect</code> 跳过 addCh → poller 注册轮回，直接派发 worker；③ 懒注册（<code>registered bool</code>）：<code>Connection: close</code> 连接全程不调用 <code>epoll_ctl</code>。<br>
+      <b>结果：</b>NewConn 延迟 <b>84 µs → 65 µs（−22%）</b>，allocs <b>58 → 47（−19%）</b>。
+    </p>
+  </div>
+
+  <div class="solution-card">
+    <h4>🟡 POST+JSON 绑定仍有 24 allocs <span class="tag-partial">持续改进</span></h4>
+    <p>
+      <b>根因：</b>JSON 字段反序列化中每个 <code>string</code> 字段产生 1 alloc（Go 字符串不可变语义所限）。3 字段请求体 ≈ 3 allocs，余下来自 buffer/error 路径。<br>
+      <b>最优方案：</b>① 使用 <a href="https://github.com/bytedance/sonic" style="color:var(--primary-light)">sonic</a>（字节跳动）替代 goccy/go-json 作为序列化器（通过 <code>astra.WithSerializer(sonic.ConfigStd)</code> 一行切换），可减少 ~4 allocs；
+      ② 对固定结构体使用 <a href="https://github.com/valyala/fastjson" style="color:var(--primary-light)">fastjson</a> 零拷贝解析；
+      ③ 采用 <code>unsafe.String</code> 零拷贝字符串（仅只读场景，需业务确认生命周期）。
+    </p>
+  </div>
+
+  <div class="solution-card">
+    <h4>✅ 大列表 JSON JSONStream API <span class="tag-fixed">v10 已完成</span></h4>
+    <p>
+      <b>根因（已解决）：</b>原 <code>c.JSON()</code> 先将整个列表编码到 pooled <code>bytes.Buffer</code>（~43 KB），再设 Content-Length 并调用 <code>WriteTo</code> 写入响应，产生大内存分配。<br>
+      <b>实施：</b>① <code>reuseWriter.w</code> 泛化为 <code>io.Writer</code>，同一 <code>goJsonEncPool</code> 服务两条路径；② 新增 <code>streamEncoder</code> 接口 + <code>EncodeStream(w io.Writer, v any)</code>；③ <code>c.JSONStream(code, obj)</code> 直接编码到 ResponseWriter，跳过 <code>jsonBufPool</code> 和 <code>contentLengthSlice</code>；④ <code>contract.Context</code> 接口同步新增 <code>JSONStream</code>。<br>
+      <b>结果：</b>allocs <b>12 → 10（−17%）</b>；生产环境消除 <b>~43 KB</b> 中间缓冲堆分配及 <code>WriteTo</code> 拷贝；HTTP/1.1 使用 chunked 传输，HTTP/2 / HTTP/3 不受影响。
+    </p>
+  </div>
+
+  <div class="solution-card">
+    <h4>🟢 notify/search 子模块文档 <span class="tag-fixed">已完成</span></h4>
+    <p>
+      <b>改善：</b>已为 <code>notify</code>（Email/SMTP、SMS/Aliyun、SMS/Tencent、Push/FCM）和 <code>search/elastic</code>（索引、搜索、聚合、管理）分别编写完整 README，覆盖所有配置项、代码示例和错误处理说明。
+    </p>
+  </div>
+
+  <div class="solution-card">
+    <h4>🟡 生态成熟度 <span class="tag-open">长期建设</span></h4>
+    <p>
+      <b>最优方案：</b>① 完善 <code>astractl</code> CLI 工具：增加 <code>new</code>（项目脚手架）、<code>gen route</code>（基于注释的路由生成）、<code>gen openapi</code>（自动导出 OpenAPI 3.0）命令；
+      ② 在路由注册时支持注解式描述，自动推导 Swagger 文档（无需额外依赖）；
+      ③ 发布基准测试对比页面（类 TechEmpower），提升社区认知度。
+    </p>
+  </div>
+</div>
+</section>
+
+<!-- ─── PROBLEMS ─── -->
+<section id="problems">
+<div class="container">
+  <h2 class="section-title">核心问题 &amp; 解决方案</h2>
+  <p class="section-sub">Astra 针对 Go 后端开发中最常见的 11 类困境，提供了系统性的内置解答。</p>
+
+  <div class="problem-card">
+    <div class="problem-header"><div class="problem-num">1</div><h4>选型碎片化 — 基础设施"攒机"成本高</h4></div>
+    <p class="pain">一个典型服务需要：路由 + 配置中心 + 日志 + 限流 + 熔断 + 追踪 + Prometheus + 缓存 + DB + MQ + 任务队列……花在"组装脚手架"上的时间往往多于业务开发本身。</p>
+    <p class="answer"><strong>Astra 答案：</strong>将生产级基础设施的最佳实践统一打包，提供一致的接口抽象（<code>Renderer</code>、<code>Broker</code>、<code>Cache</code>、<code>Repository[T]</code>），核心框架零外部依赖，扩展模块按需引入。</p>
+  </div>
+
+  <div class="problem-card">
+    <div class="problem-header"><div class="problem-num">2</div><h4>错误处理失控 — 分散的响应写法难以维护</h4></div>
+    <p class="pain">在 Gin 项目里，错误响应格式散落在每个 handler 中：有的 <code>c.JSON(400, ...)</code>，有的 <code>c.AbortWithStatusJSON(500, ...)</code>，有的直接 <code>return</code>——随项目增长，格式不一致成为噩梦。</p>
+    <p class="answer"><strong>Astra 答案：</strong>Handler 签名统一为 <code>func(*Context) error</code>，所有错误流向单一 <code>ErrorHandler</code>；<code>HTTPError{Code, Message}</code> 是唯一的错误表达方式，格式由框架保证一致。</p>
+  </div>
+
+  <div class="problem-card">
+    <div class="problem-header"><div class="problem-num">3</div><h4>可观测性接入繁琐 — OTel + Prometheus + 日志关联需要大量胶水代码</h4></div>
+    <p class="pain">要实现"链路追踪 × 指标 × 日志三位一体"，需手动初始化 OTel SDK、配置 propagator、为每个 handler 注入 span、将 trace_id 写入 slog 的每条日志——枯燥且容易出错。</p>
+    <p class="answer"><strong>Astra 答案：</strong><code>middleware.Tracing()</code> + <code>middleware.Prometheus()</code> 开箱即用；<code>otel.TraceIDFromContext(ctx)</code> 直接注入 slog；gRPC 侧 <code>UnaryInterceptorTracing()</code> 自动提取 W3C TraceContext，零胶水代码。</p>
+  </div>
+
+  <div class="problem-card">
+    <div class="problem-header"><div class="problem-num">4</div><h4>HTTP + gRPC 双栈割裂 — 两套生命周期、两套错误处理</h4></div>
+    <p class="pain">同时提供 REST 和 gRPC 接口通常需维护两个独立进程，OTel 传播、错误格式、健康检查各自为政，优雅停机逻辑重复。</p>
+    <p class="answer"><strong>Astra 答案：</strong><code>grpcserver.New(app)</code> 在同一进程内同时启动 HTTP + gRPC，共享优雅停机、OTel 传播和错误编码；Kratos 兼容的结构化错误在 gRPC wire 格式和 HTTP 之间无缝映射。</p>
+  </div>
+
+  <div class="problem-card">
+    <div class="problem-header"><div class="problem-num">5</div><h4>熔断 / 限流需要手动组装 — 多个库并存、无统一接口</h4></div>
+    <p class="pain">Gin 没有内置熔断器；项目里通常出现 <code>sony/gobreaker</code>、<code>uber-go/ratelimit</code>、<code>time/rate</code> 三套不同限流库并存、接入方式各异的局面。</p>
+    <p class="answer"><strong>Astra 答案：</strong>内置两种熔断器（连续失败计数 + 自适应错误率/P99 延迟）和两种限流器（令牌桶 + 滑动窗口），均以中间件形式接入，per-route / per-user / per-API-key 细粒度配置。</p>
+  </div>
+
+  <div class="problem-card">
+    <div class="problem-header"><div class="problem-num">6</div><h4>消息队列各自为战 — 多套 SDK、业务代码与 MQ 深度耦合</h4></div>
+    <p class="pain">RabbitMQ、Kafka、RocketMQ、MQTT 各有自己的 Go SDK，业务代码与具体 broker 深度耦合，切换 MQ 需要大幅重写。</p>
+    <p class="answer"><strong>Astra 答案：</strong>统一 <code>mq.Producer</code> / <code>mq.Consumer</code> 接口抽象所有 MQ 实现；<code>taskqueue</code> 与框架生命周期集成，支持 6 种后端，切换 broker 只改一行初始化代码。</p>
+  </div>
+
+  <div class="problem-card">
+    <div class="problem-header"><div class="problem-num">7</div><h4>代码生成质量低 — 生成的骨架不可直接编译，需大量手工补全</h4></div>
+    <p class="pain">多数框架的代码生成工具只生成结构骨架，缺少 import、缺少分页逻辑——生成后需花大量时间补全才能编译通过。</p>
+    <p class="answer"><strong>Astra 答案：</strong><code>astractl</code> 生成的文件<strong>直接可编译</strong>，包含完整 import、分页 query struct、Service 接口注入，<code>gen crud --with-service</code> 一键生成完整四层骨架；支持 proto / openapi 输入。</p>
+  </div>
+
+  <div class="problem-card">
+    <div class="problem-header"><div class="problem-num">8</div><h4>权限、多租户、API Key 分散 — 缺乏统一接入模式</h4></div>
+    <p class="pain">生产项目通常需要三层访问控制：API Key → JWT → RBAC，再叠加多租户数据隔离——这四块逻辑分散在不同库里，排列组合写出大量胶水代码。</p>
+    <p class="answer"><strong>Astra 答案：</strong>中间件分层组合，每层职责清晰：<code>middleware.JWT</code> → <code>middleware.APIKey</code> → <code>middleware.Tenant</code> → <code>middleware.Audit</code> → <code>rbac.Middleware</code>，一次 <code>app.Use()</code> 调用完成全部接入。</p>
+  </div>
+
+  <div class="problem-card">
+    <div class="problem-header"><div class="problem-num">9</div><h4>框架升级耦合 — 一次升级动全身</h4></div>
+    <p class="pain">路由、OTel、GORM、Redis、MQ 打包在同一个 <code>go.mod</code> 里，升级 OTel 安全补丁会联动变更 GORM、Kafka 依赖——每次升级都是"拆炸弹"。</p>
+    <p class="answer"><strong>Astra 答案：</strong>采用 <strong>Go workspace（go.work）+ 20 个独立子模块</strong>的 monorepo 架构，每个重量级集成各自维护独立 <code>go.mod</code> 和语义版本，升级互不干扰。</p>
+  </div>
+
+  <div class="problem-card">
+    <div class="problem-header"><div class="problem-num">10</div><h4>依赖图管理分散 — main.go 膨胀、初始化顺序难以维护</h4></div>
+    <p class="pain">随着服务规模增长，<code>main.go</code> 里的组件初始化代码线性膨胀，依赖关系靠开发者肉眼维护，漏掉 nil 检查就会运行时崩溃。</p>
+    <p class="answer"><strong>Astra 答案：</strong>内置 <code>di/</code> 包，用 Go 泛型实现零依赖、无代码生成的运行时 DI 容器——工厂函数惰性求值，类型不匹配编译期即报错，通过 <code>BindApp</code> 与框架优雅停机无缝集成。</p>
+  </div>
+
+  <div class="problem-card">
+    <div class="problem-header"><div class="problem-num">11</div><h4>高并发下的 Goroutine 调度开销 — 每连接一个 goroutine 的扩展瓶颈</h4></div>
+    <p class="pain">Go 标准 <code>net/http</code> 采用"每连接一个 goroutine"模型：10,000 个空闲 Keep-Alive 连接意味着 10,000 个挂起的 goroutine，消耗 20–80 MB 栈内存。</p>
+    <p class="answer"><strong>Astra 答案：</strong>内置 <code>netengine</code> 包，直接使用 <code>golang.org/x/sys/unix</code> 调用 epoll（Linux）和 kqueue（macOS/BSD），实现 Reactor 模式。10,000 空闲连接仅需 ≤50 个 goroutine，完全兼容标准 <code>http.Handler</code> 接口。</p>
+  </div>
+</div>
+</section>
+
+<!-- ─── COMPARISON ─── -->
+<section id="comparison">
+<div class="container">
+  <h2 class="section-title">框架横向对比</h2>
+  <p class="section-sub">与主流 Go Web / 微服务框架的能力与性能对比（<b style="color:var(--primary-light)">加粗蓝色列为 Astra</b>）</p>
+
+  <!-- Perf comparison -->
+  <h3 style="margin-bottom:1rem;color:var(--accent)">路由性能对比（ns/op，越低越好）</h3>
+  <p style="font-size:.82rem;color:var(--text2);margin-bottom:1rem;">* Gin/Echo/Fiber 数据来自官方/社区公开基准测试（Apple M1/M2 级别 ARM），Astra 为本次实测数据，仅作量级参考。</p>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:.75rem;padding:1.5rem;max-width:700px;">
+    <div class="bar-group">
+      <div class="bar-label"><span><b style="color:#818cf8">Astra</b>（静态路由，本次实测）</span><span>116.8 ns</span></div>
+      <div class="bar-bg"><div class="bar-fill bar-blue" style="width:35%"></div></div>
+    </div>
+    <div class="bar-group">
+      <div class="bar-label"><span>Gin（静态路由，社区基准）</span><span>~130 ns</span></div>
+      <div class="bar-bg"><div class="bar-fill bar-green" style="width:39%"></div></div>
+    </div>
+    <div class="bar-group">
+      <div class="bar-label"><span>Echo（静态路由，社区基准）</span><span>~190 ns</span></div>
+      <div class="bar-bg"><div class="bar-fill bar-cyan" style="width:57%"></div></div>
+    </div>
+    <div class="bar-group">
+      <div class="bar-label"><span>Fiber（fasthttp，社区基准）</span><span>~65 ns</span></div>
+      <div class="bar-bg"><div class="bar-fill bar-orange" style="width:19%"></div></div>
+    </div>
+    <div class="bar-group">
+      <div class="bar-label"><span>go-zero（社区基准）</span><span>~200 ns</span></div>
+      <div class="bar-bg"><div class="bar-fill" style="width:60%;background:linear-gradient(90deg,#4c1d95,#8b5cf6)"></div></div>
+    </div>
+    <div class="bar-group">
+      <div class="bar-label"><span><b style="color:#818cf8">Astra</b>（并发 ServeHTTP，本次实测）</span><span>70.4 ns</span></div>
+      <div class="bar-bg"><div class="bar-fill bar-blue" style="width:21%"></div></div>
+    </div>
+  </div>
+
+  <!-- Feature comparison -->
+  <h3 style="margin:2rem 0 1rem;color:var(--accent)">功能能力对比</h3>
+  <div class="table-wrap">
+  <table class="cmp-table">
+    <thead>
+      <tr>
+        <th>功能</th>
+        <th class="highlight-col">Astra ⭐</th>
+        <th>Gin</th>
+        <th>Echo</th>
+        <th>Fiber</th>
+        <th>go-zero</th>
+        <th>Kratos</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>HTTP/3 (QUIC)</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="partial-icon">⚡</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+      </tr>
+      <tr>
+        <td>正则路由 ({name:pattern})</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="partial-icon">△</span></td>
+        <td><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+      </tr>
+      <tr>
+        <td>消息队列集成（6种）</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="partial-icon">△</span></td>
+        <td><span class="partial-icon">△</span></td>
+      </tr>
+      <tr>
+        <td>分布式事务（Saga）</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="partial-icon">△</span></td>
+        <td><span class="cross">❌</span></td>
+      </tr>
+      <tr>
+        <td>熔断器（含自适应）</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="check">✅</span></td>
+        <td><span class="check">✅</span></td>
+      </tr>
+      <tr>
+        <td>服务发现（Consul/etcd/K8s）</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="check">✅</span></td>
+        <td><span class="check">✅</span></td>
+      </tr>
+      <tr>
+        <td>负载均衡（6算法）</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="partial-icon">△</span></td>
+        <td><span class="partial-icon">△</span></td>
+      </tr>
+      <tr>
+        <td>OAuth2 + PKCE</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+      </tr>
+      <tr>
+        <td>RBAC（Casbin）</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="partial-icon">△</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+      </tr>
+      <tr>
+        <td>ORM（GORM 多DB+事务）</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="partial-icon">△</span></td>
+        <td><span class="cross">❌</span></td>
+      </tr>
+      <tr>
+        <td>GraphQL 内置支持</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="partial-icon">△</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+      </tr>
+      <tr>
+        <td>Lua 脚本引擎</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+      </tr>
+      <tr>
+        <td>告警规则引擎</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+      </tr>
+      <tr>
+        <td>依赖注入容器</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="check">✅</span></td>
+      </tr>
+      <tr>
+        <td>多协议任务调度器</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+      </tr>
+      <tr>
+        <td>通知（Email/SMS/Push）</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="cross">❌</span></td>
+      </tr>
+      <tr>
+        <td>Context 接口解耦（可 Mock）</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="cross">❌</span> 具体类型</td>
+        <td><span class="partial-icon">△</span> 接口但绑定</td>
+        <td><span class="cross">❌</span></td>
+        <td><span class="partial-icon">△</span></td>
+        <td><span class="check">✅</span></td>
+      </tr>
+      <tr>
+        <td>标准 net/http 兼容</td>
+        <td class="highlight-col"><span class="check">✅</span></td>
+        <td><span class="check">✅</span></td>
+        <td><span class="check">✅</span></td>
+        <td><span class="cross">❌</span> fasthttp</td>
+        <td><span class="check">✅</span></td>
+        <td><span class="check">✅</span></td>
+      </tr>
+      <tr>
+        <td>生态成熟度</td>
+        <td class="highlight-col"><span class="warn">成长期</span></td>
+        <td><span class="good">极成熟</span></td>
+        <td><span class="good">成熟</span></td>
+        <td><span class="good">成熟</span></td>
+        <td><span class="good">成熟</span></td>
+        <td><span class="good">成熟</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:.78rem;color:var(--text2);margin-top:.5rem;">✅ 原生支持 ｜ △ 部分/第三方支持 ｜ ❌ 不支持</p>
+
+  <!-- Score comparison -->
+  <h3 style="margin:2rem 0 1rem;color:var(--accent)">综合评分（满分 100）</h3>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:.75rem;padding:1.5rem;max-width:680px;">
+    <div style="margin-bottom:1.2rem;">
+      <div style="font-size:.8rem;color:var(--text2);margin-bottom:.5rem;">路由性能</div>
+      <div class="score-row"><div class="score-name" style="color:#818cf8;font-weight:700">Astra</div><div class="score-bar-wrap"><div class="score-bar" style="width:90%;background:linear-gradient(90deg,#4f46e5,#818cf8)">90</div></div></div>
+      <div class="score-row"><div class="score-name">Gin</div><div class="score-bar-wrap"><div class="score-bar" style="width:88%;background:linear-gradient(90deg,#16a34a,#22c55e)">88</div></div></div>
+      <div class="score-row"><div class="score-name">Echo</div><div class="score-bar-wrap"><div class="score-bar" style="width:80%;background:linear-gradient(90deg,#0891b2,#06b6d4)">80</div></div></div>
+      <div class="score-row"><div class="score-name">Fiber</div><div class="score-bar-wrap"><div class="score-bar" style="width:95%;background:linear-gradient(90deg,#c2410c,#f97316)">95</div></div></div>
+    </div>
+    <div style="margin-bottom:1.2rem;">
+      <div style="font-size:.8rem;color:var(--text2);margin-bottom:.5rem;">功能完整性</div>
+      <div class="score-row"><div class="score-name" style="color:#818cf8;font-weight:700">Astra</div><div class="score-bar-wrap"><div class="score-bar" style="width:96%;background:linear-gradient(90deg,#4f46e5,#818cf8)">96</div></div></div>
+      <div class="score-row"><div class="score-name">Gin</div><div class="score-bar-wrap"><div class="score-bar" style="width:55%;background:linear-gradient(90deg,#16a34a,#22c55e)">55</div></div></div>
+      <div class="score-row"><div class="score-name">go-zero</div><div class="score-bar-wrap"><div class="score-bar" style="width:78%;background:linear-gradient(90deg,#7c3aed,#8b5cf6)">78</div></div></div>
+      <div class="score-row"><div class="score-name">Kratos</div><div class="score-bar-wrap"><div class="score-bar" style="width:75%;background:linear-gradient(90deg,#0e7490,#06b6d4)">75</div></div></div>
+    </div>
+    <div style="margin-bottom:1.2rem;">
+      <div style="font-size:.8rem;color:var(--text2);margin-bottom:.5rem;">可测试性 / 接口解耦</div>
+      <div class="score-row"><div class="score-name" style="color:#818cf8;font-weight:700">Astra</div><div class="score-bar-wrap"><div class="score-bar" style="width:92%;background:linear-gradient(90deg,#4f46e5,#818cf8)">92</div></div></div>
+      <div class="score-row"><div class="score-name">Gin</div><div class="score-bar-wrap"><div class="score-bar" style="width:60%;background:linear-gradient(90deg,#16a34a,#22c55e)">60</div></div></div>
+      <div class="score-row"><div class="score-name">Echo</div><div class="score-bar-wrap"><div class="score-bar" style="width:75%;background:linear-gradient(90deg,#0891b2,#06b6d4)">75</div></div></div>
+      <div class="score-row"><div class="score-name">Kratos</div><div class="score-bar-wrap"><div class="score-bar" style="width:88%;background:linear-gradient(90deg,#0e7490,#06b6d4)">88</div></div></div>
+    </div>
+    <div>
+      <div style="font-size:.8rem;color:var(--text2);margin-bottom:.5rem;">生态成熟度</div>
+      <div class="score-row"><div class="score-name" style="color:#818cf8;font-weight:700">Astra</div><div class="score-bar-wrap"><div class="score-bar" style="width:35%;background:linear-gradient(90deg,#4f46e5,#818cf8)">35</div></div></div>
+      <div class="score-row"><div class="score-name">Gin</div><div class="score-bar-wrap"><div class="score-bar" style="width:99%;background:linear-gradient(90deg,#16a34a,#22c55e)">99</div></div></div>
+      <div class="score-row"><div class="score-name">Echo</div><div class="score-bar-wrap"><div class="score-bar" style="width:90%;background:linear-gradient(90deg,#0891b2,#06b6d4)">90</div></div></div>
+      <div class="score-row"><div class="score-name">go-zero</div><div class="score-bar-wrap"><div class="score-bar" style="width:85%;background:linear-gradient(90deg,#7c3aed,#8b5cf6)">85</div></div></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ─── STRENGTHS ─── -->
+<section id="strengths">
+<div class="container">
+  <h2 class="section-title">优势与不足</h2>
+  <div class="pros-cons">
+    <div class="pros">
+      <h3 style="color:var(--green)">核心优势</h3>
+      <ul>
+        <li>一站式全栈能力：从路由到 MQ、ORM、服务发现、分布式事务，单框架覆盖企业级需求</li>
+        <li>路由性能与 Gin 持平（116 ns），并发吞吐 70 ns 接近 Fiber 水准</li>
+        <li>中间件开销极低：10 个中间件累计仅 22 ns 增量，优于 Gin/Echo</li>
+        <li>Context 接口化设计：完全解耦，支持 Mock 单元测试，无需启动真实服务器</li>
+        <li>HTTP/3 (QUIC) 原生支持，同类框架中少见</li>
+        <li>6 种负载均衡算法内置，P2C/SmoothWeighted 均为 0 allocs</li>
+        <li>Monorepo + go.work 架构：各子模块独立版本，按需引入，不拖累核心包大小</li>
+        <li>Go 1.25+ 泛型 DI 容器，类型安全</li>
+        <li>告警规则引擎（expr-lang）+ Lua 脚本引擎，扩展性强</li>
+        <li>OAuth2 PKCE、RBAC/Casbin、CSRF 等安全机制完整</li>
+        <li><span class="tag-fixed">v7 新增</span> 404 路径 −48% 延迟，哨兵错误 + 预构建响应体</li>
+        <li><span class="tag-fixed">v7 新增</span> ConsistentHash 重建 −76% 延迟，−99.7% allocs，读路径无锁</li>
+        <li><span class="tag-fixed">v7 新增</span> POST+JSON 绑定 34→24 allocs，响应路径 pooled Encoder</li>
+        <li><span class="tag-fixed">v8 新增</span> JWT Phase 2：claimsPool + ndPool，58→~35 allocs（−40%），cache hit ~5 allocs</li>
+        <li><span class="tag-fixed">v8 新增</span> Reactor 新连接直接派发：84µs→65µs（−22%），短连接零 poller 开销</li>
+        <li><span class="tag-fixed">v9 新增</span> Reactor poller scratch buffer + dispatchFn 预绑定：Keepalive B/op 21K→1.1K（−94.7%），Parallel QPS ~76K→~139K（+83%）</li>
+        <li><span class="tag-fixed">v10 新增</span> 大列表 JSONStream API：<code>c.JSONStream()</code> 直接编码到 ResponseWriter，allocs 12→10，消除 ~43 KB 中间缓冲</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h3 style="color:var(--yellow)">注意事项 / 待改进</h3>
+      <ul>
+        <li>生态尚处成长期：社区规模、文档覆盖度远不及 Gin/Echo</li>
+        <li>✅ <s>JWT 中间件每次请求 64 allocs</s>：v8 已优化至 ~35 allocs（pool），cache hit ~5 allocs</li>
+        <li>✅ <s>Reactor 新连接开销（84 µs）</s>：v8 已优化至 65 µs，v9 Keepalive B/op −94.7%，Parallel QPS +83%</li>
+        <li>POST+JSON 仍有 24 allocs，对比 Fiber（fasthttp 零拷贝）有差距（优化方案：sonic 序列化器）</li>
+        <li>大列表 JSON 无流式输出，100 items 需 28 µs + 43 KB buffer（<b style="color:var(--green)">✅ v10 已解决：<code>c.JSONStream()</code> allocs 12→10，消除中间缓冲</b>）</li>
+        <li>i18n 模块目前仅内置 zh/en，多语言扩展需额外开发</li>
+        <li>Fiber 基于 fasthttp 的纯路由性能（~65 ns）仍略优于 Astra</li>
+        <li>Dagu runner 后端依赖外部 Dagu 服务，增加运维复杂度</li>
+        <li>缺少注解式路由声明 → 自动 OpenAPI 文档生成能力（astractl gen openapi 待完善）</li>
+      </ul>
+    </div>
+  </div>
+
+  <br>
+  <h3 style="margin-bottom:1rem;color:var(--accent)">适用场景推荐</h3>
+  <div class="card-grid">
+    <div class="card">
+      <h3>✅ 最佳适用</h3>
+      <ul>
+        <li>中大型微服务体系（需服务发现+负载均衡）</li>
+        <li>事件驱动系统（MQ 多后端）</li>
+        <li>需要完整认证体系（OAuth2+RBAC）的 SaaS</li>
+        <li>团队已使用 GORM 的新项目</li>
+        <li>需要可测试性高、中间件复杂的企业应用</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>⚠️ 谨慎评估</h3>
+      <ul>
+        <li>已有成熟 Gin/Echo 项目迁移成本高</li>
+        <li>超高并发短连接（Fiber 更适合）</li>
+        <li>团队规模小，社区支持需求高</li>
+        <li>需要大量第三方插件生态（Gin 更丰富）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🔄 替代对比</h3>
+      <ul>
+        <li>vs Gin：Astra 功能更全，Gin 生态更大</li>
+        <li>vs Fiber：Astra 兼容 net/http，Fiber 更快</li>
+        <li>vs go-zero：Astra 接口更简洁，go-zero 工具链更成熟</li>
+        <li>vs Kratos：Astra 功能更广，Kratos 微服务规范更严格</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ─── CONCLUSION ─── -->
+<section id="conclusion">
+<div class="container">
+  <h2 class="section-title">综合结论</h2>
+  <div class="card" style="max-width:800px;">
+    <p style="font-size:1rem;line-height:1.8;color:var(--text);">
+      Astra 是一个<strong style="color:var(--primary-light)">功能覆盖最全面的 Go Web 框架之一</strong>，在路由性能上与 Gin 持平甚至略优，同时提供了远超同类轻量框架的企业级能力（分布式事务、熔断、消息队列、服务发现等）。
+      <br><br>
+      其最大亮点是 <strong style="color:var(--accent)">Context 接口化设计</strong>——这在 Go 主流框架中极为少见，使得单元测试和中间件解耦达到很高水准。同时针对开发者在真实项目中最常见的 <strong>11 类困境</strong>（选型碎片化、错误处理失控、可观测性繁琐、gRPC 双栈割裂、熔断限流分散、MQ 耦合、代码生成质量、权限多租户分散、升级耦合、DI 混乱、高并发 goroutine 开销）提供了系统性的内置解答。
+      <br><br>
+      <strong style="color:var(--green)">v7 版本</strong>完成了三条热路径的系统性优化：404 路径延迟降低 48%、ConsistentHash 重建降低 76%（allocs −99.7%）、POST+JSON 绑定 allocs 从 34 降至 24。<strong style="color:var(--green)">v8 版本</strong>完成了 JWT Phase 2（claimsPool + ndPool + 签名段缓存，58 → ~35 allocs，cache hit ~5 allocs）和 Reactor 新连接直接派发（dispatchNewDirect + connStatePool，84 µs → 65 µs，−22%）。<strong style="color:var(--green)">v9 版本</strong>完成了 Reactor 内存专项优化（poller scratch buffer + dispatchFn 预绑定），Keepalive B/op <b>21,019 → 1,101（−94.7%）</b>，Parallel QPS <b>~76K → ~139K req/s（+83%）</b>。同时补全了 notify 和 search 子模块的完整文档。<strong style="color:var(--green)">v10 版本</strong>完成了大列表 JSONStream API（<code>reuseWriter</code> 泛化为 <code>io.Writer</code> + <code>streamEncoder</code> 接口 + <code>c.JSONStream()</code>），消除 ~43 KB 中间缓冲，allocs <b>12 → 10</b>。
+      <br><br>
+      主要不足在于<strong style="color:var(--yellow)">生态成熟度</strong>：社区规模、第三方插件库、生产案例均不及 Gin/Echo；英文文档是下一阶段的重点方向。JWT、Reactor 性能问题及大列表 JSONStream API 已全部解决。
+      <br><br>
+      <strong>总体评级：⭐⭐⭐⭐½ (4.5/5)</strong> — 技术设计优秀，功能完备，v7+v8 热路径持续优化，生态待成长。
+    </p>
+  </div>
+
+  <br>
+  <h3 style="margin-bottom:1rem;color:var(--accent)">下一步路线图（优先级排序）</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>优先级</th><th>事项</th><th>状态</th><th>目标版本</th></tr></thead>
+    <tbody>
+      <tr><td>🔴 P0</td><td>英文文档 + 社区建设（awesome-go、GitHub Discussions）</td><td class="warn">待启动</td><td>v1.1</td></tr>
+      <tr><td>🔴 P0</td><td>JWT Phase 2 优化（claimsPool + ndPool + LRU cache）</td><td class="good">✅ v8 已完成</td><td>v1.1</td></tr>
+      <tr><td>🟠 P1</td><td>Reactor 新连接直接派发（connStatePool + dispatchNewDirect）</td><td class="good">✅ v8 已完成</td><td>v1.1</td></tr>
+      <tr><td>🟠 P1</td><td>JSONStream API（大列表流式输出，避免 43KB+ buffer）</td><td class="good">✅ v10 已完成</td><td>v1.2</td></tr>
+      <tr><td>🟡 P2</td><td>基准测试 CI 门禁（allocs/ns 回归自动检测）</td><td class="warn">待配置</td><td>v1.1</td></tr>
+      <tr><td>🟡 P2</td><td>ClickHouse / Elasticsearch 集成测试（Docker 容器）</td><td class="warn">待补全</td><td>v1.2</td></tr>
+      <tr><td>⚪ P3</td><td>注解式路由 → OpenAPI 3.0 自动生成</td><td class="warn">规划中</td><td>v1.3</td></tr>
+      <tr><td>⚪ P3</td><td>HTTP/2 Server Push（<code>http.Pusher</code> 接口封装）</td><td class="warn">规划中</td><td>v1.3</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+</section>
+
+<footer>
+  <p>Astra 框架评估报告 v10 · 测试平台：Apple M4 · Go 1.25.8 · 2026-04-22 | 本版新增：v10 大列表 JSONStream API（reuseWriter 泛化 io.Writer + streamEncoder 接口），allocs 12→10，消除 ~43 KB 中间缓冲</p>
+  <p style="margin-top:.4rem;font-size:.78rem;">注：框架对比中 Gin/Echo/Fiber/go-zero/Kratos 性能数据来自公开社区基准测试，仅供量级参考；Astra 数据为本次在 Apple M4 上实测结果。</p>
+</footer>
+
+</body>
+</html>

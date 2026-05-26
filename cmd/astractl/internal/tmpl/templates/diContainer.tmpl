@@ -1,0 +1,50 @@
+package main
+
+import (
+	"context"
+
+	"github.com/astra-go/astra"
+	"github.com/astra-go/astra/di"
+)
+
+// initContainer builds the application DI container and binds its lifecycle to app.
+// Factories run lazily and at most once (singleton). Hooks registered via OnStop run
+// in reverse order during graceful shutdown.
+//
+// Usage in main():
+//
+//	app := astra.New()
+//	c   := initContainer(app)
+//	svc := di.MustInvoke[*UserService](c)
+//	handler.NewUserHandler(svc).Register(app.Group("/api/v1"))
+//	app.Run(":8080")
+func initContainer(app *astra.App) *di.Container {
+	c := di.New()
+
+	// ── Infrastructure ────────────────────────────────────────────────────────
+	// di.Provide[*sql.DB](c, func(_ *di.Container) (*sql.DB, error) {
+	// 	return sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	// })
+
+	// ── Repositories ─────────────────────────────────────────────────────────
+	// di.Provide[*UserRepo](c, func(c *di.Container) (*UserRepo, error) {
+	// 	db, err := di.Invoke[*sql.DB](c)
+	// 	return NewUserRepo(db), err
+	// })
+
+	// ── Services ─────────────────────────────────────────────────────────────
+	// di.Provide[*UserService](c, func(c *di.Container) (*UserService, error) {
+	// 	repo, err := di.Invoke[*UserRepo](c)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	svc := NewUserService(repo)
+	// 	c.OnStop(func(ctx context.Context) error { return svc.Close(ctx) })
+	// 	return svc, nil
+	// })
+
+	_ = context.Background // suppress unused import if no OnStop hooks yet
+
+	c.BindApp(app) // wire Start/Stop into Astra's graceful shutdown
+	return c
+}

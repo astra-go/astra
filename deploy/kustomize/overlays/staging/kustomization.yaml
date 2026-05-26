@@ -1,0 +1,86 @@
+# Kustomize overlay for Staging
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: astra-staging
+
+resources:
+  - ../../base
+
+namePrefix: staging-
+
+nameSuffix: ""
+
+commonLabels:
+  environment: staging
+
+replicas:
+  - name: staging-astra-app
+    count: 2
+
+images:
+  - name: myorg/astra-app
+    newTag: staging-abc123   # set from your CI pipeline
+
+patches:
+  # Override env vars for staging
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: staging-astra-app
+      spec:
+        replicas: 2
+        template:
+          spec:
+            containers:
+              - name: astra
+                env:
+                  - name: LOG_LEVEL
+                    value: debug
+                  - name: GIN_MODE
+                    value: release
+                  # Staging-specific config
+                  - name: DATABASE_URL
+                    valueFrom:
+                      secretKeyRef:
+                        name: staging-astra-secret
+                        key: DATABASE_URL
+                        optional: true
+
+# Health check for staging — less aggressive
+patchesJson6902:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: staging-astra-app
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/initialDelaySeconds
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/initialDelaySeconds
+        value: 10
+
+# Ingress for staging (optional)
+# Uncomment if you want a separate staging ingress
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: staging-astra-app
+#   labels:
+#     environment: staging
+# spec:
+#   rules:
+#     - host: staging.example.com
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: staging-astra-app
+#                 port:
+#                   number: 80

@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Astra 框架综合评估报告</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --card:     #22263a;
+      --border:   #2e3350;
+      --accent:   #6c8cff;
+      --accent2:  #a78bfa;
+      --green:    #34d399;
+      --yellow:   #fbbf24;
+      --red:      #f87171;
+      --cyan:     #22d3ee;
+      --text:     #e2e8f0;
+      --muted:    #8892b0;
+      --radius:   12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    /* ── Hero ────────────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(135deg, #0f1117 0%, #1a1d27 40%, #1e1b4b 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 72px 24px 56px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -120px; left: 50%; transform: translateX(-50%);
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(108,140,255,.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(108,140,255,.15);
+      border: 1px solid rgba(108,140,255,.4);
+      color: var(--accent);
+      border-radius: 20px;
+      padding: 4px 16px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      letter-spacing: .5px;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, #fff 30%, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 16px;
+    }
+    .hero .subtitle {
+      color: var(--muted);
+      font-size: 1.1rem;
+      max-width: 600px;
+      margin: 0 auto 28px;
+    }
+    .hero-meta {
+      display: flex;
+      gap: 32px;
+      justify-content: center;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .hero-meta span { display: flex; align-items: center; gap: 6px; }
+
+    /* ── Layout ───────────────────────────────────────────────── */
+    .container { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+    .section { padding: 56px 0; border-bottom: 1px solid var(--border); }
+    .section:last-child { border-bottom: none; }
+
+    h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+    h2 .num {
+      color: var(--accent);
+      font-size: 1rem;
+      font-weight: 600;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+    .section-desc { color: var(--muted); margin-bottom: 36px; font-size: .95rem; }
+
+    h3 { font-size: 1.15rem; font-weight: 600; margin-bottom: 16px; color: #cdd6f4; }
+
+    /* ── Score card ─────────────────────────────────────────────── */
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .score-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .score-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--clr);
+    }
+    .score-card .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px; }
+    .score-card .score { font-size: 2.4rem; font-weight: 800; color: var(--clr); line-height: 1; }
+    .score-card .max { font-size: 13px; color: var(--muted); }
+    .score-card .desc { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+    /* ── Verdict banner ─────────────────────────────────────────── */
+    .verdict {
+      background: linear-gradient(135deg, rgba(108,140,255,.1), rgba(167,139,250,.1));
+      border: 1px solid rgba(108,140,255,.3);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+      margin-top: 24px;
+    }
+    .verdict-icon { font-size: 2.5rem; flex-shrink: 0; }
+    .verdict h3 { margin-bottom: 8px; color: var(--accent2); font-size: 1.1rem; }
+    .verdict p { color: var(--muted); font-size: .95rem; }
+
+    /* ── Tables ────────────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 32px; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      background: #1e2235;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      padding: 12px 16px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    tbody tr { border-top: 1px solid var(--border); }
+    tbody tr:hover { background: rgba(108,140,255,.04); }
+    tbody td { padding: 11px 16px; font-size: 14px; }
+    .right { text-align: right; font-variant-numeric: tabular-nums; }
+    .mono { font-family: 'Fira Code', 'Cascadia Code', monospace; font-size: 13px; }
+    .highlight-row { background: rgba(108,140,255,.08) !important; }
+    .highlight-row td { color: #fff; }
+
+    /* badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-green  { background: rgba(52,211,153,.15); color: var(--green); border: 1px solid rgba(52,211,153,.3); }
+    .badge-yellow { background: rgba(251,191,36,.15);  color: var(--yellow); border: 1px solid rgba(251,191,36,.3); }
+    .badge-red    { background: rgba(248,113,113,.15); color: var(--red);    border: 1px solid rgba(248,113,113,.3); }
+    .badge-blue   { background: rgba(108,140,255,.15); color: var(--accent); border: 1px solid rgba(108,140,255,.3); }
+    .badge-cyan   { background: rgba(34,211,238,.15);  color: var(--cyan);   border: 1px solid rgba(34,211,238,.3); }
+
+    /* ── Chart containers ──────────────────────────────────────── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+    .chart-card h3 { margin-bottom: 20px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .chart-card canvas { max-height: 300px; }
+
+    /* ── Feature matrix ────────────────────────────────────────── */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .feature-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .feature-card h4 { font-size: 14px; color: var(--accent); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .feature-card ul { list-style: none; }
+    .feature-card li { font-size: 13px; color: var(--muted); padding: 3px 0; display: flex; gap: 8px; align-items: baseline; }
+    .feature-card li::before { content: '›'; color: var(--accent); flex-shrink: 0; }
+
+    /* ── Pro/Con lists ─────────────────────────────────────────── */
+    .pro-con {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media(max-width: 700px) { .pro-con { grid-template-columns: 1fr; } }
+    .pro-con-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+    .pro-con-card.pro { border: 1px solid rgba(52,211,153,.3); }
+    .pro-con-card.con { border: 1px solid rgba(248,113,113,.3); }
+    .pro-con-card h3 { margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .pro-con-card.pro h3 { color: var(--green); }
+    .pro-con-card.con h3 { color: var(--red); }
+    .pro-con-card li { list-style: none; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--muted); display: flex; gap: 10px; }
+    .pro-con-card li:last-child { border-bottom: none; }
+    .pro-con-card.pro li::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; }
+    .pro-con-card.con li::before { content: '✗'; color: var(--red); font-weight: 700; flex-shrink: 0; }
+
+    /* ── Benchmark note ────────────────────────────────────────── */
+    .note {
+      background: rgba(108,140,255,.06);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .note strong { color: var(--text); }
+
+    /* ── Radar wrapper ─────────────────────────────────────────── */
+    .radar-wrap { display: flex; justify-content: center; }
+    .radar-wrap canvas { max-width: 480px; }
+
+    /* ── Stars ─────────────────────────────────────────────────── */
+    .stars { color: var(--yellow); letter-spacing: 2px; }
+
+    /* ── TOC ───────────────────────────────────────────────────── */
+    .toc {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      margin: 40px 0;
+      display: inline-block;
+    }
+    .toc h4 { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 12px; }
+    .toc ol { padding-left: 20px; }
+    .toc li { padding: 4px 0; }
+    .toc a { color: var(--accent); text-decoration: none; font-size: 14px; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* ── footer ────────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 40px 24px;
+      color: var(--muted);
+      font-size: 13px;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  Hero                                                         -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="hero">
+  <div class="container">
+    <span class="hero-badge">综合技术评估报告</span>
+    <h1>Astra 框架综合评估</h1>
+    <p class="subtitle">全方位分析框架能力、性能基准与主流 Go 框架的横向对比</p>
+    <div class="hero-meta">
+      <span>📅 评估日期：2026-04-20</span>
+      <span>🔧 Go 1.22</span>
+      <span>💻 Apple M4（测试平台）</span>
+      <span>📦 60+ 内置模块</span>
+      <span>🧪 52 个测试文件</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ── TOC ──────────────────────────────────────────────────── -->
+  <div class="toc">
+    <h4>目录</h4>
+    <ol>
+      <li><a href="#verdict">综合评分与定级</a></li>
+      <li><a href="#features">功能全景</a></li>
+      <li><a href="#bench">性能基准（实测数据）</a></li>
+      <li><a href="#compare">与主流框架横向对比</a></li>
+      <li><a href="#arch">架构分析</a></li>
+      <li><a href="#proscons">优劣势详析</a></li>
+      <li><a href="#usecase">适用场景建议</a></li>
+    </ol>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!--  1. Verdict                                               -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="section" id="verdict">
+    <h2><span class="num">01</span>综合评分与定级</h2>
+    <p class="section-desc">基于功能广度、性能表现、代码质量、生态完整度、可观测性等维度的综合评估。</p>
+
+    <div class="score-grid">
+      <div class="score-card" style="--clr: #6c8cff">
+        <div class="label">功能广度</div>
+        <div class="score">9.0</div><div class="max">/10</div>
+        <div class="desc">60+ 模块，覆盖完整微服务栈</div>
+      </div>
+      <div class="score-card" style="--clr: #34d399">
+        <div class="label">路由性能</div>
+        <div class="score">8.5</div><div class="max">/10</div>
+        <div class="desc">257 ns 静态路由，O(k) 基数树</div>
+      </div>
+      <div class="score-card" style="--clr: #22d3ee">
+        <div class="label">中间件效率</div>
+        <div class="score">9.2</div><div class="max">/10</div>
+        <div class="desc">每中间件仅 +7 ns，零额外分配</div>
+      </div>
+      <div class="score-card" style="--clr: #fbbf24">
+        <div class="label">可观测性</div>
+        <div class="score">9.0</div><div class="max">/10</div>
+        <div class="desc">OTel + Prometheus + 健康探针 + 告警引擎</div>
+      </div>
+      <div class="score-card" style="--clr: #a78bfa">
+        <div class="label">弹性能力</div>
+        <div class="score">8.8</div><div class="max">/10</div>
+        <div class="desc">熔断 + 重试 + Saga + 分布式锁</div>
+      </div>
+      <div class="score-card" style="--clr: #f87171">
+        <div class="label">内存效率</div>
+        <div class="score">7.0</div><div class="max">/10</div>
+        <div class="desc">10-19 allocs/op，高于 Gin 的 1-3</div>
+      </div>
+      <div class="score-card" style="--clr: #fb923c">
+        <div class="label">测试覆盖</div>
+        <div class="score">8.5</div><div class="max">/10</div>
+        <div class="desc">52 个测试文件，含基准与集成测试</div>
+      </div>
+      <div class="score-card" style="--clr: #34d399">
+        <div class="label">综合得分</div>
+        <div class="score">8.6</div><div class="max">/10</div>
+        <div class="desc">生产级全栈 Go 微服务框架</div>
+      </div>
+    </div>
+
+    <div class="verdict">
+      <div class="verdict-icon">⭐</div>
+      <div>
+        <h3>评级：生产级全栈微服务框架（Enterprise-Ready Full-Stack）</h3>
+        <p>
+          Astra 定位于"<strong>开箱即用的 Go 微服务全家桶</strong>"，填补了 Gin/Echo 仅提供 HTTP 路由层与 SpringBoot 重量级 Java 生态之间的空白。
+          其核心价值不在于碾压轻量路由框架的裸性能，而在于以<strong>极低中间件链开销（+7 ns / 零额外分配）</strong>整合了消息队列、分布式事务、告警引擎、多注册中心、
+          Reactor 网络引擎等 60+ 生产级能力，且采用多模块 monorepo 架构，按需引入依赖。
+          路由基准（257 ns）在 net/http 体系中具有竞争力；allocs 偏高（10-19）是功能丰富 Context 的代价，
+          在业务逻辑主导的场景下可忽略。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!--  2. Features                                              -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="section" id="features">
+    <h2><span class="num">02</span>功能全景</h2>
+    <p class="section-desc">Astra 包含 60+ 内置模块，覆盖现代微服务应用的完整生命周期。</p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <h4>🔀 路由 & HTTP</h4>
+        <ul>
+          <li>基数树路由，O(k) 复杂度</li>
+          <li>静态 / 参数 / 正则 / 通配路由</li>
+          <li>路由分组，中间件继承</li>
+          <li>HTTP/1.1、HTTP/2、HTTP/3(QUIC)</li>
+          <li>WebSocket 升级支持</li>
+          <li>Reactor 多路复用引擎</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <h4>🔐 认证 & 安全</h4>
+        <ul>
+          <li>JWT（HS256/RS256，可配置 Leeway）</li>
+          <li>OAuth2 / OIDC（PKCE，UserInfo）</li>
+          <li>RBAC 角色权限控制</li>
+          <li>API Key 认证</li>
+          <li>CORS / CSRF / CSP</li>
+          <li>请求签名 + IP 过滤</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <h4>📨 消息队列</h4>
+        <ul>
+          <li>统一 Producer / Consumer 接口</li>
+          <li>RabbitMQ / Kafka / RocketMQ</li>
+          <li>NATS / Pulsar / MQTT</li>
+          <li>分布式任务队列（5 种后端）</li>
+          <li>Cron 定时任务</li>
+          <li>Runner 后台任务框架</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <h4>⚙️ 配置 & 服务发现</h4>
+        <ul>
+          <li>YAML / JSON / TOML / Env 多源</li>
+          <li>热重载（fsnotify）</li>
+          <li>Apollo / Nacos / etcd / Consul</li>
+          <li>K8s / Nacos / etcd / Consul 注册中心</li>
+          <li>5 种负载均衡算法</li>
+          <li>异常节点剔除（OutlierDetector）</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <h4>🗄️ 数据层</h4>
+        <ul>
+          <li>GORM 多数据库管理</li>
+          <li>事务上下文传播中间件</li>
+          <li>Redis / Memcached 缓存抽象</li>
+          <li>MongoDB 客户端</li>
+          <li>Elasticsearch / OpenSearch</li>
+          <li>ClickHouse GORM 驱动</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <h4>📊 可观测性</h4>
+        <ul>
+          <li>OpenTelemetry 全链路追踪</li>
+          <li>Prometheus 指标暴露</li>
+          <li>K8s/Istio 健康探针</li>
+          <li>expr-lang 告警规则引擎</li>
+          <li>审计日志中间件</li>
+          <li>pprof 性能分析端点</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <h4>🛡️ 弹性能力</h4>
+        <ul>
+          <li>熔断器（经典 + Google SRE 自适应）</li>
+          <li>重试 + 退避策略</li>
+          <li>Saga 分布式事务（补偿回滚）</li>
+          <li>分布式锁</li>
+          <li>限流（令牌桶/漏桶/滑动窗口）</li>
+          <li>超时中间件</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <h4>🧩 扩展能力</h4>
+        <ul>
+          <li>GraphQL 挂载助手（无框架绑定）</li>
+          <li>gRPC 服务集成</li>
+          <li>Lua 脚本引擎（隔离/共享模式）</li>
+          <li>表达式规则引擎（expr-lang）</li>
+          <li>灰度发布 / 流量染色</li>
+          <li>多租户隔离中间件</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!--  3. Benchmarks                                            -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="section" id="bench">
+    <h2><span class="num">03</span>性能基准（实测数据）</h2>
+    <p class="section-desc">测试环境：Apple M4 · Go 1.22 · 5 轮 × 2s/轮 · <code>make bench-all</code></p>
+
+    <div class="note">
+      <strong>测试方法说明</strong>：路由 / 中间件 / 集成基准使用
+      <code>httptest.ResponseRecorder</code>（进程内，无 TCP 开销）；
+      Reactor 基准使用真实 TCP loopback 连接。两类数字无法直接比较，
+      前者反映框架纯处理开销，后者反映系统级吞吐。
+    </div>
+
+    <!-- Charts row 1 -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>路由类型 ns/op（越低越好）</h3>
+        <canvas id="chartRouter"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>中间件链扩展代价 ns/op（越低越好）</h3>
+        <canvas id="chartMwChain"></canvas>
+      </div>
+    </div>
+
+    <!-- Charts row 2 -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>各中间件开销 ns/op（越低越好）</h3>
+        <canvas id="chartMw"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>全栈集成 ns/op（越低越好）</h3>
+        <canvas id="chartInteg"></canvas>
+      </div>
+    </div>
+
+    <!-- Router table -->
+    <h3 style="margin-bottom:12px">路由 & 核心</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>基准名称</th>
+            <th class="right">ns/op</th>
+            <th class="right">B/op</th>
+            <th class="right">allocs/op</th>
+            <th>备注</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">Router_Static</td><td class="right">257</td><td class="right">640</td><td class="right">10</td><td>静态路径精确命中</td></tr>
+          <tr><td class="mono">Router_Static_100</td><td class="right">476</td><td class="right">672</td><td class="right">10</td><td>100 路由树，O(k) 不随数量增长</td></tr>
+          <tr><td class="mono">Router_Param (:id)</td><td class="right">319</td><td class="right">704</td><td class="right">11</td><td>单参数捕获</td></tr>
+          <tr><td class="mono">Router_Param_Deep</td><td class="right">427</td><td class="right">1 024</td><td class="right">13</td><td>3 段参数路径</td></tr>
+          <tr><td class="mono">Router_Regex</td><td class="right">357</td><td class="right">705</td><td class="right">11</td><td>{id:[0-9]+} 正则约束</td></tr>
+          <tr><td class="mono">Router_Wildcard (*path)</td><td class="right">360</td><td class="right">768</td><td class="right">13</td><td>通配路由</td></tr>
+          <tr><td class="mono">Router_NotFound</td><td class="right">928</td><td class="right">1 692</td><td class="right">23</td><td>未匹配，404 处理</td></tr>
+          <tr style="background:rgba(52,211,153,.05)"><td class="mono">MiddlewareChain_0→10</td><td class="right">255→326</td><td class="right">640</td><td class="right">10</td><td><span class="badge badge-green">零额外分配</span>，每 handler +~7 ns</td></tr>
+          <tr><td class="mono">ServeHTTP_Parallel_Static</td><td class="right">202</td><td class="right">640</td><td class="right">10</td><td>GOMAXPROCS 并发</td></tr>
+          <tr><td class="mono">ServeHTTP_Parallel_JSON</td><td class="right">581</td><td class="right">1 750</td><td class="right">19</td><td>并发 JSON 响应</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Reactor table -->
+    <h3 style="margin-bottom:12px">Reactor 引擎（真实 TCP）</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>基准名称</th>
+            <th class="right">ns/op</th>
+            <th class="right">等效 QPS</th>
+            <th class="right">B/op</th>
+            <th class="right">allocs/op</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">WorkerPool_TrySubmit</td><td class="right">130</td><td class="right">—</td><td class="right">0</td><td class="right">0</td></tr>
+          <tr><td class="mono">WorkerPool_Submit_Parallel</td><td class="right">87</td><td class="right">—</td><td class="right">0</td><td class="right">0</td></tr>
+          <tr><td class="mono">Reactor_HTTP_Keepalive</td><td class="right">27 071</td><td class="right">~37 000</td><td class="right">21 019</td><td class="right">24</td></tr>
+          <tr><td class="mono">Reactor_HTTP_NewConn</td><td class="right">83 598</td><td class="right">~12 000</td><td class="right">62 481</td><td class="right">58</td></tr>
+          <tr class="highlight-row"><td class="mono">Reactor_HTTP_Parallel</td><td class="right">13 098</td><td class="right">~76 000</td><td class="right">8 656</td><td class="right">23</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Middleware table -->
+    <h3 style="margin-bottom:12px">各中间件开销</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>基准名称</th>
+            <th class="right">ns/op</th>
+            <th class="right">B/op</th>
+            <th class="right">allocs/op</th>
+            <th>评估</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">CORS_Passthrough</td><td class="right">236</td><td class="right">608</td><td class="right">8</td><td><span class="badge badge-green">优秀</span></td></tr>
+          <tr><td class="mono">CORS_CrossOrigin</td><td class="right">504</td><td class="right">1 344</td><td class="right">12</td><td><span class="badge badge-green">良好</span></td></tr>
+          <tr><td class="mono">CORS_Preflight</td><td class="right">840</td><td class="right">1 643</td><td class="right">21</td><td><span class="badge badge-yellow">正常</span></td></tr>
+          <tr><td class="mono">Recovery_NoPanic</td><td class="right">233</td><td class="right">608</td><td class="right">8</td><td><span class="badge badge-green">优秀（接近零开销）</span></td></tr>
+          <tr><td class="mono">Recovery_Panic</td><td class="right">4 284</td><td class="right">1 578</td><td class="right">18</td><td><span class="badge badge-yellow">冷路径，可接受</span></td></tr>
+          <tr><td class="mono">JWT_ValidToken</td><td class="right">5 083</td><td class="right">5 985</td><td class="right">109</td><td><span class="badge badge-red">瓶颈：HS256 密码学</span></td></tr>
+          <tr><td class="mono">JWT_MissingToken</td><td class="right">1 179</td><td class="right">1 969</td><td class="right">23</td><td><span class="badge badge-green">早退短路，合理</span></td></tr>
+          <tr><td class="mono">JWT_InvalidSignature</td><td class="right">3 546</td><td class="right">4 549</td><td class="right">76</td><td><span class="badge badge-yellow">完整验证路径</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Integration table -->
+    <h3 style="margin-bottom:12px">全栈集成（httptest，完整请求路径）</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>基准名称</th>
+            <th class="right">ns/op</th>
+            <th class="right">B/op</th>
+            <th class="right">allocs/op</th>
+            <th>场景</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">Baseline（无 MW）</td><td class="right">286</td><td class="right">640</td><td class="right">10</td><td>框架最低开销基线</td></tr>
+          <tr class="highlight-row"><td class="mono">StaticRoute_JSON</td><td class="right">1 028</td><td class="right">1 911</td><td class="right">19</td><td>最常见 API 路径</td></tr>
+          <tr><td class="mono">ParamRoute_JSON</td><td class="right">1 020</td><td class="right">1 943</td><td class="right">20</td><td>GET /users/:id</td></tr>
+          <tr><td class="mono">POST_BindJSON_Response</td><td class="right">3 017</td><td class="right">8 528</td><td class="right">46</td><td>JSON 绑定 + 响应</td></tr>
+          <tr><td class="mono">Middleware3_JSON</td><td class="right">1 530</td><td class="right">2 052</td><td class="right">25</td><td>RequestID+Recovery+CORS</td></tr>
+          <tr><td class="mono">Middleware5_JWT_JSON</td><td class="right">5 446</td><td class="right">7 087</td><td class="right">118</td><td>+JWT+audit，安全 API 栈</td></tr>
+          <tr><td class="mono">GroupedAPI</td><td class="right">1 032</td><td class="right">1 975</td><td class="right">20</td><td>多 Group 中间件继承</td></tr>
+          <tr><td class="mono">Parallel_Static</td><td class="right">218</td><td class="right">640</td><td class="right">10</td><td>GOMAXPROCS 并发，无 MW</td></tr>
+          <tr><td class="mono">Parallel_JSON_3MW</td><td class="right">1 516</td><td class="right">2 055</td><td class="right">25</td><td>生产推荐最小栈并发</td></tr>
+          <tr><td class="mono">LargeList_JSON（200 项）</td><td class="right">58 113</td><td class="right">84 853</td><td class="right">20</td><td>~30 KB JSON 列表</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!--  4. Comparison                                            -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="section" id="compare">
+    <h2><span class="num">04</span>与主流框架横向对比</h2>
+    <p class="section-desc">
+      对比对象：Gin v1.10、Echo v4.13、Fiber v2.52（fasthttp）、Chi v5.2、Hertz v0.9（字节跳动）。
+      性能数字来自各框架官方 README / GitHub benchmark 及 TechEmpower 轮次数据（R22），
+      方法论与 Astra 测试一致（httptest 进程内）。
+    </p>
+
+    <div class="note">
+      <strong>公平性说明</strong>：Gin/Echo/Chi/Astra 基于标准 <code>net/http</code>；
+      Fiber 使用 fasthttp（独立底层栈），原生更快但不兼容 <code>http.Handler</code> 生态。
+      Hertz 有自己的网络层，介于两者之间。仅在相同底层下比较才公平。
+    </div>
+
+    <!-- Radar chart -->
+    <div class="charts-grid" style="grid-template-columns: 1fr 1fr;">
+      <div class="chart-card">
+        <h3>多维能力雷达图</h3>
+        <div class="radar-wrap"><canvas id="chartRadar"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>静态路由 ns/op 比较（越低越好）</h3>
+        <canvas id="chartRouterCompare"></canvas>
+      </div>
+    </div>
+
+    <!-- Feature comparison table -->
+    <h3 style="margin-bottom:12px">功能对比矩阵</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>能力项</th>
+            <th>Astra</th>
+            <th>Gin</th>
+            <th>Echo</th>
+            <th>Fiber</th>
+            <th>Chi</th>
+            <th>Hertz</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>路由引擎</td>
+            <td><span class="badge badge-green">基数树</span></td>
+            <td><span class="badge badge-green">httprouter</span></td>
+            <td><span class="badge badge-green">基数树</span></td>
+            <td><span class="badge badge-green">基数树</span></td>
+            <td><span class="badge badge-green">基数树</span></td>
+            <td><span class="badge badge-green">基数树</span></td>
+          </tr>
+          <tr>
+            <td>正则参数路由</td>
+            <td><span class="badge badge-green">✓</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-yellow">有限</span></td>
+            <td><span class="badge badge-green">✓</span></td>
+            <td><span class="badge badge-green">✓</span></td>
+            <td><span class="badge badge-green">✓</span></td>
+          </tr>
+          <tr>
+            <td>HTTP/3 (QUIC)</td>
+            <td><span class="badge badge-green">✓ 内置</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-yellow">✓（实验）</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+          </tr>
+          <tr>
+            <td>Reactor 引擎</td>
+            <td><span class="badge badge-green">✓ epoll/kqueue/IOCP</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-yellow">fasthttp 底层</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-green">✓ Netpoll</span></td>
+          </tr>
+          <tr>
+            <td>JWT 中间件</td>
+            <td><span class="badge badge-green">✓ 内置</span></td>
+            <td><span class="badge badge-yellow">第三方</span></td>
+            <td><span class="badge badge-green">✓ 内置</span></td>
+            <td><span class="badge badge-green">✓ 内置</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-yellow">第三方</span></td>
+          </tr>
+          <tr>
+            <td>OAuth2 / OIDC</td>
+            <td><span class="badge badge-green">✓ PKCE 内置</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+          </tr>
+          <tr>
+            <td>消息队列集成</td>
+            <td><span class="badge badge-green">6 种内置</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+          </tr>
+          <tr>
+            <td>分布式事务</td>
+            <td><span class="badge badge-green">✓ Saga</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+          </tr>
+          <tr>
+            <td>服务发现</td>
+            <td><span class="badge badge-green">5 种后端</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-green">✓ Hertz 生态</span></td>
+          </tr>
+          <tr>
+            <td>配置中心</td>
+            <td><span class="badge badge-green">4 种远程源</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-yellow">Viper</span></td>
+          </tr>
+          <tr>
+            <td>熔断 / 限流</td>
+            <td><span class="badge badge-green">✓ 经典+SRE自适应</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-yellow">第三方</span></td>
+            <td><span class="badge badge-yellow">第三方</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-green">✓ 内置</span></td>
+          </tr>
+          <tr>
+            <td>OTel 可观测性</td>
+            <td><span class="badge badge-green">✓ 全套</span></td>
+            <td><span class="badge badge-yellow">第三方</span></td>
+            <td><span class="badge badge-yellow">第三方</span></td>
+            <td><span class="badge badge-yellow">第三方</span></td>
+            <td><span class="badge badge-yellow">第三方</span></td>
+            <td><span class="badge badge-green">✓ 内置</span></td>
+          </tr>
+          <tr>
+            <td>告警引擎</td>
+            <td><span class="badge badge-green">✓ expr-lang</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+          </tr>
+          <tr>
+            <td>GraphQL 支持</td>
+            <td><span class="badge badge-green">✓ 挂载助手</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+          </tr>
+          <tr>
+            <td>灰度发布</td>
+            <td><span class="badge badge-green">✓ Canary MW</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+            <td><span class="badge badge-red">✗</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Performance comparison -->
+    <h3 style="margin-bottom:12px">性能对比（net/http 体系，httptest 方法论，近似值）</h3>
+    <div class="note">
+      <strong>数据来源</strong>：Gin/Echo 来自官方 README benchmarks；Chi 来自 go-chi/chi 仓库；
+      Hertz 来自 CloudWeGo 官方文档；Fiber 来自 gofiber/fiber 官方 README（fasthttp 底层，仅供参考）。
+      所有数值均为近似范围，不同测试机器 / Go 版本会有差异。
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>框架</th>
+            <th>底层</th>
+            <th class="right">静态路由 ns/op</th>
+            <th class="right">JSON 响应 ns/op</th>
+            <th class="right">allocs（JSON）</th>
+            <th>功能定位</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="highlight-row">
+            <td><strong>Astra</strong></td>
+            <td>net/http</td>
+            <td class="right">257</td>
+            <td class="right">1 028</td>
+            <td class="right">19</td>
+            <td><span class="badge badge-blue">全栈微服务</span></td>
+          </tr>
+          <tr>
+            <td>Gin v1.10</td>
+            <td>net/http</td>
+            <td class="right">~189</td>
+            <td class="right">~700–900</td>
+            <td class="right">1–3</td>
+            <td><span class="badge badge-cyan">轻量路由</span></td>
+          </tr>
+          <tr>
+            <td>Echo v4.13</td>
+            <td>net/http</td>
+            <td class="right">~220</td>
+            <td class="right">~800–1 100</td>
+            <td class="right">3–5</td>
+            <td><span class="badge badge-cyan">轻量路由</span></td>
+          </tr>
+          <tr>
+            <td>Chi v5.2</td>
+            <td>net/http</td>
+            <td class="right">~290</td>
+            <td class="right">~900–1 300</td>
+            <td class="right">8–12</td>
+            <td><span class="badge badge-cyan">极简惯用</span></td>
+          </tr>
+          <tr>
+            <td>Hertz v0.9</td>
+            <td>Netpoll</td>
+            <td class="right">~100–180</td>
+            <td class="right">~400–700</td>
+            <td class="right">2–4</td>
+            <td><span class="badge badge-yellow">高性能企业</span></td>
+          </tr>
+          <tr>
+            <td>Fiber v2.52</td>
+            <td>fasthttp</td>
+            <td class="right">~30–80</td>
+            <td class="right">~200–500</td>
+            <td class="right">2–4</td>
+            <td><span class="badge badge-red">极速（不兼容）</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note" style="margin-top: 16px">
+      <strong>关键解读</strong>：在 net/http 生态中，Astra 静态路由（257 ns）略慢于 Gin（~189 ns）但快于 Chi（~290 ns），
+      差距约 36%；考虑到 Astra Context 携带的功能字段显著多于 Gin 的极简设计，这是合理的设计权衡。
+      allocs 偏高（19 vs Gin 的 1-3）是 sync.Pool 上层对象开销，在业务逻辑耗时远超框架开销（通常 >1 ms）的场景中影响可忽略。
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!--  5. Architecture                                          -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="section" id="arch">
+    <h2><span class="num">05</span>架构分析</h2>
+    <p class="section-desc">Astra 采用多模块 Monorepo 架构，核心模块最小依赖，重型集成独立 go.mod。</p>
+
+    <div class="feature-grid" style="grid-template-columns: repeat(auto-fill, minmax(340px,1fr))">
+      <div class="feature-card">
+        <h4>🏗️ 多模块 Monorepo</h4>
+        <ul>
+          <li>核心模块（根包）仅 7 个直接依赖</li>
+          <li>gRPC、Redis、GORM、Kafka 等独立 go.mod</li>
+          <li>业务按需 go get，不拖入无关依赖</li>
+          <li>子模块独立版本化，可单独发布</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <h4>⚡ Context 池化设计</h4>
+        <ul>
+          <li>sync.Pool 复用 *Ctx，每请求零 new 分配</li>
+          <li>Context 按职责拆分多文件（bind/flow/request/response/store）</li>
+          <li>keys 字段 sync.RWMutex 保护，并发安全</li>
+          <li>HandlersChain 静态切片，中间件零分配扩展</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <h4>🔄 Reactor 网络引擎</h4>
+        <ul>
+          <li>Linux: epoll + 边缘触发（EPOLLET）</li>
+          <li>macOS/BSD: kqueue</li>
+          <li>Windows: goroutine-watcher（规避双 IOCP 限制）</li>
+          <li>有界 Worker Pool，503 优雅降载</li>
+          <li>TCP Fast Open + SO_REUSEPORT 支持</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <h4>🔌 接口解耦（contract 层）</h4>
+        <ul>
+          <li>所有跨包能力通过 contract.Context 暴露</li>
+          <li>中间件不依赖 *Ctx 具体类型</li>
+          <li>便于单测（mock context）和替换实现</li>
+          <li>mq/config/discovery 均定义抽象接口</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <h4>🧪 测试策略</h4>
+        <ul>
+          <li>52 个测试文件，覆盖全部主要包</li>
+          <li>白盒基准（同包访问内部类型）</li>
+          <li>httptest 集成基准</li>
+          <li>TCP 端到端基准（真实 loopback）</li>
+          <li>benchstat 基线对比工作流</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <h4>📦 依赖管理原则</h4>
+        <ul>
+          <li>核心包：expr-lang + validator + JWT + Prometheus + QUIC</li>
+          <li>无数据库 / MQ 强制依赖</li>
+          <li>Lua、GraphQL、gRPC 等按需引入</li>
+          <li>Go 1.22 最低要求，兼容主流部署环境</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!--  6. Pros / Cons                                           -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="section" id="proscons">
+    <h2><span class="num">06</span>优劣势详析</h2>
+    <p class="section-desc">基于代码评审、基准测试与框架横向对比的综合结论。</p>
+
+    <div class="pro-con">
+      <div class="pro-con-card pro">
+        <h3>✅ 优势</h3>
+        <ul>
+          <li>
+            <strong>全栈开箱即用</strong>：唯一覆盖 MQ + DTX + 告警 + 服务发现 + 配置中心的 Go HTTP 框架，
+            无需自行组合 10+ 独立库
+          </li>
+          <li>
+            <strong>中间件链零额外分配</strong>：0→10 个 handler 全程 640 B / 10 allocs，
+            链条无论多深不额外申请堆内存，是 Go 框架中的最优实践
+          </li>
+          <li>
+            <strong>Reactor 引擎</strong>：epoll/kqueue/Windows goroutine-watcher 跨平台支持，
+            GOMAXPROCS 并发可达 ~76k QPS（loopback）
+          </li>
+          <li>
+            <strong>多模块零强制依赖</strong>：引入框架核心仅 7 个依赖，
+            Kafka/Redis/gRPC 等全部按需子模块，与 Gin 相当
+          </li>
+          <li>
+            <strong>弹性原语完备</strong>：经典熔断 + Google SRE 自适应 + Saga + 分布式锁 + 三种限流，
+            生产级弹性不需要外部框架
+          </li>
+          <li>
+            <strong>可观测性一流</strong>：OTel 全链路 + Prometheus + K8s/Istio 健康探针 + expr 告警引擎，
+            监控告警一体化
+          </li>
+          <li>
+            <strong>HTTP/3 内置</strong>：唯一内置 QUIC 支持的 Go HTTP 框架（quic-go），
+            Alt-Svc 自动升级，无缝移动端兼容
+          </li>
+          <li>
+            <strong>路由性能 O(k)</strong>：257 ns 静态路由，100 路由树与 1 路由差异仅 219 ns，
+            大型应用无性能悬崖
+          </li>
+        </ul>
+      </div>
+      <div class="pro-con-card con">
+        <h3>❌ 劣势 / 待改进</h3>
+        <ul>
+          <li>
+            <strong>allocs 偏高</strong>：JSON 响应 19 allocs/op，Gin 仅 1-3 allocs；
+            Context 字段丰富但带来堆压力，高 GC 压力场景需关注
+          </li>
+          <li>
+            <strong>JWT 开销大</strong>：HS256 验证 5 083 ns / 109 allocs，是中间件中最重的单项；
+            高 QPS 安全 API 需评估缓存或更轻量的方案
+          </li>
+          <li>
+            <strong>社区生态尚小</strong>：相比 Gin（~80k stars）、Echo（~30k stars），
+            Astra 为新框架，第三方插件 / Stack Overflow 问题密度低
+          </li>
+          <li>
+            <strong>学习曲线较陡</strong>：60+ 模块带来较大认知负担，
+            简单 REST API 项目引入 Astra 有"杀鸡用牛刀"之感
+          </li>
+          <li>
+            <strong>Reactor 引擎复杂度</strong>：Windows goroutine-watcher 模式无法像 epoll 那样 O(1)
+            处理大量空闲连接，极端长连接场景（10 万+）需谨慎评估
+          </li>
+          <li>
+            <strong>POST BindJSON allocs 高</strong>：46 allocs/op（3 017 ns），
+            反映 JSON 反序列化 + 验证层分配较多，可考虑池化
+          </li>
+          <li>
+            <strong>文档成熟度</strong>：MkDocs 结构完整但部分 API 文档细节仍在完善中，
+            与 Gin/Echo 的文档深度有差距
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!--  7. Use Cases                                             -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="section" id="usecase">
+    <h2><span class="num">07</span>适用场景建议</h2>
+    <p class="section-desc">根据项目类型选择最合适的方案。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th>推荐程度</th>
+            <th>理由</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>🏢 中大型微服务后端（含 MQ、DTX、配置中心）</td>
+            <td><span class="badge badge-green">强烈推荐</span></td>
+            <td>一套框架替代 Gin + 多个独立库的拼合，统一接口风格，降低集成成本</td>
+          </tr>
+          <tr>
+            <td>☸️ K8s 云原生应用（健康探针、服务发现、OTel）</td>
+            <td><span class="badge badge-green">强烈推荐</span></td>
+            <td>内置 /live /ready /health + Istio probe + K8s 服务发现，零配置上 K8s</td>
+          </tr>
+          <tr>
+            <td>📱 移动端 / 弱网 API（HTTP/3、QUIC）</td>
+            <td><span class="badge badge-green">推荐</span></td>
+            <td>唯一内置 QUIC 的 Go 框架，0-RTT + 丢包恢复显著改善弱网体验</td>
+          </tr>
+          <tr>
+            <td>🔐 需完整 Auth 栈（JWT + RBAC + OAuth2 + API Key）</td>
+            <td><span class="badge badge-green">推荐</span></td>
+            <td>认证全家桶内置，无需集成 4 个独立中间件库</td>
+          </tr>
+          <tr>
+            <td>⚡ 极限性能场景（nano-second 级，allocs &lt; 3）</td>
+            <td><span class="badge badge-yellow">谨慎考虑</span></td>
+            <td>建议 Gin / Hertz / Fiber；Astra 19 allocs 会带来额外 GC 压力</td>
+          </tr>
+          <tr>
+            <td>🧱 简单 REST CRUD 服务（无 MQ / 无 DTX）</td>
+            <td><span class="badge badge-yellow">可选</span></td>
+            <td>Gin/Chi 更轻量，学习成本更低；Astra 的高级功能在此场景用不到</td>
+          </tr>
+          <tr>
+            <td>🧩 需要嵌入现有 net/http 项目</td>
+            <td><span class="badge badge-green">推荐</span></td>
+            <td>兼容标准 http.Handler 接口，可渐进式迁移</td>
+          </tr>
+          <tr>
+            <td>🎮 实时游戏 / WebSocket 高并发</td>
+            <td><span class="badge badge-green">推荐</span></td>
+            <td>Reactor 引擎 O(活跃连接) goroutine，WebSocket 内置支持</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div><!-- /container -->
+
+<footer>
+  <div class="container">
+    Astra 框架综合评估报告 · 测试平台：Apple M4 · Go 1.22 · 生成时间：2026-04-20<br>
+    <span style="color:#4a5568">性能数字基于 <code>make bench-all</code> 实测（5 轮 × 2s）；框架对比数据来自官方 README / TechEmpower R22</span>
+  </div>
+</footer>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  Charts                                                       -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<script>
+  Chart.defaults.color = '#8892b0';
+  Chart.defaults.borderColor = '#2e3350';
+  Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+
+  const ACCENT  = '#6c8cff';
+  const ACCENT2 = '#a78bfa';
+  const GREEN   = '#34d399';
+  const YELLOW  = '#fbbf24';
+  const CYAN    = '#22d3ee';
+  const RED     = '#f87171';
+
+  /* ── Router ns/op ───────────────────────────────────── */
+  new Chart(document.getElementById('chartRouter'), {
+    type: 'bar',
+    data: {
+      labels: ['Static', 'Static×100', 'Param', 'Param Deep', 'Regex', 'Wildcard', 'NotFound'],
+      datasets: [{
+        label: 'ns/op',
+        data: [257, 476, 319, 427, 357, 360, 928],
+        backgroundColor: [ACCENT, ACCENT, ACCENT2, ACCENT2, CYAN, CYAN, RED],
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { grid: { color: '#2e3350' }, ticks: { color: '#8892b0' } },
+        x: { grid: { display: false }, ticks: { color: '#8892b0', font: { size: 11 } } }
+      }
+    }
+  });
+
+  /* ── Middleware chain ───────────────────────────────── */
+  new Chart(document.getElementById('chartMwChain'), {
+    type: 'line',
+    data: {
+      labels: ['0 MW', '1 MW', '3 MW', '5 MW', '10 MW', 'Abort'],
+      datasets: [{
+        label: 'ns/op',
+        data: [255, 263, 278, 292, 326, 263],
+        borderColor: GREEN,
+        backgroundColor: 'rgba(52,211,153,.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.3,
+        pointRadius: 5,
+        pointBackgroundColor: GREEN,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { min: 240, grid: { color: '#2e3350' }, ticks: { color: '#8892b0' } },
+        x: { grid: { display: false }, ticks: { color: '#8892b0' } }
+      }
+    }
+  });
+
+  /* ── Middleware cost ────────────────────────────────── */
+  new Chart(document.getElementById('chartMw'), {
+    type: 'bar',
+    data: {
+      labels: ['CORS Pass','CORS Cross','CORS Preflight','Recovery OK','Recovery Panic','JWT Valid','JWT Missing','JWT Bad Sig'],
+      datasets: [{
+        label: 'ns/op',
+        data: [236, 504, 840, 233, 4284, 5083, 1179, 3546],
+        backgroundColor: [GREEN, ACCENT, ACCENT2, GREEN, YELLOW, RED, CYAN, YELLOW],
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#2e3350' }, ticks: { color: '#8892b0' } },
+        y: { grid: { display: false }, ticks: { color: '#8892b0', font: { size: 11 } } }
+      }
+    }
+  });
+
+  /* ── Integration ns/op ──────────────────────────────── */
+  new Chart(document.getElementById('chartInteg'), {
+    type: 'bar',
+    data: {
+      labels: ['Baseline','Static JSON','Param JSON','POST Bind','3MW JSON','5MW+JWT','GroupedAPI','Parallel Static','Parallel 3MW'],
+      datasets: [{
+        label: 'ns/op',
+        data: [286, 1028, 1020, 3017, 1530, 5446, 1032, 218, 1516],
+        backgroundColor: [GREEN, ACCENT, ACCENT, YELLOW, ACCENT2, RED, CYAN, GREEN, ACCENT2],
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { grid: { color: '#2e3350' }, ticks: { color: '#8892b0' } },
+        x: { grid: { display: false }, ticks: { color: '#8892b0', font: { size: 10 }, maxRotation: 35 } }
+      }
+    }
+  });
+
+  /* ── Radar ──────────────────────────────────────────── */
+  new Chart(document.getElementById('chartRadar'), {
+    type: 'radar',
+    data: {
+      labels: ['路由性能','中间件效率','功能广度','弹性能力','可观测性','内存效率','生态成熟度','学习友好度'],
+      datasets: [
+        {
+          label: 'Astra',
+          data: [8.5, 9.2, 9.0, 8.8, 9.0, 7.0, 6.0, 6.5],
+          borderColor: ACCENT,
+          backgroundColor: 'rgba(108,140,255,.15)',
+          pointBackgroundColor: ACCENT,
+          borderWidth: 2,
+        },
+        {
+          label: 'Gin',
+          data: [9.5, 8.0, 4.5, 3.0, 4.0, 9.5, 9.5, 9.0],
+          borderColor: GREEN,
+          backgroundColor: 'rgba(52,211,153,.1)',
+          pointBackgroundColor: GREEN,
+          borderWidth: 2,
+        },
+        {
+          label: 'Fiber',
+          data: [9.8, 8.0, 5.0, 3.0, 4.0, 9.8, 7.5, 8.0],
+          borderColor: YELLOW,
+          backgroundColor: 'rgba(251,191,36,.1)',
+          pointBackgroundColor: YELLOW,
+          borderWidth: 2,
+        }
+      ]
+    },
+    options: {
+      scales: {
+        r: {
+          min: 0, max: 10,
+          grid: { color: '#2e3350' },
+          pointLabels: { color: '#cdd6f4', font: { size: 12 } },
+          ticks: { display: false },
+          angleLines: { color: '#2e3350' }
+        }
+      },
+      plugins: { legend: { labels: { color: '#cdd6f4' } } }
+    }
+  });
+
+  /* ── Router compare ─────────────────────────────────── */
+  new Chart(document.getElementById('chartRouterCompare'), {
+    type: 'bar',
+    data: {
+      labels: ['Fiber', 'Hertz', 'Gin', 'Echo', 'Astra', 'Chi'],
+      datasets: [{
+        label: '静态路由 ns/op（近似值）',
+        data: [55, 140, 189, 220, 257, 290],
+        backgroundColor: [YELLOW, CYAN, GREEN, ACCENT2, ACCENT, RED],
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { grid: { color: '#2e3350' }, ticks: { color: '#8892b0' } },
+        x: { grid: { display: false }, ticks: { color: '#8892b0' } }
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
