@@ -1,12 +1,12 @@
 ## 基准测试
 
 > **⚠ 平台说明**：本页数字分为两类，阅读时请注意区分：
-> - **[Apple M4]** — 本地开发机数字，来自 `make bench-all`（Apple M4 · Go 1.25.8 · 5 轮 × 2s/轮）。ARM 架构内存延迟更低，ns/op 通常低于 linux/amd64 生产环境 **10–30%**，仅供趋势参考。
+> - **[Apple M4]** — 本地开发机数字，来自 `make bench-all`（Apple M4 · Go 1.25.1 · 5 轮 × 2s/轮）。ARM 架构内存延迟更低，ns/op 通常低于 linux/amd64 生产环境 **10–30%**，仅供趋势参考。
 > - **[CI linux/amd64]** — GitHub Actions `ubuntu-latest` 共享 runner，由 `.github/workflows/benchmark-publish.yml` 自动生成，用于横向框架对比。共享 runner 存在 ±15% 噪声，精确数字以 [在线报告](https://astra-go.github.io/astra/benchmarks/) 为准。
 >
 > 需要在生产平台复现：`go test -bench=. -benchmem -count=5 ./...`（linux/amd64 裸机或专用 runner）。
 
-以下数据来自 `make bench-all`，测试环境 **[Apple M4] · Go 1.25.8 · 5 轮 × 2s/轮**。
+以下数据来自 `make bench-all`，测试环境 **[Apple M4] · Go 1.25.1 · 5 轮 × 2s/轮**。
 运行方式：
 
 ```bash

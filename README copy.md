@@ -10213,7 +10213,7 @@ func withIstioHeaders(next astra.HandlerFunc) astra.HandlerFunc {
 
 ## 基准测试
 
-以下数据来自 `make bench-all`，测试环境 **Apple M4 · Go 1.25.8 · 3 轮 × 2s/轮**。
+以下数据来自 `make bench-all`，测试环境 **Apple M4 · Go 1.25.1 · 3 轮 × 2s/轮**。
 运行方式：
 
 ```bash

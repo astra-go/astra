@@ -169,7 +169,9 @@
     <span class="badge badge-green">Apple M4 · darwin/arm64</span>
     <span class="badge" style="background:#7c3aed;color:#ddd6fe">v10 · 2026-04-22</span>
   </div>
-  <p class="meta">测试环境：Apple M4 · darwin/arm64 · Go 1.25.8 · 评测日期：2026-04-22 | 本版新增：JWT Phase 2（58→~35 allocs）+ Reactor 直接派发（v8）+ Reactor poller scratch buffer + dispatchFn（v9，Keepalive B/op −94.7%）+ 大列表 JSONStream API（v10，allocs 12→10，消除 ~43 KB 中间缓冲）</p>
+<p class="meta">测试环境：Apple M4 · darwin/arm64 · Go 1.25.1 · 评测日期：2026-04-22 | 本版新增：JWT Phase 2（58→~35 allocs）+ Reactor
+    直接派发（v8）+ Reactor poller scratch buffer + dispatchFn（v9，Keepalive B/op −94.7%）+ 大列表 JSONStream API（v10，allocs
+    12→10，消除 ~43 KB 中间缓冲）</p>
 </div>
 
 <!-- ─── OVERVIEW ─── -->
@@ -322,7 +324,7 @@
 <section id="performance">
 <div class="container">
   <h2 class="section-title">性能基准测试</h2>
-  <p class="section-sub">测试平台：Apple M4 · darwin/arm64 · Go 1.25.8 · benchtime=1s · -benchmem</p>
+<p class="section-sub">测试平台：Apple M4 · darwin/arm64 · Go 1.25.1 · benchtime=1s · -benchmem</p>
 
   <!-- Router -->
   <h3 style="margin:1.5rem 0 .75rem;color:var(--accent)">1. 路由器性能</h3>
@@ -1109,7 +1111,8 @@
 </section>
 
 <footer>
-  <p>Astra 框架评估报告 v10 · 测试平台：Apple M4 · Go 1.25.8 · 2026-04-22 | 本版新增：v10 大列表 JSONStream API（reuseWriter 泛化 io.Writer + streamEncoder 接口），allocs 12→10，消除 ~43 KB 中间缓冲</p>
+<p>Astra 框架评估报告 v10 · 测试平台：Apple M4 · Go 1.25.1 · 2026-04-22 | 本版新增：v10 大列表 JSONStream API（reuseWriter 泛化 io.Writer +
+    streamEncoder 接口），allocs 12→10，消除 ~43 KB 中间缓冲</p>
   <p style="margin-top:.4rem;font-size:.78rem;">注：框架对比中 Gin/Echo/Fiber/go-zero/Kratos 性能数据来自公开社区基准测试，仅供量级参考；Astra 数据为本次在 Apple M4 上实测结果。</p>
 </footer>
 
