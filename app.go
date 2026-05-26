@@ -20,7 +20,7 @@ type App struct {
 	middleware HandlersChain
 	pool       sync.Pool
 	lifecycle  *Lifecycle
-	modules    map[string]Module
+	components map[string]Component
 	mu         sync.RWMutex
 	slim       bool // true when created by NewSlim(); disables lifecycle/plugin/module subsystems
 
@@ -392,9 +392,9 @@ func (a *App) OnStop(fn func(context.Context) error) error {
 	return nil
 }
 
-// RegisterPlugin registers one or more plugins in order. Each plugin is
-// wrapped via PluginAsModule and installed through Register, giving it the
-// same duplicate-detection and error-wrapping behaviour as a Module.
+// RegisterPlugin registers one or more v1 Plugins in order. Each plugin is
+// wrapped as a Component and installed through Register, giving it the same
+// duplicate-detection and error-wrapping behaviour as any Component.
 // Returns the first error encountered.
 // Returns ErrSlimMode when called on an App created by NewSlim().
 //
@@ -403,17 +403,13 @@ func (a *App) OnStop(fn func(context.Context) error) error {
 //	    &tracing.Plugin{Endpoint: "localhost:4317"},
 //	)
 //
-// Alternatively, use PluginAsModule to mix plugins and modules in a single
-// Register call:
-//
-//	app.Register(
-//	    astra.PluginAsModule(&prometheus.Plugin{}),
-//	    myBizModule,
-//	)
+// Deprecated: Implement Component and use Register directly. Plugin.Init
+// already matches the Component.Init signature — only the interface assertion
+// needs to change.
 func (a *App) RegisterPlugin(plugins ...Plugin) error {
-	modules := make([]Module, len(plugins))
+	components := make([]Component, len(plugins))
 	for i, p := range plugins {
-		modules[i] = PluginAsModule(p)
+		components[i] = pluginAdapter{p}
 	}
-	return a.Register(modules...)
+	return a.Register(components...)
 }

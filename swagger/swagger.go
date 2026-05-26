@@ -30,8 +30,8 @@
 //	// option A — Register function
 //	swagger.Register(app, swagger.Config{})
 //
-//	// option B — Plugin (integrates with App.RegisterPlugin)
-//	app.RegisterPlugin(swagger.New(swagger.Config{}))
+//	// option B — Component (integrates with App.Register)
+//	app.Register(swagger.New(swagger.Config{}))
 //
 // The UI is then available at http://localhost:8080/swagger/index.html.
 // The raw spec is served at             http://localhost:8080/swagger/doc.json.
@@ -154,17 +154,17 @@ func (c *Config) spec() []byte {
 	return []byte(`{"openapi":"3.0.0","info":{"title":"` + c.Title + `","version":"0.0.0"},"paths":{}}`)
 }
 
-// ─── Plugin ───────────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
-// swaggerPlugin implements astra.Plugin.
+// swaggerComponent implements astra.Component.
 type swaggerPlugin struct{ cfg Config }
 
-// New returns a swagger Plugin for use with App.RegisterPlugin.
-func New(cfg Config) astra.Plugin {
+// New returns a swagger Component for use with App.Register.
+func New(cfg Config) astra.Component {
 	return &swaggerPlugin{cfg: cfg}
 }
 
-// Name implements astra.Plugin.
+// Name implements astra.Component.
 func (p *swaggerPlugin) Name() string { return "swagger" }
 
 // Init mounts the swagger routes on the Astra app.

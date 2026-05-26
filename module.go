@@ -1,165 +1,157 @@
-// Package astra — module system
+// Package astra — legacy Module system (v1 compatibility)
 //
-// A Module is an independent building block that wires itself into an *App
-// through a single Install call.  Modules compose naturally: pass any number
-// of them to App.Register and the framework installs them in order.
+// Module is the v1 building-block interface. It is superseded by Component in
+// v2. Existing Module implementations continue to work: pass them to
+// App.Register via ModuleAsComponent, or use the RegisterModule helper.
 //
-//	app := astra.New()
-//	must(app.Register(
-//	    health.NewModule(health.WithProbe("db", dbProbe)),
-//	    ormModule,       // *orm.Module — DB lifecycle + middleware
-//	    cacheModule,     // closes Redis on shutdown
-//	    alert.NewModule(engine),
-//	    graphql.NewModule(schema),
-//	))
-//	app.Run(":8080")
+// Migration guide:
 //
-// # What a module can do inside Install
-//
-//   - Register routes:      app.GET / POST / PUT / DELETE / PATCH / Any
-//   - Register middleware:  app.Use(...)
-//   - Mount route groups:   app.Group(prefix).GET(...)
-//   - Lifecycle hooks:      app.OnStart(...) / app.OnStop(...)
-//   - Install sub-modules:  app.Register(innerModule)
-//
-// # Writing your own module
-//
+//	// Before (v1)
 //	type APIModule struct{ db *gorm.DB }
-//
 //	func (m *APIModule) Name() string { return "api" }
+//	func (m *APIModule) Install(app *astra.App) error { ... }
 //
-//	func (m *APIModule) Install(app *astra.App) error {
-//	    g := app.Group("/api/v1")
-//	    g.GET("/users",  m.listUsers)
-//	    g.POST("/users", m.createUser)
-//	    app.OnStop(func(ctx context.Context) error {
-//	        return m.db.WithContext(ctx).Exec("SELECT 1").Error // flush
-//	    })
-//	    return nil
-//	}
+//	// After (v2)
+//	type APIComponent struct{ db *gorm.DB }
+//	func (c *APIComponent) Name() string { return "api" }
+//	func (c *APIComponent) Init(app *astra.App) error { ... }
 
 package astra
 
 import "fmt"
 
-// Module is the plug-and-play building-block interface for organising your
-// application's own business logic into self-contained units.
+// Module is the v1 plug-and-play building-block interface.
 //
-// Use Module when you are structuring the code you own: API layers, domain
-// services, feature flags, or any reusable internal component. For integrating
-// a third-party library (Prometheus, tracing, Swagger, …) use Plugin instead —
-// the two interfaces are symmetric by design, and PluginAsModule bridges them
-// when you need to mix both in a single Register call.
-//
-// A single Install call is the only contract: the module receives the full
-// *App reference and is free to register routes, middleware, lifecycle hooks,
-// or nested modules. Install is called exactly once, before the server starts.
+// Deprecated: Use Component instead. Module will be removed in v3.
+// Rename Install to Init and change the interface assertion to Component.
+// Existing implementations can be passed to App.Register via ModuleAsComponent.
 type Module interface {
 	// Name returns a short, unique identifier for this module.
-	// It is used in error messages, logs, and duplicate-detection.
 	Name() string
-
 	// Install wires the module into app.
-	// A non-nil error aborts registration; the module name is prepended to the
-	// returned error automatically.
+	//
+	// Deprecated: Implement Component.Init instead.
 	Install(app *App) error
 }
 
 // ModuleFunc is a lightweight adapter that turns a plain function into a
-// Module. Use it for one-off inline setup that does not warrant a full type.
+// Module.
 //
-//	app.Register(astra.NewModuleFunc("cors-setup", func(app *astra.App) error {
-//	    app.Use(middleware.CORS("https://app.example.com"))
-//	    return nil
-//	}))
+// Deprecated: Use NewComponentFunc instead.
 type ModuleFunc struct {
 	name string
 	fn   func(*App) error
 }
 
 // NewModuleFunc creates a Module from a name and an install function.
+//
+// Deprecated: Use NewComponentFunc instead.
 func NewModuleFunc(name string, fn func(*App) error) Module {
 	return ModuleFunc{name: name, fn: fn}
 }
 
-func (m ModuleFunc) Name() string          { return m.name }
+func (m ModuleFunc) Name() string        { return m.name }
 func (m ModuleFunc) Install(app *App) error { return m.fn(app) }
 
-// Register installs one or more modules onto the application in order.
+// ModuleAsComponent wraps a v1 Module so it can be passed to App.Register.
 //
-// Duplicate module names are rejected — each name may be installed at most
-// once. If Install returns an error, the module name is prepended and the
-// error is returned immediately; subsequent modules in the same call are not
+//	app.Register(astra.ModuleAsComponent(myLegacyModule))
+func ModuleAsComponent(m Module) Component {
+	return moduleAdapter{m}
+}
+
+// Register installs one or more Components onto the application in order.
+//
+// Duplicate component names are rejected — each name may be installed at most
+// once. If Init returns an error, the component name is prepended and the
+// error is returned immediately; subsequent components in the same call are not
 // installed.
 //
 // Register returns ErrSlimMode when called on an App created by NewSlim().
 //
 // Register is safe to call concurrently with other route registrations but is
 // typically called during application setup before Run.
-func (a *App) Register(modules ...Module) error {
+func (a *App) Register(components ...Component) error {
 	if a.slim {
 		return ErrSlimMode
 	}
-	for _, m := range modules {
-		if err := a.registerOne(m); err != nil {
+	for _, c := range components {
+		if err := a.registerOne(c); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Modules returns a snapshot of all successfully installed modules keyed by
-// name. The returned map is a copy — mutating it has no effect on the App.
-func (a *App) Modules() map[string]Module {
+// RegisterModule installs one or more v1 Modules for backward compatibility.
+// Each Module is wrapped via ModuleAsComponent before registration.
+//
+// Deprecated: Implement Component and use Register directly.
+func (a *App) RegisterModule(modules ...Module) error {
+	components := make([]Component, len(modules))
+	for i, m := range modules {
+		components[i] = ModuleAsComponent(m)
+	}
+	return a.Register(components...)
+}
+
+// Components returns a snapshot of all successfully installed components keyed
+// by name. The returned map is a copy — mutating it has no effect on the App.
+func (a *App) Components() map[string]Component {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	out := make(map[string]Module, len(a.modules))
-	for k, v := range a.modules {
+	out := make(map[string]Component, len(a.components))
+	for k, v := range a.components {
 		out[k] = v
 	}
 	return out
 }
 
-// HasModule reports whether a module with the given name has been installed.
+// Modules returns a snapshot of all successfully installed components keyed by
+// name, for backward compatibility with v1 callers.
+//
+// Deprecated: Use Components() instead.
+func (a *App) Modules() map[string]Component {
+	return a.Components()
+}
+
+// HasModule reports whether a component with the given name has been installed.
 func (a *App) HasModule(name string) bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	_, ok := a.modules[name]
+	_, ok := a.components[name]
 	return ok
 }
 
-// registerOne installs a single module with duplicate detection.
-// The name slot is reserved before Install is called so that concurrent
-// Register calls for the same name are serialised correctly.
-func (a *App) registerOne(m Module) error {
-	name := m.Name()
+// HasComponent reports whether a component with the given name has been installed.
+func (a *App) HasComponent(name string) bool {
+	return a.HasModule(name)
+}
 
-	// Reserve the name slot before calling Install so concurrent calls for
-	// the same module name are rejected even while Install is running.
+// registerOne installs a single component with duplicate detection.
+func (a *App) registerOne(c Component) error {
+	name := c.Name()
+
 	a.mu.Lock()
-	if a.modules == nil {
-		a.modules = make(map[string]Module)
+	if a.components == nil {
+		a.components = make(map[string]Component)
 	}
-	if _, exists := a.modules[name]; exists {
+	if _, exists := a.components[name]; exists {
 		a.mu.Unlock()
-		return fmt.Errorf("astra: module %q already registered", name)
+		return fmt.Errorf("astra: component %q already registered", name)
 	}
-	a.modules[name] = nil // sentinel — slot is reserved
+	a.components[name] = nil // sentinel — slot is reserved
 	a.mu.Unlock()
 
-	// Call Install without holding the lock: Install may call app.Use,
-	// app.GET, app.OnStart etc., all of which acquire the same lock.
-	if err := m.Install(a); err != nil {
-		// Roll back the reservation so the caller can retry or use a
-		// different module with the same name.
+	if err := c.Init(a); err != nil {
 		a.mu.Lock()
-		delete(a.modules, name)
+		delete(a.components, name)
 		a.mu.Unlock()
-		return fmt.Errorf("astra: module %q: %w", name, err)
+		return fmt.Errorf("astra: component %q: %w", name, err)
 	}
 
 	a.mu.Lock()
-	a.modules[name] = m
+	a.components[name] = c
 	a.mu.Unlock()
 	return nil
 }
