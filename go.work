@@ -1,4 +1,4 @@
-go 1.25.8
+go 1.25.1
 
 // Astra monorepo workspace.
 // Each sub-module can evolve and be versioned independently; the workspace file
@@ -31,6 +31,7 @@ use (
 	./examples/orm
 	./examples/techempower
 	./grpc
+	./loadbalance
 	./lock
 	./lua
 	./middleware/observability
@@ -70,6 +71,7 @@ replace (
 	github.com/astra-go/astra/orm v0.0.0-00010101000000-000000000000 => ./orm
 	github.com/astra-go/astra/orm/clickhouse v0.0.0-00010101000000-000000000000 => ./orm/clickhouse
 	github.com/astra-go/astra/otel v0.0.0-00010101000000-000000000000 => ./otel
+	github.com/astra-go/astra/loadbalance v0.0.0-00010101000000-000000000000 => ./loadbalance
 	github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 => ./taskqueue
 	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ./testutil
 )
