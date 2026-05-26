@@ -1,6 +1,6 @@
 module github.com/astra-go/astra/cache
 
-go 1.25.8
+go 1.25.1
 
 // Standalone cache module — Redis, Memcached, and in-memory LRU backends.
 // Upgrade go-redis or gomemcache without touching GORM, MQ, or the router.

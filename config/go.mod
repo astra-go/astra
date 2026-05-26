@@ -5,7 +5,7 @@ module github.com/astra-go/astra/config
 //   fsnotify v1.9.0 → v1.7.0 (v1.7.x released 2023, requires go 1.17)
 //   Other deps (BurntSushi/toml, agollo, nacos-sdk, yaml.v3) are unchanged —
 //   all require go 1.21 or earlier.
-go 1.25.8
+go 1.25.1
 
 // Standalone config module — YAML/TOML/env file sources with fsnotify hot-reload,
 // plus Apollo (agollo) and Nacos remote configuration backends.

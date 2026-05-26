@@ -3,7 +3,7 @@ module github.com/astra-go/astra/search
 // go 1.22.0 — downgraded from 1.25.9.
 // Key dep changes:
 //   go-elasticsearch/v8 v8.19 → v8.15.0 (v8.15.x released 2024-09, requires go 1.21)
-go 1.25.8
+go 1.25.1
 
 // Standalone Elasticsearch / OpenSearch search module.
 require github.com/elastic/go-elasticsearch/v8 v8.19.0

@@ -1,6 +1,6 @@
 module github.com/astra-go/astra/alert
 
-go 1.25.8
+go 1.25.1
 
 // Standalone alert engine module — rule-based alerting with expression evaluation
 // and pluggable notification channels (webhook, log, …).

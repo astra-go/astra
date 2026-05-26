@@ -1,7 +1,7 @@
 module github.com/astra-go/astra/auth
 
 // go 1.22.0 — downgraded from 1.25.9.
-go 1.25.8
+go 1.25.1
 
 // Standalone authentication & authorization module.
 //   auth/rbac  — Casbin-based RBAC middleware

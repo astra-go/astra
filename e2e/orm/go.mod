@@ -1,6 +1,6 @@
 module github.com/astra-go/astra/e2e/orm
 
-go 1.25.8
+go 1.25.1
 
 require github.com/testcontainers/testcontainers-go/modules/clickhouse v0.42.0
 

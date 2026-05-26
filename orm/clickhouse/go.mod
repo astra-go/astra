@@ -1,6 +1,6 @@
 module github.com/astra-go/astra/orm/clickhouse
 
-go 1.25.8
+go 1.25.1
 
 require (
 	gorm.io/driver/clickhouse v0.6.0

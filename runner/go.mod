@@ -1,7 +1,7 @@
 module github.com/astra-go/astra/runner
 
 // go 1.22.0 — downgraded from 1.25.9.
-go 1.25.8
+go 1.25.1
 
 // Standalone task-runner module — unified scheduler interface with four backends.
 require (

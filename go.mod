@@ -1,6 +1,6 @@
 module github.com/astra-go/astra
 
-go 1.25.8
+go 1.25.1
 
 // Core module — router, middleware, and zero/light-dep utility packages.
 // Heavy integrations (OTel, GORM, MQ, Redis, gRPC, …) live in their own
@@ -13,8 +13,6 @@ require (
 	github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000
 	github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000
 	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000
-	// Alert engine expression evaluator (alert/ package — lives in core)
-	github.com/expr-lang/expr v1.17.8
 
 	// Request validation (validate/ package)
 	github.com/go-playground/validator/v10 v10.26.0

@@ -5,7 +5,7 @@ module github.com/astra-go/astra/discovery
 //   etcd v3.6 → v3.5.16 (v3.5.x requires go 1.21; v3.6 requires go 1.23)
 //   k8s  v0.35 → v0.31.3 (v0.31.x requires go 1.22; v0.32+ requires go 1.23)
 //   consul v1.34 → v1.28.3 (v1.28.x is the last series requiring only go 1.22)
-go 1.25.8
+go 1.25.1
 
 require github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000
 

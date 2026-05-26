@@ -4,7 +4,7 @@ module github.com/astra-go/astra/benchmarks
 // comparison (Gin, Echo, Fiber) which must not appear in the core module.
 // Run `go mod tidy` in this directory after any change here.
 
-go 1.25.8
+go 1.25.1
 
 require (
 	github.com/astra-go/astra v0.0.0-00010101000000-000000000000

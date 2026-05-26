@@ -1,6 +1,6 @@
 module github.com/astra-go/astra/observability
 
-go 1.25.8
+go 1.25.1
 
 // Unified observability facade for Astra.
 // Depends on the core module (middleware, log) and the otel sub-module (SDK).
