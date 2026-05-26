@@ -74,6 +74,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 )
 
 // StepFn is a function that performs or undoes a single saga step.
@@ -138,6 +139,27 @@ type StateStore interface {
 	// OnSagaFailed is called once, immediately after the failing Forward
 	// returns an error and before compensation begins.
 	OnSagaFailed(ctx context.Context, sagaID, failedStep string, err error)
+}
+
+// IncompleteRecord describes a saga that was interrupted before completing
+// compensation. Returned by Recovery.ListIncomplete.
+type IncompleteRecord struct {
+	SagaID     string
+	FailedStep string
+	UpdatedAt  time.Time
+}
+
+// Recovery scans a durable backend for sagas that started compensation but
+// never finished (e.g. due to a process crash). Implement this interface on
+// top of a StateStore backend (Redis, GORM, etc.) to enable crash recovery.
+type Recovery interface {
+	// ListIncomplete returns all sagas whose last update is older than
+	// staleAfter and that have not been marked done.
+	ListIncomplete(ctx context.Context, staleAfter time.Duration) ([]IncompleteRecord, error)
+
+	// MarkDone removes a saga from the incomplete set once compensation has
+	// been re-run successfully.
+	MarkDone(ctx context.Context, sagaID string) error
 }
 
 // NoopStateStore is a StateStore that does nothing. It is the default when
