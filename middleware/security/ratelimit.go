@@ -30,17 +30,9 @@ type RateLimitConfig struct {
 	ExceededHandler astra.HandlerFunc // Deprecated: use ErrorHandler
 	// Context controls the lifetime of the internal cleanup goroutine.
 	// When the context is cancelled the goroutine exits cleanly.
-	// If nil and App is also nil, context.Background() is used and the goroutine
-	// runs until the process exits — suitable for top-level app middleware.
+	// If nil, context.Background() is used and the goroutine runs until the
+	// process exits — suitable for top-level app middleware.
 	Context context.Context
-	// App, when set, wires the cleanup goroutine lifetime to the application
-	// shutdown lifecycle automatically.  Takes precedence over Context.
-	//
-	// Deprecated: pass a context.Context derived from your shutdown signal instead.
-	// This field will be removed in a future major version.
-	// Example: ctx, cancel := context.WithCancel(context.Background())
-	//          app.OnStop(func(_ context.Context) error { cancel(); return nil })
-	App *astra.App
 }
 
 // DefaultRateLimitConfig allows 100 requests/second with a burst of 20.
@@ -52,12 +44,9 @@ var DefaultRateLimitConfig = RateLimitConfig{
 // RateLimit returns a token-bucket rate limiter middleware.
 // Inspired by go-zero's period limiter and token-bucket algorithm.
 //
-// The internal cleanup goroutine is bound to the App lifecycle when the
-// middleware is registered via app.Use(); otherwise it runs until the process
-// exits. For controlled shutdown in tests, use NewRateLimiter instead.
-//
-// IMPORTANT: When used without an App (e.g. in tests), the cleanup goroutine
-// runs until the process exits. Prefer NewRateLimiter(rate, burst) in tests:
+// The internal cleanup goroutine runs until the process exits unless a Context
+// is provided via RateLimitWithConfig. For controlled shutdown in tests, use
+// NewRateLimiter instead:
 //
 //	mw, stop := middleware.NewRateLimiter(100, 20)
 //	defer stop() // ensures the goroutine exits
@@ -103,7 +92,7 @@ func RateLimitWithConfig(cfg RateLimitConfig) astra.HandlerFunc {
 			return astra.NewHTTPError(http.StatusTooManyRequests, "rate limit exceeded")
 		}
 	}
-	cfg.Context = resolveContext(cfg.Context, cfg.App)
+	cfg.Context = resolveContext(cfg.Context, nil)
 
 	store := &tokenBucketStore{
 		buckets: make(map[string]*tokenBucket),
