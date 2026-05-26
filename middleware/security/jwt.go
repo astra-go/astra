@@ -54,6 +54,16 @@ func (SecretString) MarshalText() ([]byte, error) { return []byte("[REDACTED]"),
 // MarshalJSON implements json.Marshaler. Always returns "[REDACTED]".
 func (SecretString) MarshalJSON() ([]byte, error) { return []byte(`"[REDACTED]"`), nil }
 
+// MarshalBinary implements encoding.BinaryMarshaler. Always returns "[REDACTED]".
+// This prevents the secret value from leaking through gob or other binary codecs.
+func (SecretString) MarshalBinary() ([]byte, error) { return []byte("[REDACTED]"), nil }
+
+// UnmarshalBinary implements encoding.BinaryUnmarshaler.
+// SecretString must never be reconstructed from binary data; always returns an error.
+func (*SecretString) UnmarshalBinary([]byte) error {
+	return errors.New("SecretString: binary deserialization is not permitted")
+}
+
 // Plain returns the underlying secret value. Use sparingly — only when you
 // need to pass the secret to a cryptographic function or third-party library.
 func (s SecretString) Plain() string { return s.val }

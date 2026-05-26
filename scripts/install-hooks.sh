@@ -21,8 +21,11 @@ set -euo pipefail
 ROOT=$(git rev-parse --show-toplevel)
 
 # ── 找出本次 staged 改动涉及的模块 ──────────────────────────────────────────
+# ALL_MODULES lists sub-modules that may need tidy on commit.
+# The root module (.) is intentionally excluded: in workspace mode,
+# tidy on the root triggers network resolution of all workspace members
+# and is not needed for intra-module changes.
 ALL_MODULES=(
-    .
     otel mq taskqueue storage discovery config cache lock search notify mongodb lua
     orm grpc session auth
     runner client testutil
