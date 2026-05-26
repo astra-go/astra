@@ -12,6 +12,7 @@ import (
 
 	"github.com/astra-go/astra"
 	"github.com/astra-go/astra/middleware"
+	"github.com/astra-go/astra/middleware/security"
 )
 
 // ─── Request / Response types ─────────────────────────────────────────────────
@@ -75,7 +76,7 @@ func main() {
 
 	// Protected group — add JWT middleware to a sub-group
 	admin := v1.Group("/admin")
-	admin.Use(middleware.JWT("change-me-secret"))
+	admin.Use(security.JWT("change-me-secret"))
 	admin.GET("/stats", func(c *astra.Ctx) error {
 		return c.JSON(http.StatusOK, astra.Map{"total_items": len(items)})
 	})

@@ -1147,3 +1147,231 @@ jobs:
       - name: Test
         run: go test ./... -race
 `
+
+// ─── env / IDE templates ──────────────────────────────────────────────────────
+
+var (
+	onceEditorConfig    sync.Once
+	onceVSCodeSettings  sync.Once
+	onceVSCodeLaunch    sync.Once
+	onceVSCodeExtensions sync.Once
+	onceGolangCI        sync.Once
+	onceDevContainer    sync.Once
+	onceGitHookPreCommit sync.Once
+
+	tplEditorConfig     *template.Template
+	tplVSCodeSettings   *template.Template
+	tplVSCodeLaunch     *template.Template
+	tplVSCodeExtensions *template.Template
+	tplGolangCI         *template.Template
+	tplDevContainer     *template.Template
+	tplGitHookPreCommit *template.Template
+)
+
+func EditorConfig() *template.Template {
+	if t := tryFromDir("editorconfig"); t != nil { return t }
+	onceEditorConfig.Do(func() { tplEditorConfig = must("editorconfig", editorConfigSrc) })
+	return tplEditorConfig
+}
+
+func VSCodeSettings() *template.Template {
+	if t := tryFromDir("vscode_settings"); t != nil { return t }
+	onceVSCodeSettings.Do(func() { tplVSCodeSettings = must("vscode_settings", vscodeSettingsSrc) })
+	return tplVSCodeSettings
+}
+
+func VSCodeLaunch() *template.Template {
+	if t := tryFromDir("vscode_launch"); t != nil { return t }
+	onceVSCodeLaunch.Do(func() { tplVSCodeLaunch = must("vscode_launch", vscodeLaunchSrc) })
+	return tplVSCodeLaunch
+}
+
+func VSCodeExtensions() *template.Template {
+	if t := tryFromDir("vscode_extensions"); t != nil { return t }
+	onceVSCodeExtensions.Do(func() { tplVSCodeExtensions = must("vscode_extensions", vscodeExtensionsSrc) })
+	return tplVSCodeExtensions
+}
+
+func GolangCI() *template.Template {
+	if t := tryFromDir("golangci"); t != nil { return t }
+	onceGolangCI.Do(func() { tplGolangCI = must("golangci", golangCISrc) })
+	return tplGolangCI
+}
+
+func DevContainer() *template.Template {
+	if t := tryFromDir("devcontainer"); t != nil { return t }
+	onceDevContainer.Do(func() { tplDevContainer = must("devcontainer", devContainerSrc) })
+	return tplDevContainer
+}
+
+func GitHookPreCommit() *template.Template {
+	if t := tryFromDir("githooks_pre_commit"); t != nil { return t }
+	onceGitHookPreCommit.Do(func() { tplGitHookPreCommit = must("githooks_pre_commit", gitHookPreCommitSrc) })
+	return tplGitHookPreCommit
+}
+
+const editorConfigSrc = `root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.go]
+indent_style = tab
+
+[*.{yaml,yml,json,toml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
+`
+
+const vscodeSettingsSrc = `{
+  "go.toolsManagement.autoUpdate": true,
+  "editor.formatOnSave": true,
+  "[go]": {
+    "editor.defaultFormatter": "golang.go",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "gopls": {
+    "ui.semanticTokens": true,
+    "formatting.gofumpt": true
+  },
+  "go.lintTool": "golangci-lint",
+  "go.lintFlags": ["--fast"],
+  "files.exclude": {
+    "**/vendor": true,
+    "**/.git": true,
+    "**/bin": true
+  },
+  "files.watcherExclude": {
+    "**/vendor/**": true,
+    "**/bin/**": true
+  }
+}
+`
+
+const vscodeLaunchSrc = `{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch {{.Name}}",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}",
+      "env": {
+        "APP_ENV": "dev"
+      },
+      "args": []
+    },
+    {
+      "name": "Test current file",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${file}"
+    }
+  ]
+}
+`
+
+const vscodeExtensionsSrc = `{
+  "recommendations": [
+    "golang.go",
+    "ms-azuretools.vscode-docker",
+    "redhat.vscode-yaml",
+    "foxundermoon.shell-format",
+    "timonwong.shellcheck",
+    "davidanson.vscode-markdownlint"
+  ]
+}
+`
+
+const golangCISrc = `run:
+  timeout: 5m
+  go: '{{.GoVersion}}'
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - gosimple
+    - ineffassign
+    - typecheck
+    - misspell
+    - gofmt
+    - goimports
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 50
+  max-same-issues: 3
+
+severity:
+  default-severity: warning
+`
+
+const devContainerSrc = `{
+  "name": "{{.Name}} Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/go:{{.GoVersion}}",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "go mod tidy",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "go.toolsManagement.autoUpdate": true,
+        "editor.formatOnSave": true,
+        "[go]": {
+          "editor.defaultFormatter": "golang.go"
+        }
+      }
+    }
+  },
+  "remoteEnv": {
+    "APP_ENV": "dev"
+  }
+}
+`
+
+const gitHookPreCommitSrc = `#!/bin/sh
+# Pre-commit hook: run go vet and golangci-lint on staged Go files.
+set -e
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+[ -z "$STAGED" ] && exit 0
+
+echo "▶  go vet ./..."
+go vet ./...
+
+if command -v golangci-lint >/dev/null 2>&1; then
+  echo "▶  golangci-lint run (fast)"
+  golangci-lint run --fast ./...
+fi
+`

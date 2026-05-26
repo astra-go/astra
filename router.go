@@ -312,6 +312,9 @@ type Router struct {
 	// strictConflict causes Add to panic on duplicate route registration.
 	// Enabled in ModeTest or via WithStrictConflict.
 	strictConflict        bool
+
+	// maxParamValueLen, when > 0, rejects param segments longer than this many bytes.
+	maxParamValueLen int
 }
 
 // methodRoot pairs an HTTP method string with its radix-tree root node.
@@ -341,6 +344,7 @@ func newRouter(app *App) *Router {
 		methodNotAllowedHandler: app.options.MethodNotAllowedHandler,
 		logger:                  slog.Default(),
 		strictConflict:          app.options.StrictConflict || app.options.Mode == ModeTest,
+		maxParamValueLen:        app.options.MaxParamValueLen,
 	}
 	r.notFoundChain = HandlersChain{r.notFoundHandler}
 	r.methodNotAllowedChain = HandlersChain{r.methodNotAllowedHandler}
@@ -551,7 +555,7 @@ func (r *Router) Handle(c *Ctx) {
 	// Pass c.params (backed by c.paramsArr) into matchRoute so that param
 	// extraction appends into the pre-allocated inline array — no heap alloc
 	// for routes with ≤maxRouteParams path parameters.
-	handlers, params, fullPath, found := matchRoute(root, path, c.params)
+	handlers, params, fullPath, found := matchRoute(root, path, c.params, r.maxParamValueLen)
 	if !found {
 		c.handlers = r.notFoundChain
 		c.Next()
@@ -591,7 +595,7 @@ func (r *Router) allowedMethods(path string) string {
 	var buf [128]byte
 	n := 0
 	for _, mr := range r.methodRoots {
-		_, _, _, found := matchRoute(mr.root, path, nil)
+		_, _, _, found := matchRoute(mr.root, path, nil, 0)
 		if !found {
 			continue
 		}
@@ -617,7 +621,7 @@ func (r *Router) allowedMethods(path string) string {
 //
 // Path parsing is done inline (no splitPath / strings.Split call), eliminating
 // two allocations on every request compared to the previous design.
-func matchRoute(root *node, path string, params Params) (HandlersChain, Params, string, bool) {
+func matchRoute(root *node, path string, params Params, maxParamValueLen int) (HandlersChain, Params, string, bool) {
 	pos := 0
 	if len(path) > 0 && path[0] == '/' {
 		pos = 1
@@ -629,7 +633,7 @@ func matchRoute(root *node, path string, params Params) (HandlersChain, Params, 
 		}
 		return nil, nil, "", false
 	}
-	return matchSegments(root, path, pos, params)
+	return matchSegments(root, path, pos, params, maxParamValueLen)
 }
 
 // matchSegments is the recursive heart of the router.
@@ -638,7 +642,7 @@ func matchRoute(root *node, path string, params Params) (HandlersChain, Params, 
 // (path[a:b]) rather than a pre-split []string, so each call allocates nothing
 // for segment extraction.  param values stored in Params are sub-slices of the
 // input path string — valid for the lifetime of the http.Request.
-func matchSegments(current *node, path string, pos int, params Params) (HandlersChain, Params, string, bool) {
+func matchSegments(current *node, path string, pos int, params Params, maxParamValueLen int) (HandlersChain, Params, string, bool) {
 	// Extract the current segment without allocating.
 	// strings.IndexByte is O(k) on path[pos:] — no slice header escapes.
 	end := strings.IndexByte(path[pos:], '/')
@@ -658,6 +662,9 @@ func matchSegments(current *node, path string, pos int, params Params) (Handlers
 	// pos is always ≥1 here (guaranteed by matchRoute stripping the leading '/').
 	if current.catchAll != nil && current.catchAll.handlers != nil {
 		remaining := path[pos-1:] // "/segment/rest..." — no alloc
+		if maxParamValueLen > 0 && len(remaining) > maxParamValueLen {
+			return nil, nil, "", false
+		}
 		p := append(params, Param{Key: current.catchAll.paramKey, Value: remaining})
 		return current.catchAll.handlers, p, current.catchAll.fullPath, true
 	}
@@ -706,7 +713,7 @@ func matchSegments(current *node, path string, pos int, params Params) (Handlers
 			}
 			return nil, nil, "", false
 		}
-		if h, p, fp, ok := matchSegments(matchedStatic, path, nextPos, params); ok {
+		if h, p, fp, ok := matchSegments(matchedStatic, path, nextPos, params, maxParamValueLen); ok {
 			return h, p, fp, ok
 		}
 	}
@@ -721,6 +728,9 @@ func matchSegments(current *node, path string, pos int, params Params) (Handlers
 			matched = child.regex != nil && child.regex.MatchString(part)
 		}
 		if matched {
+			if maxParamValueLen > 0 && len(part) > maxParamValueLen {
+				continue
+			}
 			newParams := append(params, Param{Key: child.paramKey, Value: part})
 			if isLast {
 				if child.handlers != nil {
@@ -732,7 +742,7 @@ func matchSegments(current *node, path string, pos int, params Params) (Handlers
 				}
 				return nil, nil, "", false
 			}
-			if h, p, fp, ok := matchSegments(child, path, nextPos, newParams); ok {
+			if h, p, fp, ok := matchSegments(child, path, nextPos, newParams, maxParamValueLen); ok {
 				return h, p, fp, ok
 			}
 		}
@@ -740,19 +750,21 @@ func matchSegments(current *node, path string, pos int, params Params) (Handlers
 
 	// Try param child.
 	if current.param != nil {
-		newParams := append(params, Param{Key: current.param.paramKey, Value: part})
-		if isLast {
-			if current.param.handlers != nil {
-				return current.param.handlers, newParams, current.param.fullPath, true
+		if maxParamValueLen == 0 || len(part) <= maxParamValueLen {
+			newParams := append(params, Param{Key: current.param.paramKey, Value: part})
+			if isLast {
+				if current.param.handlers != nil {
+					return current.param.handlers, newParams, current.param.fullPath, true
+				}
+				if current.param.catchAll != nil && current.param.catchAll.handlers != nil {
+					p := append(newParams, Param{Key: current.param.catchAll.paramKey, Value: "/"})
+					return current.param.catchAll.handlers, p, current.param.catchAll.fullPath, true
+				}
+				return nil, nil, "", false
 			}
-			if current.param.catchAll != nil && current.param.catchAll.handlers != nil {
-				p := append(newParams, Param{Key: current.param.catchAll.paramKey, Value: "/"})
-				return current.param.catchAll.handlers, p, current.param.catchAll.fullPath, true
+			if h, p, fp, ok := matchSegments(current.param, path, nextPos, newParams, maxParamValueLen); ok {
+				return h, p, fp, ok
 			}
-			return nil, nil, "", false
-		}
-		if h, p, fp, ok := matchSegments(current.param, path, nextPos, newParams); ok {
-			return h, p, fp, ok
 		}
 	}
 

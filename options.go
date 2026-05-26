@@ -56,6 +56,11 @@ type Options struct {
 	// trustedNets is the compiled form of TrustedProxies.
 	// Populated once by prepareTrustedNets() in New(); never nil after that.
 	trustedNets []*net.IPNet
+
+	// MaxParamValueLen limits the byte length of a URL path parameter value.
+	// Requests whose parameter segment exceeds this limit are treated as 404.
+	// 0 (default) disables the limit.
+	MaxParamValueLen int
 }
 
 // ─── Option constructors ──────────────────────────────────────────────────────
@@ -136,6 +141,17 @@ func WithRouter(r HttpRouter) Option {
 	return func(o *Options) { o.customRouter = r }
 }
 
+// WithMaxParamValueLen sets the maximum byte length for URL path parameter values.
+// Requests whose parameter segment exceeds this limit are treated as 404.
+// Pass 0 to disable the limit (default).
+// Panics if n < 0.
+func WithMaxParamValueLen(n int) Option {
+	if n < 0 {
+		panic("astra: WithMaxParamValueLen: n must be >= 0")
+	}
+	return func(o *Options) { o.MaxParamValueLen = n }
+}
+
 // WithNotFoundHandler sets a custom 404 handler.
 func WithNotFoundHandler(h HandlerFunc) Option {
 	return func(o *Options) { o.NotFoundHandler = h }
@@ -205,6 +221,7 @@ func defaultOptions() *Options {
 		MaxMultipartMemory:      32 << 20, // 32 MB
 		MaxJSONBodySize:         1 << 20,  // 1 MiB
 		ShutdownTimeout:         10,
+		MaxParamValueLen:        256,
 		Mode:                    ModeDev,
 		ErrorHandler:            defaultErrorHandler,
 		NotFoundHandler:         defaultNotFoundHandler,

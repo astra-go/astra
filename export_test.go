@@ -9,3 +9,20 @@ var JsonBufPool = &jsonBufPool
 
 // JsonBufMaxCap exposes jsonBufMaxCap for white-box tests.
 const JsonBufMaxCap = jsonBufMaxCap
+
+// Fast matcher exports for fuzz tests.
+var (
+	FastDigits        = fastDigits
+	FastLower         = fastLower
+	FastUpper         = fastUpper
+	FastAlpha         = fastAlpha
+	FastAlphanum      = fastAlphanum
+	FastAlphanumLower = fastAlphanumLower
+	FastAlphanumUpper = fastAlphanumUpper
+	FastSlugLower     = fastSlugLower
+	FastSlug          = fastSlug
+	FastIdentifier    = fastIdentifier
+)
+
+// GetOrCompileRegexp exposes getOrCompileRegexp for fuzz tests.
+var GetOrCompileRegexp = getOrCompileRegexp

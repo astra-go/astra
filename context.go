@@ -1,6 +1,7 @@
 package astra
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 )
@@ -121,6 +122,13 @@ type Ctx struct {
 
 	// reference to the app
 	app *App
+
+	// pooled is set to true the first time this Ctx is returned to the pool.
+	// Used by App.ServeHTTP to distinguish pool hits from fresh allocations.
+	pooled bool
+
+	// isClone is true when this Ctx was created by Clone or CloneWithContext.
+	isClone bool
 }
 
 // reset recycles the context for a new request (used with sync.Pool).
@@ -174,3 +182,50 @@ func (c *Ctx) reset(w http.ResponseWriter, r *http.Request) {
 }
 
 
+
+// nopResponseWriter discards all writes. Used by Clone() so that response
+// methods called on a cloned Ctx do not affect the real response.
+type nopResponseWriter struct{ header http.Header }
+
+func (n *nopResponseWriter) Header() http.Header         { return n.header }
+func (n *nopResponseWriter) Write(b []byte) (int, error) { return len(b), nil }
+func (n *nopResponseWriter) WriteHeader(int)             {}
+func (n *nopResponseWriter) Status() int                 { return http.StatusOK }
+func (n *nopResponseWriter) Size() int                   { return 0 }
+func (n *nopResponseWriter) Written() bool               { return false }
+func (n *nopResponseWriter) WriteString(s string) (int, error) { return len(s), nil }
+
+// Clone returns a shallow copy of c with an isolated KV store and a nop
+// ResponseWriter. The clone shares the same request, params, and route key as
+// the original but writes to /dev/null, making it safe to pass to goroutines
+// or background tasks that must not touch the live response.
+func (c *Ctx) Clone() *Ctx {
+	clone := &Ctx{
+		req:      c.req,
+		app:      c.app,
+		routeKey: c.routeKey,
+		params:   c.params,
+		isClone:  true,
+	}
+	nop := &nopResponseWriter{header: make(http.Header)}
+	clone.rw = responseWriter{}
+	clone.writer = nop
+	// Deep-copy the KV store so mutations on either side are isolated.
+	if len(c.kvStore) > 0 {
+		clone.kvStore = make([]kvPair, len(c.kvStore))
+		copy(clone.kvStore, c.kvStore)
+	}
+	return clone
+}
+
+// CloneWithContext is like Clone but replaces the request's context with ctx.
+// Use this when passing the clone to a goroutine that needs a different
+// cancellation scope.
+func (c *Ctx) CloneWithContext(ctx context.Context) *Ctx {
+	clone := c.Clone()
+	clone.req = clone.req.WithContext(ctx)
+	return clone
+}
+
+// IsClone reports whether this Ctx was created by Clone or CloneWithContext.
+func (c *Ctx) IsClone() bool { return c.isClone }
