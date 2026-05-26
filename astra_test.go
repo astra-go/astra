@@ -685,7 +685,7 @@ func TestNewSlim_RegisterPlugin_ReturnsErrSlimMode(t *testing.T) {
 
 func TestNewSlim_Register_ReturnsErrSlimMode(t *testing.T) {
 	app := astra.NewSlim()
-	err := app.Register(astra.NewModuleFunc("noop", func(*astra.App) error { return nil }))
+	err := app.Register(astra.NewComponentFunc("noop", func(*astra.App) error { return nil }))
 	if !errors.Is(err, astra.ErrSlimMode) {
 		t.Fatalf("expected ErrSlimMode, got %v", err)
 	}

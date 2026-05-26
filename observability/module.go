@@ -79,7 +79,7 @@ type Config struct {
 	PrometheusRegisterer prometheus.Registerer
 }
 
-// Module implements astra.Module and installs the full observability stack.
+// Module implements astra.Component and installs the full observability stack.
 type Module struct {
 	cfg      Config
 	shutdown func(context.Context) error
@@ -97,12 +97,12 @@ func NewModule(cfg Config) *Module {
 	return &Module{cfg: cfg}
 }
 
-// Name satisfies astra.Module.
+// Name satisfies astra.Component.
 func (m *Module) Name() string { return "observability" }
 
-// Install wires the observability stack into app.
+// Init wires the observability stack into app.
 //
-// Call order within Install:
+// Call order within Init:
 //  1. otel.Setup — initialises global TracerProvider and MeterProvider.
 //  2. log.SetDefault — replaces the global logger with a JSON/text logger.
 //  3. app.Use(Tracing) — must be first so the span is in the context.
@@ -110,7 +110,7 @@ func (m *Module) Name() string { return "observability" }
 //  5. app.Use(Metrics) — records request counters, latency, error rate.
 //  6. app.GET(MetricsPath) — exposes the Prometheus scrape endpoint.
 //  7. app.OnStop — flushes and shuts down OTel exporters.
-func (m *Module) Install(app *astra.App) error {
+func (m *Module) Init(app *astra.App) error {
 	// ── 1. OTel SDK setup ─────────────────────────────────────────────────────
 	// Must run before middleware registration so Tracing captures the real
 	// TracerProvider rather than the pre-init no-op global.

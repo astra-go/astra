@@ -3,31 +3,18 @@ package astra
 // Plugin is implemented by third-party packages that integrate an external
 // library (Prometheus, tracing, Swagger, OAuth2, etc.) into an App.
 //
-// Use Plugin when you are writing a reusable, library-facing adapter that
-// other applications will pull in as a dependency. For organising your own
-// application's business logic into units, use Module instead — the two
-// interfaces are intentionally symmetric so that either can be registered
-// with the same App.Register call via PluginAsModule.
+// Deprecated: Plugin is superseded by Component in v2. Implement Component
+// (with Init) instead. Existing Plugin implementations continue to work via
+// RegisterPlugin, which wraps them as Components internally.
 //
-// Drop-in integration example:
+// Migration:
 //
-//	type PrometheusPlugin struct { ... }
-//	func (p *PrometheusPlugin) Name() string { return "prometheus" }
-//	func (p *PrometheusPlugin) Init(app *astra.App) error {
-//	    app.GET("/metrics", middleware.MetricsHandler())
-//	    app.OnStop(p.shutdown)
-//	    return nil
-//	}
+//	// Before (v1)
+//	func (p *MyPlugin) Init(app *astra.App) error { ... }
 //
-//	// Option A — dedicated helper (duplicate-safe, preferred):
-//	app.RegisterPlugin(&PrometheusPlugin{})
-//
-//	// Option B — wrap as Module and use the unified Register path:
-//	app.Register(astra.PluginAsModule(&PrometheusPlugin{}))
-//
-// Decision guide:
-//   - Third-party library adapter   → Plugin  (Init — "initialise the library")
-//   - Application business unit     → Module  (Install — "install into the app")
+//	// After (v2) — no change needed; Init is already the Component method name.
+//	// Just implement Component directly:
+//	var _ astra.Component = (*MyPlugin)(nil)
 type Plugin interface {
 	// Name returns a unique identifier used in error messages and logs.
 	Name() string
@@ -41,15 +28,21 @@ type Plugin interface {
 // Plugins the same duplicate-detection and error-wrapping behaviour that
 // Modules receive through Register.
 //
+// Deprecated: Use App.Register with a Component directly. If your Plugin
+// already implements Init(*App) error, it satisfies Component with a one-line
+// type assertion change.
+//
 //	app.Register(
 //	    astra.PluginAsModule(swagger.New(swagger.Config{})),
-//	    myBusinessModule,
+//	    myBizModule,
 //	)
 func PluginAsModule(p Plugin) Module {
-	return pluginAdapter{p}
+	return legacyPluginAsModule{p}
 }
 
-type pluginAdapter struct{ p Plugin }
+// legacyPluginAsModule bridges a v1 Plugin into the v1 Module interface so
+// that PluginAsModule keeps working without change.
+type legacyPluginAsModule struct{ p Plugin }
 
-func (a pluginAdapter) Name() string        { return a.p.Name() }
-func (a pluginAdapter) Install(app *App) error { return a.p.Init(app) }
+func (a legacyPluginAsModule) Name() string        { return a.p.Name() }
+func (a legacyPluginAsModule) Install(app *App) error { return a.p.Init(app) }
