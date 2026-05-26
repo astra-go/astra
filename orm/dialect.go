@@ -85,3 +85,9 @@ func applyPool(db *gorm.DB, pools []PoolConfig) (*gorm.DB, error) {
 	}
 	return db, nil
 }
+
+// isClickHouse reports whether db is backed by ClickHouse.
+// Used internally to guard operations that ClickHouse does not support.
+func isClickHouse(db *gorm.DB) bool {
+	return db != nil && db.Dialector.Name() == "clickhouse"
+}

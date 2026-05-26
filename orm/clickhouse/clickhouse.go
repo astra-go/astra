@@ -38,6 +38,13 @@
 //	}
 //	db.Create(&[]Event{{...}, {...}})
 //
+// # ClickHouse limitations
+//
+// ClickHouse does not support ACID transactions or row-level UPDATE/DELETE.
+// Calling orm.TxMiddleware, orm.RunTx, or orm.SoftDeleteModel.SoftDelete with
+// a ClickHouse-backed *gorm.DB will return [ErrTxNotSupported] or
+// [ErrMutationNotSupported] rather than silently producing incorrect behaviour.
+//
 // # DSN format
 //
 //	clickhouse://[user[:password]@]host[:port]/database[?param=value&...]
@@ -49,12 +56,27 @@
 package clickhouse
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	gormclickhouse "gorm.io/driver/clickhouse"
 	"gorm.io/gorm"
 )
+
+// ErrTxNotSupported is returned when a caller attempts to start a transaction
+// against a ClickHouse database. ClickHouse does not support ACID transactions.
+var ErrTxNotSupported = errors.New("clickhouse: transactions are not supported")
+
+// ErrMutationNotSupported is returned when a caller attempts an UPDATE or
+// DELETE against a ClickHouse database. ClickHouse does not support row-level
+// mutations via standard SQL UPDATE/DELETE.
+var ErrMutationNotSupported = errors.New("clickhouse: UPDATE/DELETE mutations are not supported; use ALTER TABLE ... DELETE or ReplacingMergeTree")
+
+// IsClickHouse reports whether db is connected to a ClickHouse server.
+func IsClickHouse(db *gorm.DB) bool {
+	return db != nil && db.Dialector.Name() == "clickhouse"
+}
 
 const (
 	defaultMaxOpenConns    = 5
