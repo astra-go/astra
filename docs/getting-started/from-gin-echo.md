@@ -116,6 +116,28 @@ func myMiddleware(next astra.HandlerFunc) astra.HandlerFunc {
 }
 ```
 
+### ⚠️ 中间件注册顺序（与 Gin 的关键差异）
+
+Astra 的中间件在**路由注册时**就被固化进路由链，而不是在请求到达时动态查找。
+这意味着 `app.Use()` 必须在路由注册之前调用，否则已注册的路由不会包含后续添加的中间件。
+
+```go
+// ✅ 正确：先 Use，后注册路由
+app := astra.New()
+app.Use(middleware.Recovery())
+app.Use(middleware.Logger())
+app.GET("/users", listUsers)   // 包含 Recovery + Logger
+
+// ❌ 错误：路由先注册，中间件后 Use（与 Gin 行为不同！）
+app := astra.New()
+app.GET("/users", listUsers)   // 此时 Logger 尚未注册，不会生效
+app.Use(middleware.Logger())   // 对已注册的路由无效
+```
+
+Gin 的 `r.Use()` 在请求时动态应用，调用顺序不影响结果。Astra 不同——**顺序即语义**。
+
+路由组同理：`group.Use()` 必须在该组的路由注册之前调用。
+
 ### 错误处理
 
 Astra 的错误处理比 Gin 更统一：
@@ -283,3 +305,7 @@ func createItem(c *astra.Ctx) error {
 **Q：我能在 Astra 中使用 Gin 的中间件生态吗？**
 
 不能直接使用，但 Astra 内置了 Gin 生态中最常用的中间件（Logger / Recovery / CORS / JWT / RateLimit / CSRF 等），通常不需要引入第三方中间件。
+
+**Q：`app.Use()` 在路由注册之后调用还有效吗？**
+
+对已注册的路由无效。Astra 在调用 `app.GET` / `app.POST` 等方法时，会把当前已注册的中间件快照进路由链，之后再 `Use()` 的中间件不会追溯应用到这些路由。始终把所有 `app.Use()` 放在任何路由注册之前。
