@@ -834,3 +834,73 @@ func TestSoftDeleteModel_SoftDelete_RowStillExists(t *testing.T) {
 		t.Error("soft-deleted row should still exist in the database")
 	}
 }
+
+// ─── orm.GORMSoftDeleteModel ──────────────────────────────────────────────────
+
+type GORMPost struct {
+	orm.GORMSoftDeleteModel
+	Title string
+}
+
+func TestGORMSoftDeleteModel_Delete_SetsDeletedAt(t *testing.T) {
+	db := testDB(t, &GORMPost{})
+	p := GORMPost{Title: "native soft delete"}
+	if err := db.Create(&p).Error; err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := db.Delete(&p).Error; err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if !p.DeletedAt.Valid {
+		t.Fatal("DeletedAt should be valid (set) after db.Delete")
+	}
+	// row must still be in the table
+	var count int64
+	db.Unscoped().Model(&GORMPost{}).Where("id = ?", p.ID).Count(&count)
+	if count != 1 {
+		t.Error("row should still exist after soft delete")
+	}
+}
+
+func TestGORMSoftDeleteModel_Find_ExcludesSoftDeleted(t *testing.T) {
+	db := testDB(t, &GORMPost{})
+	alive := GORMPost{Title: "alive"}
+	dead := GORMPost{Title: "dead"}
+	if err := db.Create(&alive).Error; err != nil {
+		t.Fatalf("Create alive: %v", err)
+	}
+	if err := db.Create(&dead).Error; err != nil {
+		t.Fatalf("Create dead: %v", err)
+	}
+	if err := db.Delete(&dead).Error; err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	var posts []GORMPost
+	if err := db.Find(&posts).Error; err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if len(posts) != 1 {
+		t.Errorf("Find returned %d rows, want 1 (soft-deleted row must be excluded automatically)", len(posts))
+	}
+	if posts[0].ID != alive.ID {
+		t.Errorf("Find returned wrong row: got id=%d, want id=%d", posts[0].ID, alive.ID)
+	}
+}
+
+func TestGORMSoftDeleteModel_Unscoped_IncludesSoftDeleted(t *testing.T) {
+	db := testDB(t, &GORMPost{})
+	p := GORMPost{Title: "ghost"}
+	if err := db.Create(&p).Error; err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := db.Delete(&p).Error; err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	var posts []GORMPost
+	if err := db.Unscoped().Find(&posts).Error; err != nil {
+		t.Fatalf("Unscoped Find: %v", err)
+	}
+	if len(posts) != 1 {
+		t.Errorf("Unscoped Find returned %d rows, want 1", len(posts))
+	}
+}
