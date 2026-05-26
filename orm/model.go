@@ -45,17 +45,53 @@ func (m *Model) BeforeUpdate(_ *gorm.DB) error {
 // SoftDeleteModel extends [Model] with a nullable DeletedAt field for
 // logical (soft) deletion.
 //
-// Important: timeutil.Time is not compatible with GORM's built-in soft-delete
-// filtering (which requires gorm.DeletedAt). You must add WHERE conditions
-// manually or use a named scope:
+// WARNING: timeutil.Time is NOT compatible with GORM's built-in soft-delete
+// filtering (which requires gorm.DeletedAt). This means:
+//
+//   - db.Delete(&user) physically deletes the row — it does NOT set deleted_at.
+//   - db.Find(&users) returns ALL rows, including soft-deleted ones.
+//   - db.Unscoped() has no effect on this model.
+//
+// You must filter deleted records manually on every query:
 //
 //	db.Where("deleted_at IS NULL").Find(&users)
 //
+// Or define a named scope to avoid repeating the condition:
+//
+//	func NotDeleted(db *gorm.DB) *gorm.DB {
+//	    return db.Where("deleted_at IS NULL")
+//	}
+//	db.Scopes(NotDeleted).Find(&users)
+//
 // Use [SoftDeleteModel.SoftDelete] instead of db.Delete to mark records as
 // deleted without physically removing them.
+//
+// If you want GORM's automatic soft-delete behaviour (auto-filter, db.Delete
+// support, db.Unscoped), embed [GORMSoftDeleteModel] instead.
 type SoftDeleteModel struct {
 	Model
 	DeletedAt *timeutil.Time `json:"deleted_at,omitempty" gorm:"index"`
+}
+
+// GORMSoftDeleteModel extends [Model] with gorm.DeletedAt, which enables
+// GORM's native soft-delete behaviour:
+//
+//   - db.Delete(&user) sets deleted_at instead of issuing a DELETE.
+//   - db.Find(&users) automatically adds WHERE deleted_at IS NULL.
+//   - db.Unscoped().Find(&users) returns all rows including soft-deleted ones.
+//
+// Trade-off: DeletedAt is serialised as a plain RFC3339 string in JSON
+// (via gorm.DeletedAt's Time field), not the custom timeutil.Time format.
+// Use this type when GORM's automatic filtering is more important than
+// consistent time formatting.
+//
+//	type Post struct {
+//	    orm.GORMSoftDeleteModel
+//	    Title string `json:"title"`
+//	}
+type GORMSoftDeleteModel struct {
+	Model
+	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index"`
 }
 
 // SoftDelete marks the record as deleted by setting DeletedAt to now and
