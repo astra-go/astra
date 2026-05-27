@@ -15,7 +15,6 @@ require (
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -87,7 +86,7 @@ replace github.com/astra-go/astra/lock v0.0.0-00010101000000-000000000000 => ../
 
 replace github.com/astra-go/astra/lua v0.0.0-00010101000000-000000000000 => ../../lua
 
-replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ../../middleware/security
+replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ../security
 
 replace github.com/astra-go/astra/mongodb v0.0.0-00010101000000-000000000000 => ../../mongodb
 

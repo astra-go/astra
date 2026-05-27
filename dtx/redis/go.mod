@@ -11,7 +11,6 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 )
@@ -33,7 +32,7 @@ replace github.com/astra-go/astra/client v0.0.0-00010101000000-000000000000 => .
 
 replace github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000 => ../../config
 
-replace github.com/astra-go/astra/dtx/orm v0.0.0-00010101000000-000000000000 => ../../dtx/orm
+replace github.com/astra-go/astra/dtx/orm v0.0.0-00010101000000-000000000000 => ../orm
 
 replace github.com/astra-go/astra/e2e v0.0.0-00010101000000-000000000000 => ../../e2e
 

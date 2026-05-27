@@ -1,16 +1,38 @@
 # ─── Workspace / module maintenance ──────────────────────────────────────────
 
+MAGE := mage -d magefiles
+
 .PHONY: sync-replaces
 sync-replaces: ## Sync intra-workspace replace directives across all go.mod files
-	bash scripts/sync-intra-replaces.sh
+	$(MAGE) syncReplaces
 
 .PHONY: check-replaces
 check-replaces: ## CI check: fail if any go.mod has missing/stale intra-workspace replace directives
-	bash scripts/check-intra-replaces.sh
+	$(MAGE) checkReplaces
 
 .PHONY: tidy
 tidy: ## Run go mod tidy across all workspace modules in topological order
-	bash scripts/tidy-all.sh
+	$(MAGE) tidy
+
+.PHONY: affected-modules
+affected-modules: ## Print modules affected by current branch (BASE=ref, ALL=1 for all)
+	$(MAGE) affectedModules
+
+.PHONY: check-dep-versions
+check-dep-versions: ## Detect version splits across workspace modules
+	$(MAGE) checkDepVersions
+
+.PHONY: check-test-deps
+check-test-deps: ## Detect test-only packages declared as production deps
+	$(MAGE) checkTestDeps
+
+.PHONY: install-hooks
+install-hooks: ## Install git pre-commit hook
+	$(MAGE) installHooks
+
+.PHONY: release
+release: ## Create lockstep version tags (VERSION=vX.Y.Z required; DRY_RUN=1, PUSH=1 optional)
+	$(MAGE) release
 
 # ─── Benchmark targets ────────────────────────────────────────────────────────
 #

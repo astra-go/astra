@@ -6,7 +6,7 @@ go 1.25.1
 // Uses the Consul HTTP API directly — no consul SDK dependency.
 require github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000
 
-replace github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ../../discovery
+replace github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ..
 
 replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..
 

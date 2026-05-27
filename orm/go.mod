@@ -15,12 +15,12 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0
+	github.com/google/uuid v1.6.0
 	go.opentelemetry.io/otel v1.42.0
 	go.opentelemetry.io/otel/trace v1.42.0
 )
 
 require (
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/glebarez/go-sqlite v1.21.2 // indirect
@@ -33,7 +33,6 @@ require (
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/google/pprof v0.0.0-20241029153458-d1b30febd7db // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/jackc/pgx/v5 v5.5.5 // indirect
@@ -111,7 +110,7 @@ replace github.com/astra-go/astra/notify v0.0.0-00010101000000-000000000000 => .
 
 replace github.com/astra-go/astra/observability v0.0.0-00010101000000-000000000000 => ../observability
 
-replace github.com/astra-go/astra/orm/clickhouse v0.0.0-00010101000000-000000000000 => ../orm/clickhouse
+replace github.com/astra-go/astra/orm/clickhouse v0.0.0-00010101000000-000000000000 => ./clickhouse
 
 replace github.com/astra-go/astra/otel v0.0.0-00010101000000-000000000000 => ../otel
 

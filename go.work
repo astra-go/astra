@@ -56,7 +56,6 @@ use (
 // ALL internal module cross-references use the zero pseudo-version so that
 // `go mod tidy` skips VCS resolution and reads the local go.mod directly.
 replace (
-	github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ./rule
 	github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./
 	github.com/astra-go/astra/alert v0.0.0-00010101000000-000000000000 => ./alert
 	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ./cache
@@ -65,13 +64,17 @@ replace (
 	github.com/astra-go/astra/dtx/redis v0.0.0-00010101000000-000000000000 => ./dtx/redis
 	github.com/astra-go/astra/e2e/orm v0.0.0-00010101000000-000000000000 => ./e2e/orm
 	github.com/astra-go/astra/grpc v0.0.0-00010101000000-000000000000 => ./grpc
+	github.com/astra-go/astra/loadbalance v0.0.0-00010101000000-000000000000 => ./loadbalance
 	github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000 => ./middleware/observability
 	github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ./middleware/security
 	github.com/astra-go/astra/observability v0.0.0-00010101000000-000000000000 => ./observability
 	github.com/astra-go/astra/orm v0.0.0-00010101000000-000000000000 => ./orm
 	github.com/astra-go/astra/orm/clickhouse v0.0.0-00010101000000-000000000000 => ./orm/clickhouse
 	github.com/astra-go/astra/otel v0.0.0-00010101000000-000000000000 => ./otel
-	github.com/astra-go/astra/loadbalance v0.0.0-00010101000000-000000000000 => ./loadbalance
+	github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ./rule
 	github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 => ./taskqueue
 	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ./testutil
+	// consul/proto-public v0.8.0 requires go 1.25.8; pin to v0.6.5 which requires go 1.25.0.
+	// config/go.mod carries the same replace for module-level builds.
+	github.com/hashicorp/consul/proto-public v0.8.0 => github.com/hashicorp/consul/proto-public v0.6.5
 )

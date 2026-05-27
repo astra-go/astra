@@ -88,9 +88,9 @@ replace github.com/astra-go/astra/dtx/orm v0.0.0-00010101000000-000000000000 => 
 
 replace github.com/astra-go/astra/dtx/redis v0.0.0-00010101000000-000000000000 => ../../dtx/redis
 
-replace github.com/astra-go/astra/e2e v0.0.0-00010101000000-000000000000 => ../../e2e
+replace github.com/astra-go/astra/e2e v0.0.0-00010101000000-000000000000 => ..
 
-replace github.com/astra-go/astra/e2e/orm v0.0.0-00010101000000-000000000000 => ../../e2e/orm
+replace github.com/astra-go/astra/e2e/orm v0.0.0-00010101000000-000000000000 => ../orm
 
 replace github.com/astra-go/astra/examples/techempower v0.0.0-00010101000000-000000000000 => ../../examples/techempower
 
