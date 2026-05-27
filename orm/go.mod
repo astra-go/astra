@@ -100,7 +100,7 @@ replace github.com/astra-go/astra/notify v0.0.0-00010101000000-000000000000 => .
 
 replace github.com/astra-go/astra/observability v0.0.0-00010101000000-000000000000 => ../observability
 
-replace github.com/astra-go/astra/orm/clickhouse v0.0.0-00010101000000-000000000000 => ../orm/clickhouse
+replace github.com/astra-go/astra/orm/clickhouse v0.0.0-00010101000000-000000000000 => ./clickhouse
 
 replace github.com/astra-go/astra/otel v0.0.0-00010101000000-000000000000 => ../otel
 
@@ -127,3 +127,5 @@ replace github.com/astra-go/astra/examples/quickstart v0.0.0-00010101000000-0000
 replace github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ../examples/websocket
 
 replace github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ../quic
+
+replace github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ../rule

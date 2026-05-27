@@ -73,7 +73,7 @@ replace github.com/astra-go/astra/lock v0.0.0-00010101000000-000000000000 => ../
 
 replace github.com/astra-go/astra/lua v0.0.0-00010101000000-000000000000 => ../../lua
 
-replace github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000 => ../../middleware/observability
+replace github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000 => ../observability
 
 replace github.com/astra-go/astra/mongodb v0.0.0-00010101000000-000000000000 => ../../mongodb
 
@@ -112,3 +112,5 @@ replace github.com/astra-go/astra/examples/quickstart v0.0.0-00010101000000-0000
 replace github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ../../examples/websocket
 
 replace github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ../../quic
+
+replace github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ../../rule

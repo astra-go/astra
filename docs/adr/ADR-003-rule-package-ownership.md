@@ -1,7 +1,7 @@
 # ADR-003: Rule Package Ownership
 
 ## Status
-Proposed
+Accepted — implemented 2026-05-27
 
 ## Date
 2026-05-26

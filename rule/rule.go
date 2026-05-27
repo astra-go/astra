@@ -239,6 +239,78 @@ func (e *Engine) MustCompile(expression string, env any, opts ...Option) *Progra
 	return p
 }
 
+// ─── Map env support ─────────────────────────────────────────────────────────
+
+// CompileMap compiles an expression against a dynamic map[string]float64
+// environment. Variable names are not validated at compile time — any
+// identifier in the expression is resolved at run time from the map.
+//
+// Use this when metric names are registered dynamically (e.g. alert engines)
+// and a fixed struct env is not practical.
+//
+//	prog, err := rule.CompileMap(`cpu_usage > 90 && error_rate >= 0.05`, rule.AsBool())
+func CompileMap(expression string, opts ...Option) (*Program, error) {
+	allOpts := make([]Option, 0, 1+len(opts))
+	allOpts = append(allOpts, expr.AllowUndefinedVariables())
+	allOpts = append(allOpts, opts...)
+	p, err := expr.Compile(expression, allOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("rule: compile %q: %w", expression, err)
+	}
+	return &Program{inner: p, src: expression}, nil
+}
+
+// MustCompileMap is like CompileMap but panics on error.
+func MustCompileMap(expression string, opts ...Option) *Program {
+	p, err := CompileMap(expression, opts...)
+	if err != nil {
+		panic(err)
+	}
+	return p
+}
+
+// RunMap evaluates prog against a map[string]float64 environment and returns
+// the result as bool. Returns ErrNotBool if the expression produced a
+// non-boolean value.
+//
+// Compile the program with CompileMap (or MustCompileMap) and rule.AsBool()
+// for best results.
+func RunMap(prog *Program, env map[string]float64) (bool, error) {
+	out, err := expr.Run(prog.inner, env)
+	if err != nil {
+		return false, fmt.Errorf("rule: run %q: %w", prog.src, err)
+	}
+	b, ok := out.(bool)
+	if !ok {
+		return false, fmt.Errorf("rule: RunMap %q: expression returned %T, expected bool", prog.src, out)
+	}
+	return b, nil
+}
+
+// ─── Engine (map env) ─────────────────────────────────────────────────────────
+
+// CompileMap compiles an expression with dynamic map env using the engine's
+// registered functions.
+func (e *Engine) CompileMap(expression string, opts ...Option) (*Program, error) {
+	allOpts := make([]Option, 0, 1+len(e.opts)+len(opts))
+	allOpts = append(allOpts, expr.AllowUndefinedVariables())
+	allOpts = append(allOpts, e.opts...)
+	allOpts = append(allOpts, opts...)
+	p, err := expr.Compile(expression, allOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("rule: compile %q: %w", expression, err)
+	}
+	return &Program{inner: p, src: expression}, nil
+}
+
+// RunMap evaluates prog against a map[string]float64 env; delegates to
+// the package-level RunMap.
+func (e *Engine) RunMap(prog *Program, env map[string]float64) (bool, error) {
+	return RunMap(prog, env)
+}
+
+// ─── Engine (struct env) ──────────────────────────────────────────────────────
+
 // Run evaluates prog; delegates to the package-level Run.
 func (e *Engine) Run(prog *Program, env any) (any, error) { return Run(prog, env) }
 

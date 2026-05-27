@@ -38,8 +38,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/expr-lang/expr"
-	"github.com/expr-lang/expr/vm"
+	"github.com/astra-go/astra/rule"
 )
 
 const defaultEvalInterval = 30 * time.Second
@@ -95,10 +94,10 @@ type EngineConfig struct {
 // ruleState tracks the firing state of one rule.
 type ruleState struct {
 	rule     Rule
-	program  *vm.Program // compiled expr program
-	firingAt time.Time   // when the rule started continuously firing (zero = not firing)
-	notified bool        // whether a notification has already been sent for the current fire
-	alert    *Alert      // current active alert (nil when not firing)
+	program  *rule.Program // compiled rule program
+	firingAt time.Time     // when the rule started continuously firing (zero = not firing)
+	notified bool          // whether a notification has already been sent for the current fire
+	alert    *Alert        // current active alert (nil when not firing)
 }
 
 // Engine evaluates rules on a ticker and dispatches alerts to channels.
@@ -138,20 +137,7 @@ func (e *Engine) RegisterMetric(name string, fn MetricFunc) *Engine {
 // AddRule compiles and registers a rule. Returns an error if the expression
 // is invalid or a rule with the same Name already exists.
 func (e *Engine) AddRule(r Rule) error {
-	// Build a sample env with float64 zeros to validate compilation.
-	e.mu.RLock()
-	env := e.sampleMetrics()
-	e.mu.RUnlock()
-
-	// If no metrics registered yet, compile with an empty map.
-	if len(env) == 0 {
-		env = map[string]float64{}
-	}
-
-	program, err := expr.Compile(r.Expr,
-		expr.Env(env),
-		expr.AsBool(),
-	)
+	program, err := rule.CompileMap(r.Expr, rule.AsBool())
 	if err != nil {
 		return &RuleCompileError{Rule: r.Name, Err: err}
 	}
@@ -275,17 +261,9 @@ func (e *Engine) sampleMetrics() map[string]float64 {
 	return snap
 }
 
-// evalRule runs the compiled expr program against the metric snapshot.
-func evalRule(program *vm.Program, env map[string]float64) (bool, error) {
-	out, err := expr.Run(program, env)
-	if err != nil {
-		return false, err
-	}
-	result, ok := out.(bool)
-	if !ok {
-		return false, nil
-	}
-	return result, nil
+// evalRule runs the compiled rule program against the metric snapshot.
+func evalRule(program *rule.Program, env map[string]float64) (bool, error) {
+	return rule.RunMap(program, env)
 }
 
 // notify dispatches an alert to all configured channels.
