@@ -31,11 +31,8 @@ require (
 
 	// — shared transitive deps (crypto, net, sys, text) —
 	// All pinned to the June-2024 release wave (Go 1.22 era).
-	golang.org/x/crypto v0.48.0
-	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
-	golang.org/x/mod v0.33.0 // indirect
+	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/net v0.51.0
-	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.42.0
 	golang.org/x/text v0.35.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
@@ -43,47 +40,47 @@ require (
 
 require (
 	github.com/goccy/go-json v0.10.3
-	github.com/google/pprof v0.0.0-20241029153458-d1b30febd7db // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/onsi/ginkgo/v2 v2.21.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	go.uber.org/mock v0.4.0 // indirect
-	golang.org/x/tools v0.42.0 // indirect
-	modernc.org/libc v1.61.0 // indirect
-	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.8.0 // indirect
 )
 
 require (
-	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000
-	github.com/golang-jwt/jwt/v5 v5.3.0
-	github.com/prometheus/client_golang v1.23.2
-	github.com/prometheus/client_model v0.6.2
-	github.com/quic-go/quic-go v0.48.0
-	go.opentelemetry.io/otel/trace v1.42.0
+	github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000 // test-only
+	github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 // test-only
+	github.com/golang-jwt/jwt/v5 v5.3.1 // test-only
+	github.com/prometheus/client_golang v1.23.2 // test-only
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.33.1
+	modernc.org/sqlite v1.50.1 // test-only
 )
 
 require (
+	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
-	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
+	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
-	github.com/quic-go/qpack v0.5.1 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	go.opentelemetry.io/otel v1.42.0 // indirect
+	github.com/redis/go-redis/v9 v9.19.0 // indirect
+	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
+	go.opentelemetry.io/otel v1.43.0 // indirect
+	go.opentelemetry.io/otel/exporters/prometheus v0.64.0 // indirect
+	go.opentelemetry.io/otel/metric v1.43.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.42.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.42.0 // indirect
+	go.opentelemetry.io/otel/trace v1.43.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
-	modernc.org/strutil v1.2.0 // indirect
-	modernc.org/token v1.1.0 // indirect
+	modernc.org/libc v1.72.3 // indirect
+	modernc.org/mathutil v1.7.1 // indirect
+	modernc.org/memory v1.11.0 // indirect
 )
 
 // Local replace directives — go mod tidy does not honor go.work replace
@@ -151,3 +148,15 @@ replace github.com/astra-go/astra/observability v0.0.0-00010101000000-0000000000
 replace github.com/astra-go/astra/storage v0.0.0-00010101000000-000000000000 => ./storage
 
 replace github.com/astra-go/astra/benchmarks v0.0.0-00010101000000-000000000000 => ./benchmarks
+
+replace github.com/astra-go/astra/examples/jwt v0.0.0-00010101000000-000000000000 => ./examples/jwt
+
+replace github.com/astra-go/astra/examples/basic v0.0.0-00010101000000-000000000000 => ./examples/basic
+
+replace github.com/astra-go/astra/examples/quickstart v0.0.0-00010101000000-000000000000 => ./examples/quickstart
+
+replace github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ./quic
+
+replace github.com/astra-go/astra/examples/cache v0.0.0-00010101000000-000000000000 => ./examples/cache
+
+replace github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ./examples/websocket

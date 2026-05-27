@@ -392,6 +392,33 @@ func (a *App) OnStop(fn func(context.Context) error) error {
 	return nil
 }
 
+// Start runs the OnStart lifecycle hooks. It is intended for use by external
+// server implementations (e.g. the astra/quic sub-module) that manage their
+// own listen loop but still need to participate in the App lifecycle.
+// Returns ErrSlimMode when called on an App created by NewSlim().
+func (a *App) Start(ctx context.Context) error {
+	if a.slim {
+		return ErrSlimMode
+	}
+	return a.lifecycle.RunStartHooks(ctx)
+}
+
+// Stop runs the OnStop lifecycle hooks. It is intended for use by external
+// server implementations that manage their own shutdown sequence.
+// Returns ErrSlimMode when called on an App created by NewSlim().
+func (a *App) Stop(ctx context.Context) error {
+	if a.slim {
+		return ErrSlimMode
+	}
+	a.lifecycle.RunStopHooks(ctx)
+	return nil
+}
+
+// ShutdownTimeout returns the configured graceful shutdown timeout in seconds.
+// External server implementations can use this to build a consistent shutdown
+// context duration.
+func (a *App) ShutdownTimeout() int { return a.options.ShutdownTimeout }
+
 // RegisterPlugin registers one or more v1 Plugins in order. Each plugin is
 // wrapped as a Component and installed through Register, giving it the same
 // duplicate-detection and error-wrapping behaviour as any Component.

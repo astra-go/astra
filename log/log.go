@@ -10,12 +10,12 @@
 //
 // # Context-aware logging
 //
-// When OpenTelemetry is configured, trace_id and span_id are automatically
-// extracted from the active span and included in every log record:
+// By default, only request_id and manually-set trace_id are extracted from
+// context. To enable automatic OTel trace/span injection, register a
+// SpanExtractor via SetSpanExtractor — the astra/otel sub-module provides one:
 //
-//	logger := log.Default()
-//	logger.WithContext(ctx).Info("processing request")
-//	// → {"level":"INFO","msg":"processing request","trace_id":"…","span_id":"…"}
+//	import astraotel "github.com/astra-go/astra/otel"
+//	log.SetSpanExtractor(astraotel.SpanExtractor)
 //
 // # Multi-output
 //
@@ -29,9 +29,25 @@ import (
 	"log/slog"
 	"os"
 	"sync/atomic"
-
-	"go.opentelemetry.io/otel/trace"
 )
+
+// SpanExtractor extracts trace_id and span_id strings from a context.
+// Return empty strings when no active span is present.
+type SpanExtractor func(ctx context.Context) (traceID, spanID string)
+
+// spanExtractor is the package-level extractor; nil means OTel is not wired in.
+var spanExtractor atomic.Pointer[SpanExtractor]
+
+// SetSpanExtractor registers a function that extracts OTel trace/span IDs from
+// a context. Call this once at startup, before handling any requests.
+// Pass nil to clear a previously registered extractor.
+func SetSpanExtractor(fn SpanExtractor) {
+	if fn == nil {
+		spanExtractor.Store(nil)
+	} else {
+		spanExtractor.Store(&fn)
+	}
+}
 
 // Level aliases slog.Level so callers do not need to import log/slog directly.
 type Level = slog.Level
@@ -143,7 +159,7 @@ func (l *Logger) Panic(msg string, args ...any) {
 // extractContextAttrs returns slog.Attrs carrying request/trace identifiers.
 //
 // Priority:
-//  1. Active OTel span (trace_id + span_id) — set when OTel SDK is running.
+//  1. SpanExtractor (trace_id + span_id) — set when OTel is wired via SetSpanExtractor.
 //  2. Manually stored trace_id (via WithTraceID).
 //  3. Manually stored request_id (via WithRequestID) — always included.
 func extractContextAttrs(ctx context.Context) []slog.Attr {
@@ -154,14 +170,15 @@ func extractContextAttrs(ctx context.Context) []slog.Attr {
 		attrs = append(attrs, slog.String("request_id", rid))
 	}
 
-	// OTel span IDs take precedence over the manually set trace_id key.
-	span := trace.SpanFromContext(ctx)
-	if sc := span.SpanContext(); sc.IsValid() {
-		attrs = append(attrs,
-			slog.String("trace_id", sc.TraceID().String()),
-			slog.String("span_id", sc.SpanID().String()),
-		)
-		return attrs
+	// OTel span IDs via injected extractor (avoids hard dep on otel/trace).
+	if extPtr := spanExtractor.Load(); extPtr != nil {
+		if traceID, spanID := (*extPtr)(ctx); traceID != "" {
+			attrs = append(attrs,
+				slog.String("trace_id", traceID),
+				slog.String("span_id", spanID),
+			)
+			return attrs
+		}
 	}
 
 	// Fallback: manually stored trace_id (no OTel span active).
