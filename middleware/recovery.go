@@ -59,9 +59,6 @@ func RecoveryWithConfig(cfg RecoveryConfig) astra.HandlerFunc {
 				cfg.Logger.Error("panic recovered",
 					slog.String("error", errMsg),
 					slog.String("stack", string(stackBuf)),
-					slog.String("path", c.Path()),
-					slog.String("method", c.Method()),
-					slog.String("client_ip", c.IP()),
 					slog.Time("timestamp", time.Now()),
 				)
 

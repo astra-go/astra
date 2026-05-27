@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -151,7 +150,7 @@ func CORSWithConfig(cfg CORSConfig) astra.HandlerFunc {
 			// because the headers are absent. Returning 403 exposes the fact that
 			// a CORS policy exists and breaks non-browser clients unnecessarily.
 			if cfg.LogWarnings {
-				slog.Debug("CORS: Origin not allowed", "origin", origin, "path", c.Path())
+				slog.Debug("CORS: Origin not allowed", "origin", origin)
 			}
 			return nil
 		}
