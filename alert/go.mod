@@ -5,10 +5,7 @@ go 1.25.1
 // Standalone alert engine module — rule-based alerting with expression evaluation
 // and pluggable notification channels (webhook, log, …).
 // Depends on the core astra module for lifecycle integration (Module interface).
-require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
-	github.com/expr-lang/expr v1.17.8
-)
+require github.com/astra-go/astra v0.0.0-00010101000000-000000000000
 
 require github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000
 
@@ -46,6 +43,8 @@ replace (
 )
 
 require github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000
+
+replace github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ../rule
 
 replace github.com/astra-go/astra/auth v0.0.0-00010101000000-000000000000 => ../auth
 

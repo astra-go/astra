@@ -46,7 +46,7 @@ replace github.com/astra-go/astra/client v0.0.0-00010101000000-000000000000 => .
 
 replace github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000 => ../../config
 
-replace github.com/astra-go/astra/dtx/redis v0.0.0-00010101000000-000000000000 => ../../dtx/redis
+replace github.com/astra-go/astra/dtx/redis v0.0.0-00010101000000-000000000000 => ../redis
 
 replace github.com/astra-go/astra/e2e v0.0.0-00010101000000-000000000000 => ../../e2e
 
@@ -103,3 +103,5 @@ replace github.com/astra-go/astra/examples/quickstart v0.0.0-00010101000000-0000
 replace github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ../../examples/websocket
 
 replace github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ../../quic
+
+replace github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ../../rule

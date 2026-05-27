@@ -160,3 +160,5 @@ replace github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ./q
 replace github.com/astra-go/astra/examples/cache v0.0.0-00010101000000-000000000000 => ./examples/cache
 
 replace github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ./examples/websocket
+
+replace github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ./rule

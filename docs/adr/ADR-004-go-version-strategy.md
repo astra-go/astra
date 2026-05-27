@@ -4,7 +4,7 @@
 Accepted
 
 ## Date
-2026-05-26
+2026-05-26 (updated 2026-05-27)
 
 ## Context
 The Astra framework targets modern Go versions. We need a clear strategy for Go version support to ensure compatibility, predictability for users, and manageable upgrade paths for both the core framework and its 30+ sub-modules.
@@ -32,8 +32,10 @@ When a new Go minor version is released:
 
 ### 4. Sub-Module Version Coordination
 - All `go.mod` files in the monorepo are updated **together** in a single PR
-- Script: `scripts/check-go-versions.sh` validates all sub-modules match the core version
-- CI step enforces version consistency across all 49 `go.mod` files
+- Script: `mage checkGoVersions` validates all sub-modules meet the core minimum version
+- CI step enforces version consistency across all workspace modules
+- **Exempt modules**: `examples/showcase` and `examples/wasm` are intentionally excluded
+  from the workspace (`go.work`) and may target older Go versions for compatibility demos
 
 ### 5. Version Display
 - `astra version` command reports the **minimum supported Go version**, not the build-time Go version

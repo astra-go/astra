@@ -3,7 +3,7 @@ module github.com/astra-go/astra/mongodb
 // go 1.22.0 — downgraded from 1.25.9.
 // Key dep changes:
 //   mongo-driver/v2 v2.5.1 → v2.0.0 (v2.0.0 released 2024-04, requires go 1.22)
-go 1.25.0
+go 1.25.1
 
 // Standalone MongoDB module — upgrade mongo-driver independently of ORM or MQ.
 require go.mongodb.org/mongo-driver/v2 v2.5.1
@@ -96,3 +96,5 @@ replace github.com/astra-go/astra/examples/quickstart v0.0.0-00010101000000-0000
 replace github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ../examples/websocket
 
 replace github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ../quic
+
+replace github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ../rule

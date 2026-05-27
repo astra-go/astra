@@ -4,7 +4,7 @@ module github.com/astra-go/astra/lock
 // Key dep changes:
 //   go-redis v9.18 → v9.6.1  (v9.6.x is the last series requiring only go 1.21)
 //   etcd v3.6  → v3.5.16 (v3.5.x requires go 1.21; v3.6 requires go 1.23)
-go 1.25.0
+go 1.25.1
 
 // Standalone distributed-lock module — Redis (SET NX + Lua CAS) and etcd backends.
 require (
@@ -114,3 +114,5 @@ replace github.com/astra-go/astra/examples/quickstart v0.0.0-00010101000000-0000
 replace github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ../examples/websocket
 
 replace github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ../quic
+
+replace github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ../rule

@@ -1,7 +1,7 @@
 module github.com/astra-go/astra/notify
 
 // No external dependencies — uses only Go stdlib (net/http, net/smtp).
-go 1.25.0
+go 1.25.1
 
 // Standalone notification module.
 // SMS (Aliyun/Tencent) and email (SMTP) use pure stdlib HTTP/SMTP — no SDK.
@@ -83,3 +83,5 @@ replace github.com/astra-go/astra/examples/quickstart v0.0.0-00010101000000-0000
 replace github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ../examples/websocket
 
 replace github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ../quic
+
+replace github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ../rule

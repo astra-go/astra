@@ -49,6 +49,7 @@ use (
 	./orm/clickhouse
 	./otel
 	./quic
+	./rule
 	./runner
 	./search
 	./session

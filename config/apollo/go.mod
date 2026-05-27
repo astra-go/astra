@@ -31,7 +31,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000 => ../../config
+replace github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000 => ..
 
 replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..
 
@@ -108,3 +108,5 @@ replace github.com/astra-go/astra/examples/quickstart v0.0.0-00010101000000-0000
 replace github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ../../examples/websocket
 
 replace github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ../../quic
+
+replace github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ../../rule

@@ -3,5 +3,6 @@
 package astra
 
 // GoVersion125 indicates the runtime Go version is at least 1.25.
-// Use this for conditional features that require Go 1.25+.
+// The build tag uses go1.25 (not go1.25.1) because Go's toolchain only
+// recognises major.minor in build constraints; patch versions are ignored.
 const GoVersion125 = false
