@@ -4,7 +4,9 @@ go 1.25.1
 
 require (
 	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000
 	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_model v0.6.2
 	go.opentelemetry.io/otel v1.42.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.64.0
 	go.opentelemetry.io/otel/metric v1.42.0
@@ -86,7 +88,7 @@ replace github.com/astra-go/astra/lock v0.0.0-00010101000000-000000000000 => ../
 
 replace github.com/astra-go/astra/lua v0.0.0-00010101000000-000000000000 => ../../lua
 
-replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ../security
+replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ../../middleware/security
 
 replace github.com/astra-go/astra/mongodb v0.0.0-00010101000000-000000000000 => ../../mongodb
 
@@ -113,3 +115,15 @@ replace github.com/astra-go/astra/storage v0.0.0-00010101000000-000000000000 => 
 replace github.com/astra-go/astra/stream v0.0.0-00010101000000-000000000000 => ../../stream
 
 replace github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 => ../../taskqueue
+
+replace github.com/astra-go/astra/examples/basic v0.0.0-00010101000000-000000000000 => ../../examples/basic
+
+replace github.com/astra-go/astra/examples/cache v0.0.0-00010101000000-000000000000 => ../../examples/cache
+
+replace github.com/astra-go/astra/examples/jwt v0.0.0-00010101000000-000000000000 => ../../examples/jwt
+
+replace github.com/astra-go/astra/examples/quickstart v0.0.0-00010101000000-000000000000 => ../../examples/quickstart
+
+replace github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ../../examples/websocket
+
+replace github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ../../quic

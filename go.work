@@ -27,9 +27,14 @@ use (
 	./dtx/redis
 	./e2e
 	./e2e/orm
+	./examples/basic
+	./examples/cache
 	./examples/crud
+	./examples/jwt
 	./examples/orm
+	./examples/quickstart
 	./examples/techempower
+	./examples/websocket
 	./grpc
 	./loadbalance
 	./lock
@@ -43,6 +48,7 @@ use (
 	./orm
 	./orm/clickhouse
 	./otel
+	./quic
 	./runner
 	./search
 	./session
@@ -63,6 +69,11 @@ replace (
 	github.com/astra-go/astra/dtx/orm v0.0.0-00010101000000-000000000000 => ./dtx/orm
 	github.com/astra-go/astra/dtx/redis v0.0.0-00010101000000-000000000000 => ./dtx/redis
 	github.com/astra-go/astra/e2e/orm v0.0.0-00010101000000-000000000000 => ./e2e/orm
+	github.com/astra-go/astra/examples/basic v0.0.0-00010101000000-000000000000 => ./examples/basic
+	github.com/astra-go/astra/examples/cache v0.0.0-00010101000000-000000000000 => ./examples/cache
+	github.com/astra-go/astra/examples/jwt v0.0.0-00010101000000-000000000000 => ./examples/jwt
+	github.com/astra-go/astra/examples/quickstart v0.0.0-00010101000000-000000000000 => ./examples/quickstart
+	github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ./examples/websocket
 	github.com/astra-go/astra/grpc v0.0.0-00010101000000-000000000000 => ./grpc
 	github.com/astra-go/astra/loadbalance v0.0.0-00010101000000-000000000000 => ./loadbalance
 	github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000 => ./middleware/observability
@@ -71,6 +82,7 @@ replace (
 	github.com/astra-go/astra/orm v0.0.0-00010101000000-000000000000 => ./orm
 	github.com/astra-go/astra/orm/clickhouse v0.0.0-00010101000000-000000000000 => ./orm/clickhouse
 	github.com/astra-go/astra/otel v0.0.0-00010101000000-000000000000 => ./otel
+	github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ./quic
 	github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ./rule
 	github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 => ./taskqueue
 	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ./testutil

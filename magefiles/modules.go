@@ -74,21 +74,32 @@ func modPath(gomod string) (string, error) {
 	return "", fmt.Errorf("module directive not found in %s", gomod)
 }
 
-// repoRoot returns the absolute path to the repository root (where go.work lives).
+// repoRoot returns the absolute path to the repository root (where the monorepo
+// go.work lives). It skips go.work files that only contain a single "use ." entry
+// (e.g. magefiles/go.work) and keeps walking up until it finds the workspace root.
 func repoRoot() (string, error) {
-	// Walk up from the magefiles directory until we find go.work.
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.work")); err == nil {
-			return dir, nil
+		gowork := filepath.Join(dir, "go.work")
+		if _, err := os.Stat(gowork); err == nil {
+			if isMonorepoWorkspace(gowork) {
+				return dir, nil
+			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("go.work not found in any parent directory")
+			return "", fmt.Errorf("monorepo go.work not found in any parent directory")
 		}
 		dir = parent
 	}
+}
+
+// isMonorepoWorkspace returns true if the go.work file lists more than one module,
+// distinguishing the real workspace root from leaf go.work files like magefiles/go.work.
+func isMonorepoWorkspace(gowork string) bool {
+	mods, err := listModules(filepath.Dir(gowork), false)
+	return err == nil && len(mods) > 1
 }

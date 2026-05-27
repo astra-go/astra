@@ -69,3 +69,15 @@ replace github.com/astra-go/astra/benchmarks v0.0.0-00010101000000-000000000000 
 replace github.com/astra-go/astra/lock v0.0.0-00010101000000-000000000000 => ../lock
 
 replace github.com/astra-go/astra/loadbalance v0.0.0-00010101000000-000000000000 => ../loadbalance
+
+replace github.com/astra-go/astra/examples/basic v0.0.0-00010101000000-000000000000 => ../examples/basic
+
+replace github.com/astra-go/astra/examples/cache v0.0.0-00010101000000-000000000000 => ../examples/cache
+
+replace github.com/astra-go/astra/examples/jwt v0.0.0-00010101000000-000000000000 => ../examples/jwt
+
+replace github.com/astra-go/astra/examples/quickstart v0.0.0-00010101000000-000000000000 => ../examples/quickstart
+
+replace github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ../examples/websocket
+
+replace github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ../quic

@@ -56,3 +56,20 @@ func (h *traceHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 func (h *traceHandler) WithGroup(name string) slog.Handler {
 	return &traceHandler{base: h.base.WithGroup(name)}
 }
+
+// SpanExtractor is a log.SpanExtractor implementation that reads trace_id and
+// span_id from the active OTel span in ctx. Register it once at startup:
+//
+//	import (
+//	    astralog  "github.com/astra-go/astra/log"
+//	    astraotel "github.com/astra-go/astra/otel"
+//	)
+//
+//	astralog.SetSpanExtractor(astraotel.SpanExtractor)
+func SpanExtractor(ctx context.Context) (traceID, spanID string) {
+	sc := oteltrace.SpanFromContext(ctx).SpanContext()
+	if !sc.IsValid() {
+		return "", ""
+	}
+	return sc.TraceID().String(), sc.SpanID().String()
+}
