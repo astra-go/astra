@@ -5,7 +5,7 @@ module github.com/astra-go/astra/storage
 //   aws-sdk-go-v2  v1.41 → v1.30.3   (v1.36+ requires go 1.23; v1.30.x requires go 1.21)
 //   aws credentials v1.19 → v1.17.27  (aligned with aws-sdk v1.30.x)
 //   aws s3          v1.99 → v1.58.3   (aligned with aws-sdk v1.30.x)
-go 1.25.0
+go 1.25.1
 
 // Standalone object-storage module (S3 / Aliyun OSS / Tencent COS).
 // Upgrade cloud SDKs independently of the router or ORM layer.

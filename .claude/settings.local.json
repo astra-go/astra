@@ -77,7 +77,8 @@
       "Bash(GOWORK=off go mod why modernc.org/sqlite)",
       "Bash([ -f \"$d/go.mod\" ])",
       "Bash(GOWORK=off go mod why github.com/astra-go/astra/middleware/security)",
-      "Bash(GOWORK=off go mod why github.com/astra-go/astra/middleware/observability)"
+      "Bash(GOWORK=off go mod why github.com/astra-go/astra/middleware/observability)",
+      "Bash(go env *)"
     ]
   }
 }

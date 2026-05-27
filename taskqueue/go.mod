@@ -6,7 +6,7 @@ module github.com/astra-go/astra/taskqueue
 //   franz-go        v1.20  → v1.17.1  (v1.20 requires go 1.24; v1.17.x requires go 1.21)
 //   mongo-driver/v2 v2.5.1 → v2.0.0   (v2.0.0 released 2024-04, requires go 1.22)
 //   go-redis        v9.18  → v9.6.1   (aligned with other modules)
-go 1.25.0
+go 1.25.1
 
 // Standalone task-queue module — persistent task scheduling with horizontal scaling.
 // Brokers: Redis, RabbitMQ, Kafka, MongoDB, RocketMQ.

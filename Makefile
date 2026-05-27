@@ -22,6 +22,10 @@ affected-modules: ## Print modules affected by current branch (BASE=ref, ALL=1 f
 check-dep-versions: ## Detect version splits across workspace modules
 	$(MAGE) checkDepVersions
 
+.PHONY: check-go-versions
+check-go-versions: ## CI check: fail if any go.mod declares a Go version below the core minimum
+	$(MAGE) checkGoVersions
+
 .PHONY: check-test-deps
 check-test-deps: ## Detect test-only packages declared as production deps
 	$(MAGE) checkTestDeps

@@ -7,7 +7,7 @@ module github.com/astra-go/astra/mq
 //   rocketmq/v5  v5.1.3 → v5.0.1   (v5.1+ requires go 1.24)
 //   franz-go     v1.20  → v1.17.1  (v1.18.0 bumped to go 1.22; v1.20 requires go 1.24)
 //   paho         v1.5.1 → v1.4.3   (v1.5.x requires go 1.24)
-go 1.25.0
+go 1.25.1
 
 replace (
 	github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..

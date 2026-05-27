@@ -1,3 +1,6 @@
+> **ARCHIVED 2026-05-27** — This was a migration analysis document exploring a downgrade to Go 1.22.
+> The project decided to stay on Go 1.25.1 (ADR-004 Accepted). See `docs/adr/ADR-004-go-version-strategy.md`.
+
 # Go Version Compatibility Strategy
 
 ## Current State

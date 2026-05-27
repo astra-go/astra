@@ -3,7 +3,7 @@ module github.com/astra-go/astra/otel
 // go 1.22.0 — downgraded from 1.25.9.
 // OTel SDK v1.28.0 is the last release whose own go.mod requires only go 1.22.
 // go.opentelemetry.io/otel v1.30.0 bumped the requirement to go 1.23.
-go 1.25.0
+go 1.25.1
 
 // Standalone OpenTelemetry integration module.
 // Depends only on the upstream OTel SDK and gRPC transport — zero coupling

@@ -4,7 +4,7 @@ module github.com/astra-go/astra/lua
 // Key dep changes:
 //   go-redis v9.18 → v9.6.1 (v9.6.x is the last series requiring only go 1.21)
 //   gopher-lua v1.1.1 (v1.1.2 bumped to go 1.23; v1.1.1 declares go 1.17)
-go 1.25.0
+go 1.25.1
 
 // Standalone Lua scripting module (gopher-lua engine + Redis EVAL bindings).
 require (
