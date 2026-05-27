@@ -1,10 +1,12 @@
 package middleware
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"runtime"
+	"time"
 
 	"github.com/astra-go/astra"
 )
@@ -17,11 +19,17 @@ type RecoveryConfig struct {
 	PrintStack bool
 	// Handler is called when a panic is recovered. If nil, a 500 response is written.
 	Handler func(c *astra.Ctx, err any)
+	// IsProduction controls whether to return detailed error info. Default false.
+	IsProduction bool
+	// AlertFunc is called to send alerts (e.g., to Sentry, Slack). Default nil.
+	AlertFunc func(c *astra.Ctx, err any, stack string)
 }
 
 // DefaultRecoveryConfig is the default recovery configuration.
 var DefaultRecoveryConfig = RecoveryConfig{
-	PrintStack: true,
+	PrintStack:     true,
+	IsProduction:   false,
+	AlertFunc:      nil,
 }
 
 // Recovery returns a middleware that recovers from panics and returns a 500 error.
@@ -42,7 +50,7 @@ func RecoveryWithConfig(cfg RecoveryConfig) astra.HandlerFunc {
 				// Build stack trace
 				var stackBuf []byte
 				if cfg.PrintStack {
-					stackBuf = make([]byte, 4096)
+					stackBuf = make([]byte, 8192) // Increased buffer size
 					n := runtime.Stack(stackBuf, false)
 					stackBuf = stackBuf[:n]
 				}
@@ -51,17 +59,51 @@ func RecoveryWithConfig(cfg RecoveryConfig) astra.HandlerFunc {
 				cfg.Logger.Error("panic recovered",
 					slog.String("error", errMsg),
 					slog.String("stack", string(stackBuf)),
+					slog.String("path", c.Path()),
+					slog.String("method", c.Method()),
+					slog.String("client_ip", c.IP()),
+					slog.Time("timestamp", time.Now()),
 				)
+
+				// Send alert if configured (for production monitoring)
+				if cfg.AlertFunc != nil {
+					go cfg.AlertFunc(c, r, string(stackBuf))
+				}
+
+				// Get writer once and check if it's valid
+				w := c.Writer()
+				if w == nil {
+					// Cannot write response, just log
+					cfg.Logger.Error("writer is nil, cannot send error response")
+					return
+				}
 
 				if cfg.Handler != nil {
 					cfg.Handler(c, r)
-				} else if !c.Writer().Written() {
+				} else if !w.Written() {
 					// Only write the error response when the response has not
 					// been started yet. Writing to a partially-sent response
 					// would corrupt the HTTP stream.
-					c.Writer().Header().Set("Content-Type", "application/json; charset=utf-8")
-					c.Writer().WriteHeader(http.StatusInternalServerError)
-					_, _ = c.Writer().Write([]byte(`{"error":"Internal Server Error"}`))
+					w.Header().Set("Content-Type", "application/json; charset=utf-8")
+					w.WriteHeader(http.StatusInternalServerError)
+
+					// In production, don't expose internal details
+					if cfg.IsProduction {
+						_, _ = w.Write([]byte(`{"error":"Internal Server Error"}`))
+					} else {
+						// In development, include error details for debugging
+						stackStr := string(stackBuf)
+						// Limit stack trace length to avoid huge responses
+						if len(stackStr) > 4096 {
+							stackStr = stackStr[:4096] + "...(truncated)"
+						}
+						response := map[string]string{
+							"error": errMsg,
+							"stack": stackStr,
+						}
+						responseJSON, _ := json.Marshal(response)
+						_, _ = w.Write(responseJSON)
+					}
 				}
 			}
 		}()
