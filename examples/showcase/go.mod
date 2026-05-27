@@ -156,7 +156,7 @@ replace github.com/astra-go/astra/e2e v0.0.0-00010101000000-000000000000 => ../.
 
 replace github.com/astra-go/astra/e2e/orm v0.0.0-00010101000000-000000000000 => ../../e2e/orm
 
-replace github.com/astra-go/astra/examples/techempower v0.0.0-00010101000000-000000000000 => ../../examples/techempower
+replace github.com/astra-go/astra/examples/techempower v0.0.0-00010101000000-000000000000 => ../techempower
 
 replace github.com/astra-go/astra/loadbalance v0.0.0-00010101000000-000000000000 => ../../loadbalance
 

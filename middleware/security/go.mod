@@ -10,7 +10,6 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
@@ -73,7 +72,7 @@ replace github.com/astra-go/astra/lock v0.0.0-00010101000000-000000000000 => ../
 
 replace github.com/astra-go/astra/lua v0.0.0-00010101000000-000000000000 => ../../lua
 
-replace github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000 => ../../middleware/observability
+replace github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000 => ../observability
 
 replace github.com/astra-go/astra/mongodb v0.0.0-00010101000000-000000000000 => ../../mongodb
 

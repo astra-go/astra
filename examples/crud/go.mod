@@ -5,7 +5,6 @@ go 1.25.1
 require github.com/astra-go/astra v0.0.0-00010101000000-000000000000
 
 require (
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
@@ -58,7 +57,7 @@ replace github.com/astra-go/astra/e2e v0.0.0-00010101000000-000000000000 => ../.
 
 replace github.com/astra-go/astra/e2e/orm v0.0.0-00010101000000-000000000000 => ../../e2e/orm
 
-replace github.com/astra-go/astra/examples/techempower v0.0.0-00010101000000-000000000000 => ../../examples/techempower
+replace github.com/astra-go/astra/examples/techempower v0.0.0-00010101000000-000000000000 => ../techempower
 
 replace github.com/astra-go/astra/grpc v0.0.0-00010101000000-000000000000 => ../../grpc
 

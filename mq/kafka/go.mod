@@ -13,7 +13,7 @@ require (
 	github.com/twmb/franz-go/pkg/kmsg v1.12.0 // indirect
 )
 
-replace github.com/astra-go/astra/mq v0.0.0-00010101000000-000000000000 => ../../mq
+replace github.com/astra-go/astra/mq v0.0.0-00010101000000-000000000000 => ..
 
 replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..
 

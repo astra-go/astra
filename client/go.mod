@@ -13,7 +13,10 @@ require (
 	google.golang.org/grpc v1.79.3
 )
 
-require github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000
+require (
+	github.com/astra-go/astra/loadbalance v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000
+)
 
 require (
 	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 // indirect
