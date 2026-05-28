@@ -87,6 +87,7 @@ var DefaultCSRFConfig = CSRFConfig{
 	CookiePath:     "/",
 	CookieMaxAge:   24 * time.Hour,
 	CookieSecure:   true,
+	CookieHTTPOnly: true, // Prevents JavaScript access, mitigating XSS-based token theft
 	CookieSameSite: http.SameSiteLaxMode,
 	ContextKey:     "csrf_token",
 	TokenLookup:    "header:X-CSRF-Token,form:_csrf",
@@ -152,7 +153,7 @@ func CSRFWithConfig(cfg CSRFConfig) astra.HandlerFunc {
 		if cookie, err := c.Request().Cookie(cfg.CookieName); err == nil {
 			cookieToken = cookie.Value
 		}
-		if !isValidCSRFToken(cookieToken) {
+		if !isValidCSRFToken(cookieToken, cfg.Secret) {
 			cookieToken = generateCSRFToken(cfg.Secret)
 			setCSRFCookie(c, cfg, cookieToken)
 		}
@@ -211,25 +212,32 @@ func sign(value string, secret []byte) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// isValidCSRFToken reports whether token looks structurally valid (2 parts).
-func isValidCSRFToken(token string) bool {
-	return strings.Count(token, ".") == 1 && len(token) > csrfTokenLen
+// isValidCSRFToken reports whether token is structurally valid and has a valid HMAC.
+// It must have two non-empty parts separated by ".", and the second part
+// must be a valid base64-encoded HMAC-SHA256 of the first part.
+func isValidCSRFToken(token string, secret []byte) bool {
+	parts := strings.SplitN(token, ".", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return false
+	}
+	// Verify the HMAC signature.
+	if _, err := base64.RawURLEncoding.DecodeString(parts[0]); err != nil {
+		return false
+	}
+	expected := sign(parts[0], secret)
+	return hmac.Equal([]byte(expected), []byte(parts[1]))
 }
 
 // csrfTokensEqual performs a constant-time comparison of the cookie token with
 // the submitted token, also verifying the HMAC signature on both sides.
 func csrfTokensEqual(cookie, submitted string, secret []byte) bool {
-	if !isValidCSRFToken(cookie) || !isValidCSRFToken(submitted) {
+	if !isValidCSRFToken(cookie, secret) || !isValidCSRFToken(submitted, secret) {
 		return false
 	}
-	// Verify submitted token's signature first to prevent timing side-channel.
-	parts := strings.SplitN(submitted, ".", 2)
-	expected := sign(parts[0], secret)
-	if !hmac.Equal([]byte(expected), []byte(parts[1])) {
-		return false
-	}
-	// Then compare the random value with the cookie.
+	// Both HMACs verified by isValidCSRFToken above.
+	// Compare the random value (first part) of both tokens.
 	cookieParts := strings.SplitN(cookie, ".", 2)
+	parts := strings.SplitN(submitted, ".", 2)
 	return hmac.Equal([]byte(cookieParts[0]), []byte(parts[0]))
 }
 
