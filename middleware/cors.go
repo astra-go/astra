@@ -80,7 +80,12 @@ func CORSPermissive() astra.HandlerFunc {
 	if DefaultCORSConfig.LogWarnings {
 		slog.Warn("CORS: Using permissive config (AllowOrigins: [*]). This is INSECURE and should NOT be used in production.")
 	}
-	return CORSWithConfig(DefaultCORSConfig)
+	return CORSWithConfig(CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowMethods: DefaultCORSConfig.AllowMethods,
+		AllowHeaders: DefaultCORSConfig.AllowHeaders,
+		MaxAge:       DefaultCORSConfig.MaxAge,
+	})
 }
 
 // CORSWithConfig returns a CORS middleware with custom configuration.

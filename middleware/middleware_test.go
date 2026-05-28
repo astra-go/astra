@@ -34,7 +34,10 @@ func TestRecovery_PanicReturns500(t *testing.T) {
 
 func TestRecovery_PanicString_ReturnsJSON(t *testing.T) {
 	app := testutil.NewTestApp()
-	app.Use(middleware.Recovery())
+	app.Use(middleware.RecoveryWithConfig(middleware.RecoveryConfig{
+		IsProduction: true,
+		PrintStack:   false,
+	}))
 	app.GET("/panic", func(_ *astra.Ctx) error {
 		panic("kaboom")
 	})
@@ -150,7 +153,7 @@ func TestRequestID_UsesExistingHeader(t *testing.T) {
 // ─── JWT ──────────────────────────────────────────────────────────────────────
 
 func TestJWT(t *testing.T) {
-	const secret = "test-jwt-secret-key"
+	const secret = "test-jwt-secret-key-must-be-32b!"
 
 	validToken, err := sec.GenerateJWT(jwt.MapClaims{
 		"sub": "user:42",
@@ -201,7 +204,7 @@ func TestJWT(t *testing.T) {
 }
 
 func TestJWT_ClaimsAccessible(t *testing.T) {
-	const secret = "my-secret"
+	const secret = "my-secret-key-must-be-32-bytes!!"
 	token, _ := sec.GenerateJWT(jwt.MapClaims{
 		"sub":     "alice",
 		"role":    "admin",
@@ -224,7 +227,7 @@ func TestJWT_ClaimsAccessible(t *testing.T) {
 }
 
 func TestJWT_TokenFromQuery(t *testing.T) {
-	const secret = "qsecret"
+	const secret = "qsecret-must-be-at-least-32-bytes"
 	token, _ := sec.GenerateJWT(jwt.MapClaims{
 		"sub": "bob",
 		"exp": time.Now().Add(time.Hour).Unix(),
@@ -270,7 +273,7 @@ func makeToken(t *testing.T, secret string, expOffset time.Duration) string {
 // TestJWT_Leeway_DefaultAcceptsWithin5s verifies that the default leeway (5s)
 // allows a token that expired up to 5 seconds ago.
 func TestJWT_Leeway_DefaultAcceptsWithin5s(t *testing.T) {
-	const secret = "leeway-secret"
+	const secret = "leeway-secret-must-be-32-bytes!!"
 	tok := makeToken(t, secret, -3*time.Second) // expired 3s ago — within default 5s
 	jwtServer(t, sec.JWTConfig{Secret: sec.NewSecretString(secret)}).
 		GET("/", map[string]string{"Authorization": "Bearer " + tok}).
@@ -280,7 +283,7 @@ func TestJWT_Leeway_DefaultAcceptsWithin5s(t *testing.T) {
 // TestJWT_Leeway_DefaultRejectsBeyond5s verifies that a token expired more
 // than 5 seconds ago is rejected under the default leeway.
 func TestJWT_Leeway_DefaultRejectsBeyond5s(t *testing.T) {
-	const secret = "leeway-secret"
+	const secret = "leeway-secret-must-be-32-bytes!!"
 	tok := makeToken(t, secret, -10*time.Second) // expired 10s ago — beyond 5s default
 	jwtServer(t, sec.JWTConfig{Secret: sec.NewSecretString(secret)}).
 		GET("/", map[string]string{"Authorization": "Bearer " + tok}).
@@ -290,7 +293,7 @@ func TestJWT_Leeway_DefaultRejectsBeyond5s(t *testing.T) {
 // TestJWT_Leeway_CustomAcceptsWithinWindow verifies that an explicit Leeway is
 // honoured: a token expired 8 seconds ago is accepted when Leeway = 10s.
 func TestJWT_Leeway_CustomAcceptsWithinWindow(t *testing.T) {
-	const secret = "leeway-secret"
+	const secret = "leeway-secret-must-be-32-bytes!!"
 	tok := makeToken(t, secret, -8*time.Second)
 	jwtServer(t, sec.JWTConfig{
 		Secret: sec.NewSecretString(secret),
@@ -303,7 +306,7 @@ func TestJWT_Leeway_CustomAcceptsWithinWindow(t *testing.T) {
 // TestJWT_StrictLeeway_RejectsJustExpired verifies that StrictJWTLeeway
 // rejects a token that expired even 1 second ago.
 func TestJWT_StrictLeeway_RejectsJustExpired(t *testing.T) {
-	const secret = "leeway-secret"
+	const secret = "leeway-secret-must-be-32-bytes!!"
 	tok := makeToken(t, secret, -1*time.Second)
 	jwtServer(t, sec.JWTConfig{
 		Secret: sec.NewSecretString(secret),
@@ -316,7 +319,7 @@ func TestJWT_StrictLeeway_RejectsJustExpired(t *testing.T) {
 // TestJWT_StrictLeeway_AcceptsValid verifies that a still-valid token is
 // always accepted regardless of leeway setting.
 func TestJWT_StrictLeeway_AcceptsValid(t *testing.T) {
-	const secret = "leeway-secret"
+	const secret = "leeway-secret-must-be-32-bytes!!"
 	tok := makeToken(t, secret, time.Hour)
 	jwtServer(t, sec.JWTConfig{
 		Secret: sec.NewSecretString(secret),
