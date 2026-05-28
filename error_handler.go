@@ -38,8 +38,8 @@ func writePrebuiltError(ctx *Ctx, code int, body []byte) {
 //  3. *HTTPError — protocol-layer error with status code
 //  4. unknown — generic 500; exposes raw message only in dev mode
 //
-// In prod/staging, 5xx HTTPError messages are replaced with the generic HTTP
-// status text to prevent leaking internal details to external clients.
+// In prod/staging, 5xx messages are replaced with generic HTTP status text to
+// prevent leaking internal details (file paths, SQL, stack frames) to clients.
 func defaultErrorHandler(c *Ctx, err error) {
 	// Fast paths for sentinel errors: write pre-built bytes, 0 allocs.
 	if err == errDefaultNotFound {
@@ -51,7 +51,7 @@ func defaultErrorHandler(c *Ctx, err error) {
 		return
 	}
 
-	mode := c.app.options.Mode
+	isProdLike := c.app.options.Mode == ModeProd || c.app.options.Mode == ModeStaging
 
 	// Business-layer error: structured response with Code + Message.
 	if ae, ok := err.(*AppError); ok {
@@ -59,21 +59,27 @@ func defaultErrorHandler(c *Ctx, err error) {
 		if status <= 0 {
 			status = http.StatusBadRequest
 		}
+		msg := ae.Message
+		// In prod/staging, suppress 5xx AppError messages — they may contain
+		// internal details (DB errors, file paths) that leaked into Message.
+		if isProdLike && status >= 500 {
+			msg = http.StatusText(status)
+		}
 		body := Map{
 			"code":    ae.Code,
-			"message": ae.Message,
+			"message": msg,
 		}
-		if ae.Data != nil {
+		if ae.Data != nil && status < 500 {
 			body["data"] = ae.Data
 		}
 		_ = c.JSON(status, body)
 		return
 	}
 
-	// Validation errors: 400 with field-level details.
+	// Validation errors: 422 with field-level details.
 	var ve ValidationErrors
 	if errors.As(err, &ve) {
-		_ = c.JSON(http.StatusBadRequest, Map{
+		_ = c.JSON(http.StatusUnprocessableEntity, Map{
 			"error":  "Validation failed",
 			"fields": ve,
 		})
@@ -85,10 +91,8 @@ func defaultErrorHandler(c *Ctx, err error) {
 		msg := he.Message
 		// In prod/staging, replace 5xx messages with generic text to prevent
 		// leaking internal error details to external clients.
-		if mode == ModeProd || mode == ModeStaging {
-			if he.Code >= 500 {
-				msg = http.StatusText(he.Code)
-			}
+		if isProdLike && he.Code >= 500 {
+			msg = http.StatusText(he.Code)
 		}
 		_ = c.JSON(he.Code, Map{"error": msg})
 		return
@@ -96,7 +100,7 @@ func defaultErrorHandler(c *Ctx, err error) {
 
 	// Unknown error: generic 500.
 	body := Map{"error": "Internal Server Error"}
-	if mode == ModeDev {
+	if c.app.options.Mode == ModeDev {
 		// In dev mode, expose the raw error message to speed up debugging.
 		body["detail"] = err.Error()
 	}

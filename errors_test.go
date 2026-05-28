@@ -171,6 +171,121 @@ func TestAppError_Unwrap(t *testing.T) {
 
 // ─── ValidationErrors ─────────────────────────────────────────────────────────
 
+// ─── defaultErrorHandler — information disclosure (CVE-010) ──────────────────
+
+// TestErrorHandler_ProdHides5xxHTTPError verifies that in prod mode a 5xx
+// HTTPError message is replaced with generic HTTP status text (CVE-010).
+func TestErrorHandler_ProdHides5xxHTTPError(t *testing.T) {
+	app := testutil.NewTestApp(astra.WithMode(astra.ModeProd))
+	app.GET("/boom", func(c *astra.Ctx) error {
+		return astra.NewHTTPError(http.StatusInternalServerError, "db connection string: postgres://user:secret@host/db")
+	})
+	srv := testutil.NewServer(t, app)
+	srv.GET("/boom").
+		AssertStatus(http.StatusInternalServerError).
+		AssertBodyNotContains("postgres://").
+		AssertBodyNotContains("secret")
+}
+
+// TestErrorHandler_DevExposes5xxHTTPError verifies that in dev mode the full
+// message is returned to aid debugging.
+func TestErrorHandler_DevExposes5xxHTTPError(t *testing.T) {
+	app := testutil.NewTestApp(astra.WithMode(astra.ModeDev))
+	app.GET("/boom", func(c *astra.Ctx) error {
+		return astra.NewHTTPError(http.StatusInternalServerError, "internal detail")
+	})
+	srv := testutil.NewServer(t, app)
+	srv.GET("/boom").
+		AssertStatus(http.StatusInternalServerError).
+		AssertBodyContains("internal detail")
+}
+
+// TestErrorHandler_ProdHides5xxAppError verifies that in prod mode a 5xx
+// AppError message is suppressed (CVE-010).
+func TestErrorHandler_ProdHides5xxAppError(t *testing.T) {
+	app := testutil.NewTestApp(astra.WithMode(astra.ModeProd))
+	app.GET("/boom", func(c *astra.Ctx) error {
+		return astra.NewAppError("DB_ERROR", http.StatusInternalServerError, "SELECT * FROM users WHERE id=1: pq: relation does not exist")
+	})
+	srv := testutil.NewServer(t, app)
+	srv.GET("/boom").
+		AssertStatus(http.StatusInternalServerError).
+		AssertBodyNotContains("SELECT").
+		AssertBodyNotContains("pq:")
+}
+
+// TestErrorHandler_ProdExposes4xxAppError verifies that 4xx AppError messages
+// are still returned in prod (they are client-facing, not internal details).
+func TestErrorHandler_ProdExposes4xxAppError(t *testing.T) {
+	app := testutil.NewTestApp(astra.WithMode(astra.ModeProd))
+	app.GET("/notfound", func(c *astra.Ctx) error {
+		return astra.NewAppError("USER_NOT_FOUND", http.StatusNotFound, "user not found")
+	})
+	srv := testutil.NewServer(t, app)
+	srv.GET("/notfound").
+		AssertStatus(http.StatusNotFound).
+		AssertBodyContains("USER_NOT_FOUND").
+		AssertBodyContains("user not found")
+}
+
+// TestErrorHandler_ProdHidesUnknownErrorDetail verifies that in prod mode an
+// unknown error does not expose its message in the response body (CVE-010).
+func TestErrorHandler_ProdHidesUnknownErrorDetail(t *testing.T) {
+	app := testutil.NewTestApp(astra.WithMode(astra.ModeProd))
+	app.GET("/boom", func(c *astra.Ctx) error {
+		return errors.New("open /etc/passwd: permission denied")
+	})
+	srv := testutil.NewServer(t, app)
+	srv.GET("/boom").
+		AssertStatus(http.StatusInternalServerError).
+		AssertBodyNotContains("/etc/passwd").
+		AssertBodyContains("Internal Server Error")
+}
+
+// TestErrorHandler_DevExposesUnknownErrorDetail verifies that in dev mode the
+// raw error message is included under "detail" to aid debugging.
+func TestErrorHandler_DevExposesUnknownErrorDetail(t *testing.T) {
+	app := testutil.NewTestApp(astra.WithMode(astra.ModeDev))
+	app.GET("/boom", func(c *astra.Ctx) error {
+		return errors.New("open /etc/passwd: permission denied")
+	})
+	srv := testutil.NewServer(t, app)
+	srv.GET("/boom").
+		AssertStatus(http.StatusInternalServerError).
+		AssertBodyContains("detail").
+		AssertBodyContains("/etc/passwd")
+}
+
+// TestErrorHandler_ValidationReturns422 verifies that validation errors return
+// 422 Unprocessable Entity (not 400) with field details.
+func TestErrorHandler_ValidationReturns422(t *testing.T) {
+	app := testutil.NewTestApp()
+	type req struct {
+		Name string `json:"name" validate:"required"`
+	}
+	app.POST("/validate", func(c *astra.Ctx) error {
+		var r req
+		return c.ShouldBindJSON(&r)
+	})
+	srv := testutil.NewServer(t, app)
+	srv.POST("/validate", map[string]any{}).
+		AssertStatus(http.StatusUnprocessableEntity).
+		AssertBodyContains("fields")
+}
+
+// TestErrorHandler_StagingHides5xx verifies that ModeStaging also suppresses
+// 5xx details, matching the prod behaviour.
+func TestErrorHandler_StagingHides5xx(t *testing.T) {
+	app := testutil.NewTestApp(astra.WithMode(astra.ModeStaging))
+	app.GET("/boom", func(c *astra.Ctx) error {
+		return astra.NewHTTPError(http.StatusInternalServerError, "internal secret")
+	})
+	srv := testutil.NewServer(t, app)
+	srv.GET("/boom").
+		AssertStatus(http.StatusInternalServerError).
+		AssertBodyNotContains("internal secret")
+}
+
 func TestValidationHTTPError_Fields(t *testing.T) {
 	app := testutil.NewTestApp()
 	type req struct {
@@ -184,6 +299,6 @@ func TestValidationHTTPError_Fields(t *testing.T) {
 
 	srv := testutil.NewServer(t, app)
 	resp := srv.POST("/validate", map[string]any{"name": ""})
-	resp.AssertStatus(http.StatusBadRequest)
+	resp.AssertStatus(http.StatusUnprocessableEntity)
 }
 
