@@ -78,7 +78,10 @@
       "Bash([ -f \"$d/go.mod\" ])",
       "Bash(GOWORK=off go mod why github.com/astra-go/astra/middleware/security)",
       "Bash(GOWORK=off go mod why github.com/astra-go/astra/middleware/observability)",
-      "Bash(go env *)"
+      "Bash(go env *)",
+      "Bash(tee .bench-baseline.txt)",
+      "Bash(go tool *)",
+      "Bash(tee .bench-current.txt)"
     ]
   }
 }

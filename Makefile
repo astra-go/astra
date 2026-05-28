@@ -144,6 +144,24 @@ bench-profile-mem: ## Memory profile for the integration suite
 	  -benchtime=5s -count=1 -memprofile=mem.prof ./benchmarks/
 	go tool pprof -http=:6061 mem.prof
 
+.PHONY: bench-profile-cpu-core
+bench-profile-cpu-core: ## CPU profile for core hot paths: ServeHTTP + router + JSON response
+	go test -bench='BenchmarkServeHTTP_Parallel_JSON|BenchmarkRouter_Param|BenchmarkContext_JSON_Medium' \
+	  -benchtime=10s -count=1 -cpuprofile=cpu-core.prof .
+	go tool pprof -http=:6060 cpu-core.prof
+
+.PHONY: bench-profile-mem-core
+bench-profile-mem-core: ## Memory profile for core hot paths (full allocation sampling)
+	go test -bench='BenchmarkServeHTTP_Parallel_JSON|BenchmarkContext_JSON_Medium|BenchmarkRouter_Param' \
+	  -benchtime=10s -count=1 -memprofile=mem-core.prof -memprofilerate=1 .
+	go tool pprof -http=:6061 mem-core.prof
+
+.PHONY: bench-trace
+bench-trace: ## Goroutine/GC/sync.Pool trace for core ServeHTTP path
+	go test -bench=BenchmarkServeHTTP_Parallel_JSON \
+	  -benchtime=5s -count=1 -trace=trace.out .
+	go tool trace trace.out
+
 # ─── Local HTML comparison report ────────────────────────────────────────────
 
 .PHONY: bench-publish-local
