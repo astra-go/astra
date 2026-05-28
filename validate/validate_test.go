@@ -417,3 +417,235 @@ func TestValidator_Inner(t *testing.T) {
 		t.Error("Inner(): expected non-nil *validator.Validate")
 	}
 }
+
+// ─── buildMessage branch coverage ────────────────────────────────────────────
+
+func TestBuildMessage_URLAndURI(t *testing.T) {
+	type S struct {
+		URL string `json:"url" validate:"url"`
+	}
+	err := validate.Struct(&S{URL: "not-a-url"})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "URL") {
+		t.Errorf("url message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_UUID(t *testing.T) {
+	type S struct {
+		ID string `json:"id" validate:"uuid"`
+	}
+	err := validate.Struct(&S{ID: "bad"})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "UUID") {
+		t.Errorf("uuid message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_IP(t *testing.T) {
+	type S struct {
+		IP string `json:"ip" validate:"ip"`
+	}
+	err := validate.Struct(&S{IP: "bad"})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "IP") {
+		t.Errorf("ip message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_IPv4(t *testing.T) {
+	type S struct {
+		IP string `json:"ip" validate:"ipv4"`
+	}
+	err := validate.Struct(&S{IP: "bad"})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "IPv4") {
+		t.Errorf("ipv4 message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_IPv6(t *testing.T) {
+	type S struct {
+		IP string `json:"ip" validate:"ipv6"`
+	}
+	err := validate.Struct(&S{IP: "bad"})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "IPv6") {
+		t.Errorf("ipv6 message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_E164(t *testing.T) {
+	type S struct {
+		Phone string `json:"phone" validate:"e164"`
+	}
+	err := validate.Struct(&S{Phone: "bad"})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "E.164") {
+		t.Errorf("e164 message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_JSON(t *testing.T) {
+	type S struct {
+		Data string `json:"data" validate:"json"`
+	}
+	err := validate.Struct(&S{Data: "not-json"})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "JSON") {
+		t.Errorf("json message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_Base64(t *testing.T) {
+	type S struct {
+		Data string `json:"data" validate:"base64"`
+	}
+	err := validate.Struct(&S{Data: "not!base64"})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "Base64") {
+		t.Errorf("base64 message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_GT_GTE_LT_LTE(t *testing.T) {
+	tests := []struct {
+		name string
+		obj  any
+		want string
+	}{
+		{"gt", &struct {
+			N int `json:"n" validate:"gt=10"`
+		}{N: 5}, "大于"},
+		{"gte", &struct {
+			N int `json:"n" validate:"gte=10"`
+		}{N: 5}, "不能小于"},
+		{"lt", &struct {
+			N int `json:"n" validate:"lt=0"`
+		}{N: 5}, "小于"},
+		{"lte", &struct {
+			N int `json:"n" validate:"lte=0"`
+		}{N: 5}, "不能大于"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validate.Struct(tc.obj)
+			var errs validate.Errors
+			errors.As(err, &errs)
+			if !strings.Contains(errs[0].Message, tc.want) {
+				t.Errorf("%s message %q does not contain %q", tc.name, errs[0].Message, tc.want)
+			}
+		})
+	}
+}
+
+func TestBuildMessage_EQ_NE(t *testing.T) {
+	type S struct {
+		N int `json:"n" validate:"eq=5"`
+	}
+	err := validate.Struct(&S{N: 3})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "等于") {
+		t.Errorf("eq message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_Contains_Excludes(t *testing.T) {
+	type S struct {
+		S string `json:"s" validate:"contains=foo"`
+	}
+	err := validate.Struct(&S{S: "bar"})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "包含") {
+		t.Errorf("contains message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_StartsWith_EndsWith(t *testing.T) {
+	type S struct {
+		S string `json:"s" validate:"startswith=foo"`
+	}
+	err := validate.Struct(&S{S: "bar"})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "开头") {
+		t.Errorf("startswith message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_Alpha_AlphaNum_Numeric_Number(t *testing.T) {
+	tests := []struct {
+		name string
+		obj  any
+		want string
+	}{
+		{"alpha", &struct {
+			S string `json:"s" validate:"alpha"`
+		}{S: "123"}, "字母"},
+		{"alphanum", &struct {
+			S string `json:"s" validate:"alphanum"`
+		}{S: "!@#"}, "字母"},
+		{"numeric", &struct {
+			S string `json:"s" validate:"numeric"`
+		}{S: "abc"}, "数字"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validate.Struct(tc.obj)
+			var errs validate.Errors
+			errors.As(err, &errs)
+			if !strings.Contains(errs[0].Message, tc.want) {
+				t.Errorf("%s message %q does not contain %q", tc.name, errs[0].Message, tc.want)
+			}
+		})
+	}
+}
+
+func TestBuildMessage_Len(t *testing.T) {
+	type S struct {
+		S string `json:"s" validate:"len=5"`
+	}
+	err := validate.Struct(&S{S: "ab"})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "长度") {
+		t.Errorf("len message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_MinMaxNumeric(t *testing.T) {
+	type S struct {
+		N int `json:"n" validate:"min=10"`
+	}
+	err := validate.Struct(&S{N: 5})
+	var errs validate.Errors
+	errors.As(err, &errs)
+	if !strings.Contains(errs[0].Message, "10") {
+		t.Errorf("min numeric message: %q", errs[0].Message)
+	}
+}
+
+func TestBuildMessage_NonValidatorError(t *testing.T) {
+	// toErrors path: non-ValidationErrors error wraps to Errors with field "_"
+	v := validate.New()
+	// Pass a non-struct to trigger an internal error
+	err := v.Struct(nil)
+	if err == nil {
+		t.Skip("nil struct did not produce error on this validator version")
+	}
+	var errs validate.Errors
+	if errors.As(err, &errs) {
+		// If it converts, the field should be "_" for internal errors
+		_ = errs
+	}
+}

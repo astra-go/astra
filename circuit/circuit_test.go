@@ -2,10 +2,13 @@ package circuit_test
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/astra-go/astra"
 	"github.com/astra-go/astra/circuit"
 	"github.com/astra-go/astra/testutil"
 )
@@ -192,4 +195,114 @@ func TestBreaker_Do_PropagatesError(t *testing.T) {
 func TestBreaker_Do_PropagatesNil(t *testing.T) {
 	b := circuit.New(circuit.Config{Name: "nil", Threshold: 10, Timeout: time.Minute})
 	testutil.AssertNoError(t, b.Do(func() error { return nil }))
+}
+
+// ─── State.String ─────────────────────────────────────────────────────────────
+
+func TestState_String(t *testing.T) {
+	tests := []struct {
+		state circuit.State
+		want  string
+	}{
+		{circuit.StateClosed, "closed"},
+		{circuit.StateOpen, "open"},
+		{circuit.StateHalfOpen, "half-open"},
+		{circuit.State(99), "unknown"},
+	}
+	for _, tc := range tests {
+		if got := tc.state.String(); got != tc.want {
+			t.Errorf("State(%d).String() = %q, want %q", tc.state, got, tc.want)
+		}
+	}
+}
+
+// ─── NewSimple ────────────────────────────────────────────────────────────────
+
+func TestNewSimple_DefaultsWork(t *testing.T) {
+	b := circuit.NewSimple("simple-test")
+	if b == nil {
+		t.Fatal("NewSimple returned nil")
+	}
+	err := b.Do(func() error { return nil })
+	testutil.AssertNoError(t, err)
+}
+
+// ─── Middleware ───────────────────────────────────────────────────────────────
+
+func TestBreaker_Middleware_AllowsWhenClosed(t *testing.T) {
+	b := circuit.New(circuit.Config{Name: "mw-closed", Threshold: 5, Timeout: time.Minute})
+	app := testutil.NewTestApp()
+	app.Use(b.Middleware())
+	app.GET("/", func(c *astra.Ctx) error {
+		return c.String(http.StatusOK, "ok")
+	})
+	s := testutil.NewServer(t, app)
+	s.GET("/").AssertStatus(http.StatusOK)
+}
+
+func TestBreaker_Middleware_RejectsWhenOpen(t *testing.T) {
+	b := circuit.New(circuit.Config{Name: "mw-open", Threshold: 1, Timeout: time.Hour})
+	for i := 0; i < 2; i++ {
+		_ = b.Do(func() error { return errService })
+	}
+
+	app := testutil.NewTestApp()
+	app.Use(b.Middleware())
+	app.GET("/", func(c *astra.Ctx) error {
+		return c.String(http.StatusOK, "ok")
+	})
+	s := testutil.NewServer(t, app)
+	s.GET("/").AssertStatus(http.StatusServiceUnavailable)
+}
+
+func TestBreaker_Middleware_CountsServerErrors(t *testing.T) {
+	b := circuit.New(circuit.Config{Name: "mw-5xx", Threshold: 3, Timeout: time.Hour})
+	app := testutil.NewTestApp()
+	app.Use(b.Middleware())
+	app.GET("/fail", func(c *astra.Ctx) error {
+		return c.String(http.StatusInternalServerError, "err")
+	})
+	s := testutil.NewServer(t, app)
+
+	for i := 0; i < 3; i++ {
+		s.GET("/fail").AssertStatus(http.StatusInternalServerError)
+	}
+	s.GET("/fail").AssertStatus(http.StatusServiceUnavailable)
+}
+
+// ─── WrapHandler ─────────────────────────────────────────────────────────────
+
+func TestBreaker_WrapHandler_AllowsWhenClosed(t *testing.T) {
+	b := circuit.New(circuit.Config{Name: "wrap-closed", Threshold: 5, Timeout: time.Minute})
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	wrapped := b.WrapHandler(inner)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	wrapped.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("want 200, got %d", rec.Code)
+	}
+}
+
+func TestBreaker_WrapHandler_RejectsWhenOpen(t *testing.T) {
+	b := circuit.New(circuit.Config{Name: "wrap-open", Threshold: 1, Timeout: time.Hour})
+	for i := 0; i < 2; i++ {
+		_ = b.Do(func() error { return errService })
+	}
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	wrapped := b.WrapHandler(inner)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	wrapped.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("want 503, got %d", rec.Code)
+	}
 }

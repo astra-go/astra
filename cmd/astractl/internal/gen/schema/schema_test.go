@@ -529,3 +529,304 @@ type X struct{}
 		t.Fatalf("Run with --force: %v", err)
 	}
 }
+
+// ─── identToSchema ────────────────────────────────────────────────────────────
+
+func TestIdentToSchema_AllPrimitives(t *testing.T) {
+	cases := []struct {
+		name   string
+		wantTy string
+		wantFmt string
+	}{
+		{"string", "string", ""},
+		{"bool", "boolean", ""},
+		{"int", "integer", "int32"},
+		{"int8", "integer", "int32"},
+		{"int16", "integer", "int32"},
+		{"int32", "integer", "int32"},
+		{"int64", "integer", "int64"},
+		{"uint64", "integer", "int64"},
+		{"uint", "integer", "int32"},
+		{"uint8", "integer", "int32"},
+		{"uint16", "integer", "int32"},
+		{"uint32", "integer", "int32"},
+		{"float32", "number", "float"},
+		{"float64", "number", "double"},
+		{"byte", "string", "byte"},
+		{"rune", "string", ""},
+		{"any", "", ""},
+		{"interface{}", "", ""},
+		{"MyStruct", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := identToSchema(tc.name)
+			if tc.name == "MyStruct" {
+				if s.Ref == "" {
+					t.Errorf("expected $ref for named type, got %+v", s)
+				}
+				return
+			}
+			if s.Type != tc.wantTy {
+				t.Errorf("identToSchema(%q).Type = %q, want %q", tc.name, s.Type, tc.wantTy)
+			}
+			if s.Format != tc.wantFmt {
+				t.Errorf("identToSchema(%q).Format = %q, want %q", tc.name, s.Format, tc.wantFmt)
+			}
+		})
+	}
+}
+
+// ─── selectorToSchema ─────────────────────────────────────────────────────────
+
+func TestSelectorToSchema_KnownTypes(t *testing.T) {
+	cases := []struct {
+		pkg, name string
+		wantTy    string
+		wantFmt   string
+	}{
+		{"time", "Time", "string", "date-time"},
+		{"time", "Duration", "string", ""},
+		{"uuid", "UUID", "string", "uuid"},
+		{"uuid", "NullUUID", "string", "uuid"},
+		{"decimal", "Decimal", "string", "decimal"},
+		{"decimal", "NullDecimal", "string", "decimal"},
+		{"sql", "NullString", "string", ""},
+		{"sql", "NullInt64", "integer", ""},
+		{"sql", "NullInt32", "integer", ""},
+		{"sql", "NullFloat64", "number", ""},
+		{"sql", "NullBool", "boolean", ""},
+		{"unknown", "Type", "object", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.pkg+"."+tc.name, func(t *testing.T) {
+			s := selectorToSchema(tc.pkg, tc.name)
+			if s.Type != tc.wantTy {
+				t.Errorf("selectorToSchema(%q,%q).Type = %q, want %q", tc.pkg, tc.name, s.Type, tc.wantTy)
+			}
+		})
+	}
+}
+
+// ─── typeRefSchema ────────────────────────────────────────────────────────────
+
+func TestTypeRefSchema(t *testing.T) {
+	cases := []struct {
+		input   string
+		wantRef string
+		wantTy  string
+	}{
+		{"", "string", ""},
+		{"string", "string", ""},
+		{"int", "integer", ""},
+		{"bool", "boolean", ""},
+		{"number", "number", ""},
+		{"{object}", "object", ""},
+		{"{array}", "array", ""},
+		{"{MyModel}", "", "#/components/schemas/MyModel"},
+		{"MyModel", "", "#/components/schemas/MyModel"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.input, func(t *testing.T) {
+			s := typeRefSchema(tc.input)
+			if tc.wantRef != "" && s.Type != tc.wantRef {
+				t.Errorf("typeRefSchema(%q).Type = %q, want %q", tc.input, s.Type, tc.wantRef)
+			}
+			if tc.wantTy != "" && s.Ref != tc.wantTy {
+				t.Errorf("typeRefSchema(%q).Ref = %q, want %q", tc.input, s.Ref, tc.wantTy)
+			}
+		})
+	}
+}
+
+// ─── primitiveSchema ─────────────────────────────────────────────────────────
+
+func TestPrimitiveSchema(t *testing.T) {
+	cases := []struct{ input, want string }{
+		{"int", "integer"},
+		{"integer", "integer"},
+		{"int32", "integer"},
+		{"int64", "integer"},
+		{"float", "number"},
+		{"float32", "number"},
+		{"float64", "number"},
+		{"number", "number"},
+		{"bool", "boolean"},
+		{"boolean", "boolean"},
+		{"string", "string"},
+		{"unknown", "string"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.input, func(t *testing.T) {
+			s := primitiveSchema(tc.input)
+			if s.Type != tc.want {
+				t.Errorf("primitiveSchema(%q).Type = %q, want %q", tc.input, s.Type, tc.want)
+			}
+		})
+	}
+}
+
+// ─── jsonFieldName ────────────────────────────────────────────────────────────
+
+func TestGenerate_SelectorTypes(t *testing.T) {
+	src := `package p
+import "time"
+type Event struct {
+	CreatedAt time.Time ` + "`json:\"created_at\"`" + `
+}
+`
+	spec := mustGenerate(t, src, "T", "1.0")
+	raw, _ := json.Marshal(spec)
+	if !strings.Contains(string(raw), "date-time") {
+		t.Errorf("expected date-time format for time.Time, got:\n%s", raw)
+	}
+}
+
+func TestGenerate_PointerField(t *testing.T) {
+	src := `package p
+type Resp struct {
+	Name *string ` + "`json:\"name\"`" + `
+}
+`
+	spec := mustGenerate(t, src, "T", "1.0")
+	raw, _ := json.Marshal(spec)
+	if !strings.Contains(string(raw), "name") {
+		t.Errorf("expected name field in schema, got:\n%s", raw)
+	}
+}
+
+func TestGenerate_ArrayField(t *testing.T) {
+	src := `package p
+type List struct {
+	Items []string ` + "`json:\"items\"`" + `
+}
+`
+	spec := mustGenerate(t, src, "T", "1.0")
+	raw, _ := json.Marshal(spec)
+	if !strings.Contains(string(raw), "array") {
+		t.Errorf("expected array type in schema, got:\n%s", raw)
+	}
+}
+
+func TestGenerate_MapField(t *testing.T) {
+	src := `package p
+type Meta struct {
+	Labels map[string]string ` + "`json:\"labels\"`" + `
+}
+`
+	spec := mustGenerate(t, src, "T", "1.0")
+	raw, _ := json.Marshal(spec)
+	if !strings.Contains(string(raw), "object") {
+		t.Errorf("expected object type for map field, got:\n%s", raw)
+	}
+}
+
+func TestGenerate_InterfaceField(t *testing.T) {
+	src := `package p
+type Flex struct {
+	Data interface{} ` + "`json:\"data\"`" + `
+}
+`
+	spec := mustGenerate(t, src, "T", "1.0")
+	raw, _ := json.Marshal(spec)
+	if !strings.Contains(string(raw), "data") {
+		t.Errorf("expected data field in schema, got:\n%s", raw)
+	}
+}
+
+func TestGenerate_HandlerWithQueryAndPathParams(t *testing.T) {
+	src := `package p
+// GetUser returns a user.
+// @summary Get user by ID
+// @router /users/{id} [get]
+// @param id path int true "User ID"
+// @param filter query string false "Filter"
+// @response 200 {User} "Success"
+// @response 404 string "Not found"
+func GetUser() {}
+`
+	spec := mustGenerate(t, src, "T", "1.0")
+	raw, _ := json.Marshal(spec)
+	if !strings.Contains(string(raw), "/users/{id}") {
+		t.Errorf("expected path in spec, got:\n%s", raw)
+	}
+	if !strings.Contains(string(raw), "filter") {
+		t.Errorf("expected query param in spec, got:\n%s", raw)
+	}
+}
+
+func TestGenerate_HandlerWithBodyParam(t *testing.T) {
+	src := `package p
+// CreateUser creates a user.
+// @summary Create user
+// @router /users [post]
+// @param body body CreateUserReq true "Request body"
+// @response 201 {User} "Created"
+func CreateUser() {}
+`
+	spec := mustGenerate(t, src, "T", "1.0")
+	raw, _ := json.Marshal(spec)
+	if !strings.Contains(string(raw), "requestBody") {
+		t.Errorf("expected requestBody in spec, got:\n%s", raw)
+	}
+}
+
+func TestGenerate_OmitemptyField(t *testing.T) {
+	src := `package p
+type Partial struct {
+	Name string ` + "`json:\"name,omitempty\"`" + `
+}
+`
+	spec := mustGenerate(t, src, "T", "1.0")
+	raw, _ := json.Marshal(spec)
+	if !strings.Contains(string(raw), "name") {
+		t.Errorf("expected name field, got:\n%s", raw)
+	}
+}
+
+func TestGenerate_FieldWithNoTag(t *testing.T) {
+	src := `package p
+type NoTag struct {
+	Value string
+}
+`
+	spec := mustGenerate(t, src, "T", "1.0")
+	raw, _ := json.Marshal(spec)
+	// Field name should fall back to struct field name
+	if !strings.Contains(string(raw), "Value") {
+		t.Errorf("expected Value field (no tag fallback), got:\n%s", raw)
+	}
+}
+
+func TestGenerate_NestedStruct(t *testing.T) {
+	src := `package p
+type Address struct {
+	City string ` + "`json:\"city\"`" + `
+}
+type Person struct {
+	Name    string  ` + "`json:\"name\"`" + `
+	Address Address ` + "`json:\"address\"`" + `
+}
+`
+	spec := mustGenerate(t, src, "T", "1.0")
+	raw, _ := json.Marshal(spec)
+	if !strings.Contains(string(raw), "Address") {
+		t.Errorf("expected Address in schema, got:\n%s", raw)
+	}
+}
+
+func TestGenerate_HandlerWithTags(t *testing.T) {
+	src := `package p
+// ListItems lists items.
+// @summary List items
+// @tags items inventory
+// @router /items [get]
+// @response 200 {array} "Items"
+func ListItems() {}
+`
+	spec := mustGenerate(t, src, "T", "1.0")
+	raw, _ := json.Marshal(spec)
+	if !strings.Contains(string(raw), "items") {
+		t.Errorf("expected tags in spec, got:\n%s", raw)
+	}
+}

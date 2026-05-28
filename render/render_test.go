@@ -288,3 +288,144 @@ func TestRender_ConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// ─── New / Must / setDefaults ─────────────────────────────────────────────────
+
+func TestNew_DefaultsApplied(t *testing.T) {
+	fsys := fstest.MapFS{
+		"index.html": {Data: []byte(`hello`)},
+	}
+	eng, err := render.New(render.Config{FS: fsys, Root: ""})
+	testutil.AssertNoError(t, err)
+	if eng == nil {
+		t.Fatal("expected non-nil engine")
+	}
+}
+
+func TestNew_SubFS_Root(t *testing.T) {
+	fsys := fstest.MapFS{
+		"views/index.html": {Data: []byte(`hello`)},
+	}
+	eng, err := render.New(render.Config{FS: fsys, Root: "views"})
+	testutil.AssertNoError(t, err)
+	var buf bytes.Buffer
+	testutil.AssertNoError(t, eng.Render(&buf, "index.html", nil))
+}
+
+// ─── builtinFuncs ─────────────────────────────────────────────────────────────
+
+func TestBuiltinFuncs_SafeHTML(t *testing.T) {
+	fsys := fstest.MapFS{
+		"tmpl.html": {Data: []byte(`{{safeHTML .}}`)},
+	}
+	eng := engine(t, fsys, render.Config{})
+	var buf bytes.Buffer
+	testutil.AssertNoError(t, eng.Render(&buf, "tmpl.html", "<b>bold</b>"))
+	if !strings.Contains(buf.String(), "<b>bold</b>") {
+		t.Errorf("safeHTML: got %q", buf.String())
+	}
+}
+
+func TestBuiltinFuncs_SafeURL(t *testing.T) {
+	fsys := fstest.MapFS{
+		"tmpl.html": {Data: []byte(`{{safeURL .}}`)},
+	}
+	eng := engine(t, fsys, render.Config{})
+	var buf bytes.Buffer
+	testutil.AssertNoError(t, eng.Render(&buf, "tmpl.html", "https://example.com"))
+	testutil.AssertEqual(t, "https://example.com", buf.String())
+}
+
+func TestBuiltinFuncs_SafeAttr(t *testing.T) {
+	fsys := fstest.MapFS{
+		"tmpl.html": {Data: []byte(`{{safeAttr .}}`)},
+	}
+	eng := engine(t, fsys, render.Config{})
+	var buf bytes.Buffer
+	testutil.AssertNoError(t, eng.Render(&buf, "tmpl.html", "data-id=1"))
+	testutil.AssertEqual(t, "data-id=1", buf.String())
+}
+
+func TestBuiltinFuncs_SafeCSS(t *testing.T) {
+	fsys := fstest.MapFS{
+		"tmpl.html": {Data: []byte(`{{safeCSS .}}`)},
+	}
+	eng := engine(t, fsys, render.Config{})
+	var buf bytes.Buffer
+	testutil.AssertNoError(t, eng.Render(&buf, "tmpl.html", "color:red"))
+	testutil.AssertEqual(t, "color:red", buf.String())
+}
+
+func TestBuiltinFuncs_SafeJS(t *testing.T) {
+	fsys := fstest.MapFS{
+		"tmpl.html": {Data: []byte(`{{safeJS .}}`)},
+	}
+	eng := engine(t, fsys, render.Config{})
+	var buf bytes.Buffer
+	testutil.AssertNoError(t, eng.Render(&buf, "tmpl.html", "alert(1)"))
+	testutil.AssertEqual(t, "alert(1)", buf.String())
+}
+
+func TestBuiltinFuncs_Dict(t *testing.T) {
+	fsys := fstest.MapFS{
+		"tmpl.html": {Data: []byte(`{{(dict "k" "v").k}}`)},
+	}
+	eng := engine(t, fsys, render.Config{})
+	var buf bytes.Buffer
+	testutil.AssertNoError(t, eng.Render(&buf, "tmpl.html", nil))
+	testutil.AssertEqual(t, "v", buf.String())
+}
+
+func TestBuiltinFuncs_Dict_OddArgs_ReturnsError(t *testing.T) {
+	fsys := fstest.MapFS{
+		"tmpl.html": {Data: []byte(`{{dict "k"}}`)},
+	}
+	eng := engine(t, fsys, render.Config{})
+	var buf bytes.Buffer
+	err := eng.Render(&buf, "tmpl.html", nil)
+	testutil.AssertError(t, err)
+}
+
+func TestBuiltinFuncs_Dict_NonStringKey_ReturnsError(t *testing.T) {
+	fsys := fstest.MapFS{
+		"tmpl.html": {Data: []byte(`{{dict 1 "v"}}`)},
+	}
+	eng := engine(t, fsys, render.Config{})
+	var buf bytes.Buffer
+	err := eng.Render(&buf, "tmpl.html", nil)
+	testutil.AssertError(t, err)
+}
+
+func TestBuiltinFuncs_Iterate(t *testing.T) {
+	fsys := fstest.MapFS{
+		"tmpl.html": {Data: []byte(`{{range iterate 3}}{{.}}{{end}}`)},
+	}
+	eng := engine(t, fsys, render.Config{})
+	var buf bytes.Buffer
+	testutil.AssertNoError(t, eng.Render(&buf, "tmpl.html", nil))
+	testutil.AssertEqual(t, "012", buf.String())
+}
+
+func TestRender_UnknownTemplate_ReturnsError(t *testing.T) {
+	fsys := fstest.MapFS{
+		"index.html": {Data: []byte(`hello`)},
+	}
+	eng := engine(t, fsys, render.Config{})
+	var buf bytes.Buffer
+	err := eng.Render(&buf, "nonexistent.html", nil)
+	testutil.AssertError(t, err)
+}
+
+func TestRender_WithFuncMap(t *testing.T) {
+	fsys := fstest.MapFS{
+		"tmpl.html": {Data: []byte(`{{upper .}}`)},
+	}
+	eng := engine(t, fsys, render.Config{
+		FuncMap: template.FuncMap{
+			"upper": strings.ToUpper,
+		},
+	})
+	var buf bytes.Buffer
+	testutil.AssertNoError(t, eng.Render(&buf, "tmpl.html", "hello"))
+	testutil.AssertEqual(t, "HELLO", buf.String())
+}
