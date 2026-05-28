@@ -191,7 +191,65 @@ func TestBindQuery_SliceExceedsLimit(t *testing.T) {
 	}
 }
 
-// ─── BindPath ─────────────────────────────────────────────────────────────────
+// TestBindQuery_StringExceedsMaxLen verifies that oversized string values are
+// rejected to prevent database pressure (CVE-007).
+func TestBindQuery_StringExceedsMaxLen(t *testing.T) {
+	orig := binding.GetMaxStringLen()
+	binding.SetMaxStringLen(10)
+	t.Cleanup(func() { binding.SetMaxStringLen(orig) })
+
+	type req struct {
+		Name string `form:"name"`
+	}
+	var r req
+	err := binding.BindQuery(url.Values{"name": {strings.Repeat("a", 11)}}, &r)
+	if err == nil {
+		t.Fatal("expected error for string exceeding MaxStringLen, got nil")
+	}
+}
+
+// TestBindQuery_StringAtMaxLen verifies that a string exactly at the limit is accepted.
+func TestBindQuery_StringAtMaxLen(t *testing.T) {
+	orig := binding.GetMaxStringLen()
+	binding.SetMaxStringLen(10)
+	t.Cleanup(func() { binding.SetMaxStringLen(orig) })
+
+	type req struct {
+		Name string `form:"name"`
+	}
+	var r req
+	testutil.AssertNoError(t, binding.BindQuery(url.Values{"name": {strings.Repeat("a", 10)}}, &r))
+}
+
+// TestBindQuery_StringLimitDisabled verifies that SetMaxStringLen(0) disables the check.
+func TestBindQuery_StringLimitDisabled(t *testing.T) {
+	orig := binding.GetMaxStringLen()
+	binding.SetMaxStringLen(0)
+	t.Cleanup(func() { binding.SetMaxStringLen(orig) })
+
+	type req struct {
+		Name string `form:"name"`
+	}
+	var r req
+	testutil.AssertNoError(t, binding.BindQuery(url.Values{"name": {strings.Repeat("a", 100_000)}}, &r))
+}
+
+// TestBindQuery_SliceStringExceedsMaxLen verifies that oversized strings inside
+// slice fields are also rejected.
+func TestBindQuery_SliceStringExceedsMaxLen(t *testing.T) {
+	orig := binding.GetMaxStringLen()
+	binding.SetMaxStringLen(5)
+	t.Cleanup(func() { binding.SetMaxStringLen(orig) })
+
+	type req struct {
+		Tags []string `form:"tags"`
+	}
+	var r req
+	err := binding.BindQuery(url.Values{"tags": {"ok", strings.Repeat("x", 6)}}, &r)
+	if err == nil {
+		t.Fatal("expected error for slice element exceeding MaxStringLen, got nil")
+	}
+}
 
 type pathParams struct {
 	ID   int64  `uri:"id"`

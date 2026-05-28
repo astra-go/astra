@@ -17,7 +17,11 @@ type Options struct {
 	// (default 1 MiB). Set to a larger value for endpoints that accept bulk JSON
 	// payloads; set smaller to tighten limits for specific apps.
 	MaxJSONBodySize int64
-	// ErrorHandler is the global error handler.
+	// MaxXMLBodySize is the max bytes read from the request body in BindXML
+	// (default 1 MiB). Set to a larger value for endpoints that accept bulk XML
+	// payloads; set smaller to tighten limits for specific apps.
+	MaxXMLBodySize int64
+	// MaxMultipartMemory is the max memory for multipart form parsing (default 32MB).
 	ErrorHandler ErrorHandler
 	// NotFoundHandler is called when no route matches.
 	NotFoundHandler HandlerFunc
@@ -76,6 +80,14 @@ func WithMaxMultipartMemory(size int64) Option {
 // when you want stricter request size limits.
 func WithMaxJSONBodySize(size int64) Option {
 	return func(o *Options) { o.MaxJSONBodySize = size }
+}
+
+// WithMaxXMLBodySize sets the maximum number of bytes read from the request
+// body by BindXML / ShouldBindXML / MustBindXML. The default is 1 MiB
+// (1 << 20). Use a larger value for bulk-import endpoints and a smaller one
+// when you want stricter request size limits.
+func WithMaxXMLBodySize(size int64) Option {
+	return func(o *Options) { o.MaxXMLBodySize = size }
 }
 
 // WithErrorHandler sets the global error handler.
@@ -220,6 +232,7 @@ func defaultOptions() *Options {
 	return &Options{
 		MaxMultipartMemory:      32 << 20, // 32 MB
 		MaxJSONBodySize:         1 << 20,  // 1 MiB
+		MaxXMLBodySize:          1 << 20,  // 1 MiB
 		ShutdownTimeout:         10,
 		MaxParamValueLen:        256,
 		Mode:                    ModeDev,
@@ -238,6 +251,7 @@ func slimDefaultOptions() *Options {
 	return &Options{
 		MaxMultipartMemory:      32 << 20,
 		MaxJSONBodySize:         1 << 20, // 1 MiB
+		MaxXMLBodySize:          1 << 20,  // 1 MiB
 		ShutdownTimeout:         10,
 		Mode:                    ModeDev,
 		ErrorHandler:            defaultErrorHandler,

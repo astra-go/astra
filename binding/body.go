@@ -15,7 +15,20 @@ import (
 
 // maxBodySize is the default request-body size limit applied by all body binders.
 // It guards against request-body DoS attacks.
-const maxBodySize = 1 << 20 // 1 MiB
+// Override with SetMaxBodySize if you need a different limit for direct
+// binding.JSON.Bind() / binding.XML.Bind() usage.
+var maxBodySize int64 = 1 << 20 // 1 MiB
+
+// SetMaxBodySize overrides the package-level maxBodySize used by
+// JSON and XML binders when called directly (not via astra.BindJSON).
+// Pass 0 to reset to the default (1 MiB).
+func SetMaxBodySize(size int64) {
+	if size <= 0 {
+		maxBodySize = 1 << 20
+		return
+	}
+	maxBodySize = size
+}
 
 // Binder is the interface for request body binders.
 type Binder interface {
