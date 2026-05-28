@@ -72,6 +72,28 @@ if ! bash "$ROOT/scripts/check-intra-replaces.sh"; then
     exit 1
 fi
 echo "✓ check-replaces — all clean"
+
+# ── gofmt 格式检查 ────────────────────────────────────────────────────────────
+echo "▶  gofmt check"
+GO_FILES=$(git diff --cached --name-only 2>/dev/null | grep '\.go$' || true)
+if [ -n "$GO_FILES" ]; then
+    UNFORMATTED=$(gofmt -l $GO_FILES 2>/dev/null || true)
+    if [ -n "$UNFORMATTED" ]; then
+        echo ""
+        echo "✗ unformatted files (run: gofmt -w <file>):"
+        echo "$UNFORMATTED"
+        exit 1
+    fi
+fi
+echo "✓ gofmt — all clean"
+
+# ── go vet ────────────────────────────────────────────────────────────────────
+echo "▶  go vet"
+for mod in $dirty_modules; do
+    dir="$ROOT"; [ "$mod" != "." ] && dir="$ROOT/$mod"
+    (cd "$dir" && go vet ./...) || { echo "✗ go vet failed in $mod"; exit 1; }
+done
+echo "✓ go vet — all clean"
 `
 
 // InstallHooks installs the pre-commit git hook.

@@ -1,0 +1,64 @@
+version: "2"
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - gosimple
+    - ineffassign
+    - unused
+    - gofmt
+    - goimports
+    - gosec
+    - bodyclose
+    - noctx
+    - prealloc
+    - revive
+    - misspell
+    - unconvert
+    - unparam
+
+linters-settings:
+  gosec:
+    excludes:
+      - G104  # errcheck 已覆盖 unhandled errors
+  goimports:
+    local-prefixes: github.com/astra-go/astra
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+      - name: var-naming
+        severity: warning
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+  staticcheck:
+    checks: ["all", "-ST1000", "-ST1003"]
+
+issues:
+  exclude-rules:
+    # 测试文件放宽安全和错误检查
+    - path: "_test\\.go"
+      linters: [gosec, errcheck, unparam]
+    # export_test.go 是测试辅助文件
+    - path: "export_test\\.go"
+      linters: [all]
+    # 示例和基准测试不参与 lint
+    - path: "^examples/"
+      linters: [all]
+    - path: "^benchmarks/"
+      linters: [all]
+    # magefiles 构建脚本
+    - path: "^magefiles/"
+      linters: [all]
+  # 首次引入：只报告新增代码的问题，存量问题逐步修复
+  new: true
+  max-issues-per-linter: 50
+  max-same-issues: 10
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  go: "1.25"

@@ -1,0 +1,24 @@
+# 默认：所有变更需要至少一名核心成员审查
+*                           @astra-go/core
+
+# 安全相关模块：需要安全负责人额外审查
+/middleware/security/       @astra-go/security
+/auth/                      @astra-go/security
+/jwt/                       @astra-go/security
+/binding/                   @astra-go/security
+
+# 核心框架：需要架构负责人审查
+/router.go                  @astra-go/core
+/app.go                     @astra-go/core
+/context.go                 @astra-go/core
+/context_request.go         @astra-go/core
+/context_response.go        @astra-go/core
+/error_handler.go           @astra-go/core
+/errors.go                  @astra-go/core
+
+# CI / 构建：需要 DevOps 审查
+/.github/                   @astra-go/devops
+/magefiles/                 @astra-go/devops
+/Makefile                   @astra-go/devops
+/scripts/                   @astra-go/devops
+/.golangci.yml              @astra-go/devops
