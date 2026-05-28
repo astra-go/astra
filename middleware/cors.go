@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -10,7 +12,8 @@ import (
 
 // CORSConfig configures the CORS middleware.
 type CORSConfig struct {
-	// AllowOrigins is the list of allowed origins. Use "*" to allow all.
+	// AllowOrigins is the list of allowed origins.
+	// WARNING: Do NOT use "*" in production. Use CORSStrict() or CORS() instead.
 	AllowOrigins []string
 	// AllowMethods is the list of allowed HTTP methods.
 	AllowMethods []string
@@ -22,23 +25,31 @@ type CORSConfig struct {
 	AllowCredentials bool
 	// MaxAge is the max age for preflight cache in seconds.
 	MaxAge int
+	// LogWarnings controls whether to log warnings about insecure CORS config.
+	// Default: true (logs warnings if "*" is used or if CORS is misconfigured).
+	LogWarnings bool
 }
 
-// DefaultCORSConfig allows all origins — suitable for development only.
+// DefaultCORSConfig is a RESTRICTIVE default config that DENIES all cross-origin requests.
 //
-// WARNING: Do NOT use this configuration in production. AllowOrigins: ["*"]
-// permits requests from any domain. If the application also sets cookies or
-// uses session-based auth, a cross-origin attacker can trigger authenticated
-// requests from a malicious page. Use CORSStrict(origins...) or
-// CORSWithConfig with an explicit allowlist in production.
+// ⚠️ SECURITY CHANGE (v4.1): Previously this default allowed all origins ("*").
+// That was INSECURE and could lead to CSRF attacks in production.
+//
+// To allow cross-origin requests, use:
+//   - middleware.CORS("https://app.example.com", "https://admin.example.com")
+//   - middleware.CORSStrict("https://app.example.com")
+//   - middleware.CORSWithConfig(middleware.CORSConfig{AllowOrigins: [...]})
+//
+// For local development ONLY, use middleware.CORSPermissive().
 var DefaultCORSConfig = CORSConfig{
-	AllowOrigins: []string{"*"},
+	AllowOrigins: []string{}, // ⚠️ SECURITY: Empty by default (deny all)
 	AllowMethods: []string{
 		http.MethodGet, http.MethodPost, http.MethodPut,
 		http.MethodDelete, http.MethodPatch, http.MethodHead, http.MethodOptions,
 	},
-	AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID"},
-	MaxAge:       86400,
+	AllowHeaders:  []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID"},
+	MaxAge:        86400,
+	LogWarnings:    true,
 }
 
 // CORS returns a production-ready CORS middleware restricted to the explicitly
@@ -57,13 +68,18 @@ func CORS(origins ...string) astra.HandlerFunc {
 
 // CORSPermissive returns a middleware that allows all cross-origin requests.
 //
-// WARNING: This uses DefaultCORSConfig (AllowOrigins: ["*"]) which is
-// intended for local development only. For production, use:
+// ⚠️ WARNING: This uses AllowOrigins: ["*"] which is INSECURE for production.
+// Only use this for local development.
+//
+// For production, use:
 //
 //	middleware.CORS("https://app.example.com", "https://admin.example.com")
-//	// or
+//	middleware.CORSStrict("https://app.example.com")
 //	middleware.CORSWithConfig(middleware.CORSConfig{AllowOrigins: [...]})
 func CORSPermissive() astra.HandlerFunc {
+	if DefaultCORSConfig.LogWarnings {
+		slog.Warn("CORS: Using permissive config (AllowOrigins: [*]). This is INSECURE and should NOT be used in production.")
+	}
 	return CORSWithConfig(DefaultCORSConfig)
 }
 
@@ -74,11 +90,22 @@ func CORSPermissive() astra.HandlerFunc {
 // a wildcard origin with credentials enabled silently breaks all credentialed
 // cross-origin requests rather than causing a visible startup error.
 func CORSWithConfig(cfg CORSConfig) astra.HandlerFunc {
+	// Validate config at startup
 	for _, o := range cfg.AllowOrigins {
 		if o == "*" && cfg.AllowCredentials {
 			panic(`middleware.CORSWithConfig: AllowCredentials: true is incompatible with AllowOrigins: ["*"] — ` +
 				`browsers reject credentialed responses with a wildcard origin (CORS spec §3.2 step 7). ` +
 				`Use CORSStrict(origins...) or CORSWithConfig with an explicit origin list instead.`)
+		}
+	}
+
+	// Log warning if wildcard is used
+	if cfg.LogWarnings {
+		for _, o := range cfg.AllowOrigins {
+			if o == "*" {
+				slog.Warn("CORS: Wildcard origin (*) detected. This allows ALL domains to access your API. " +
+					"Use CORSStrict() or CORSWithConfig with explicit origins for production.")
+			}
 		}
 	}
 
@@ -122,6 +149,9 @@ func CORSWithConfig(cfg CORSConfig) astra.HandlerFunc {
 			// return 403. Browsers will block cross-origin access automatically
 			// because the headers are absent. Returning 403 exposes the fact that
 			// a CORS policy exists and breaks non-browser clients unnecessarily.
+			if cfg.LogWarnings {
+				slog.Debug("CORS: Origin not allowed", "origin", origin)
+			}
 			return nil
 		}
 
@@ -181,8 +211,49 @@ func CORSStrict(allowedOrigins ...string) astra.HandlerFunc {
 	}
 	return CORSWithConfig(CORSConfig{
 		AllowOrigins: allowedOrigins,
-		AllowMethods: DefaultCORSConfig.AllowMethods,
-		AllowHeaders: DefaultCORSConfig.AllowHeaders,
-		MaxAge:       DefaultCORSConfig.MaxAge,
+		AllowMethods:  DefaultCORSConfig.AllowMethods,
+		AllowHeaders:  DefaultCORSConfig.AllowHeaders,
+		MaxAge:        DefaultCORSConfig.MaxAge,
+		LogWarnings:   DefaultCORSConfig.LogWarnings,
 	})
+}
+
+// CORSProduction is a helper function that returns a CORS middleware configured
+// for production use. It reads allowed origins from environment variable
+// CORS_ALLOWED_ORIGINS (comma-separated list).
+//
+// Example:
+//
+//	# .env or environment
+//	CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+//
+//	// main.go
+//	app.Use(middleware.CORSProduction())
+func CORSProduction() astra.HandlerFunc {
+	originsEnv := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if originsEnv == "" {
+		panic("middleware.CORSProduction: CORS_ALLOWED_ORIGINS environment variable is required in production")
+	}
+
+	origins := strings.Split(originsEnv, ",")
+	for i, o := range origins {
+		origins[i] = strings.TrimSpace(o)
+	}
+
+	// Validate origins
+	if len(origins) == 0 {
+		panic("middleware.CORSProduction: at least one allowed origin is required")
+	}
+	for _, o := range origins {
+		if o == "" {
+			panic("middleware.CORSProduction: empty origin in CORS_ALLOWED_ORIGINS")
+		}
+		if o == "*" {
+			panic(`middleware.CORSProduction: wildcard "*" is not allowed in production. Use explicit origins.`)
+		}
+	}
+
+	slog.Info("CORS: Production config loaded", "origins", origins)
+
+	return CORSStrict(origins...)
 }

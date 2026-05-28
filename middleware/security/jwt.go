@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -83,6 +84,12 @@ const DefaultJWTLeeway = 5 * time.Second
 //	})
 const StrictJWTLeeway = -1 * time.Nanosecond
 
+
+// MinJWTKeyLength is the minimum acceptable byte-length for HMAC-SHA JWT secrets.
+// HS256 produces 32-byte (256-bit) signatures; an equally strong key is required.
+// Shorter keys severely weaken the MAC and are trivially brute-forced.
+// Reject any HMACKey secret with len(secret) < MinJWTKeyLength.
+const MinJWTKeyLength = 32
 // ClaimsKey is the context key under which the JWT middleware stores the parsed
 // *Claims. Handlers retrieve claims via GetClaims(c) or c.Get(ClaimsKey).
 //
@@ -301,6 +308,9 @@ func GetClaims(c *astra.Ctx) *Claims {
 
 // HMACKey returns a KeyFunc for HMAC-SHA256 signed tokens (HS256).
 func HMACKey(secret string) func(*jwt.Token) (any, error) {
+	if len(secret) < MinJWTKeyLength {
+		panic(fmt.Sprintf("jwt middleware: HMAC key must be at least %d bytes (got %d); use a longer secret", MinJWTKeyLength, len(secret)))
+	}
 	key := []byte(secret)
 	return func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -308,6 +318,22 @@ func HMACKey(secret string) func(*jwt.Token) (any, error) {
 		}
 		return key, nil
 	}
+}
+
+// JWTFromEnv reads the JWT HMAC secret from the named environment variable.
+// It panics if the variable is unset or its value is shorter than MinJWTKeyLength.
+// Typical usage: middleware.JWTWithConfig(middleware.JWTConfig{
+//     Secret: middleware.JWTFromEnv("JWT_SECRET"),
+// })
+func JWTFromEnv(envVar string) SecretString {
+	v := os.Getenv(envVar)
+	if v == "" {
+		panic(fmt.Sprintf("jwt middleware: environment variable %s is not set", envVar))
+	}
+	if len(v) < MinJWTKeyLength {
+		panic(fmt.Sprintf("jwt middleware: %s value must be at least %d bytes (got %d)", envVar, MinJWTKeyLength, len(v)))
+	}
+	return NewSecretString(v)
 }
 
 // RSAPublicKey returns a KeyFunc for RSA-signed tokens (RS256 / RS384 / RS512).

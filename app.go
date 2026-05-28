@@ -2,6 +2,7 @@ package astra
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
 	"os"
 	"os/signal"
@@ -311,15 +312,41 @@ func newDefaultServer(addr string, handler http.Handler) *http.Server {
 	}
 }
 
+// newDefaultTLSConfig builds a tls.Config with secure defaults:
+//   - Minimum TLS version: 1.2 (rejects TLS 1.0 and 1.1)
+//   - Strong cipher suites (ECDHE+AES-GCM, ChaCha20)
+//   - Prefer server cipher suites (server decides the order)
+//
+// Callers that need TLS 1.3 exclusively or custom cipher suites can
+// modify the returned config before passing it to RunTLS or RunReactorTLS.
+func newDefaultTLSConfig() *tls.Config {
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		},
+		PreferServerCipherSuites: true,
+	}
+}
+
 // Run starts the HTTP server on the given address.
 // It also listens for OS signals (SIGINT, SIGTERM) for graceful shutdown.
 func (a *App) Run(addr string) error {
 	return a.RunServer(newDefaultServer(addr, a))
 }
 
-// RunTLS starts the HTTPS server.
+// RunTLS starts the HTTPS server with a secure TLS configuration.
+// The server enforces TLS 1.2 minimum and strong cipher suites.
+// For custom TLS settings, create an http.Server with your own tls.Config
+// and use RunServer instead.
 func (a *App) RunTLS(addr, certFile, keyFile string) error {
 	server := newDefaultServer(addr, a)
+	server.TLSConfig = newDefaultTLSConfig()
 	return a.runWithGracefulShutdown(server, func() error {
 		return server.ListenAndServeTLS(certFile, keyFile)
 	})

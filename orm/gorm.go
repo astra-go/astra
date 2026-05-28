@@ -39,6 +39,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -523,8 +524,36 @@ func (r *Repository[T]) Delete(ctx context.Context, id any) error {
 }
 
 // DeleteWhere removes all records matching the given condition.
+// query must be a map, struct, or GORM clause — raw SQL strings are rejected.
 // Use with caution: a bug in the query can delete unintended rows.
 func (r *Repository[T]) DeleteWhere(ctx context.Context, query any, args ...any) error {
+	if err := checkQueryType(query); err != nil {
+		return fmt.Errorf("orm: DeleteWhere: %w", err)
+	}
 	var entity T
 	return FromCtx(ctx, r.db).Where(query, args...).Delete(&entity).Error
+}
+
+// checkQueryType rejects raw SQL strings passed as query to prevent SQL injection.
+// Only map, struct, and GORM clause expressions are allowed.
+func checkQueryType(query any) error {
+	if query == nil {
+		return nil
+	}
+	v := reflect.ValueOf(query)
+	kind := v.Kind()
+	// Allow: map, struct, slice-of-struct (GORM scopes), clause.Clause, *gorm.DB
+	if kind == reflect.Map || kind == reflect.Struct || kind == reflect.Slice {
+		return nil
+	}
+	// Reject raw SQL strings explicitly.
+	if _, ok := query.(string); ok {
+		return fmt.Errorf("raw SQL string is not allowed; use map or struct for the query")
+	}
+	// Allow clause.Clause and *gorm.DB by checking the type name.
+	typeName := reflect.TypeOf(query).String()
+	if typeName == "clause.Clause" || typeName == "*gorm.DB" {
+		return nil
+	}
+	return fmt.Errorf("unsupported query type %T; use map or struct", query)
 }
