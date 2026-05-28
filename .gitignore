@@ -1,1 +1,7 @@
 .claude/*
+
+# pprof and benchmark artifacts
+*.prof
+trace.out
+.bench-baseline.txt
+.bench-current.txt
