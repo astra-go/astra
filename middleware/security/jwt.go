@@ -166,6 +166,20 @@ type JWTConfig struct {
 	// Recommended values: 512–2048. 0 (default) disables caching.
 	CacheSize int
 
+	// RevokeStore, when set, is checked on every request after signature
+	// verification. If the token's signature is present in the store the
+	// request is rejected with 401 Unauthorized, even if the token is
+	// otherwise cryptographically valid and not yet expired.
+	//
+	// Use NewMemoryRevokeStore for single-instance deployments. For
+	// multi-instance deployments implement TokenRevokeStore backed by a
+	// shared store (e.g. Redis) so that a revocation on one instance is
+	// immediately visible to all others.
+	//
+	// Revoke a token by calling store.Revoke(tokenSignature(raw), expireAt).
+	// The helper RevokeToken(store, rawToken) extracts the signature for you.
+	RevokeStore TokenRevokeStore
+
 	// Skipper skips JWT validation for matching requests.
 	// Overrides the deprecated SkipFunc field if both are set.
 	Skipper Skipper
@@ -255,12 +269,29 @@ func JWTWithConfig(cfg JWTConfig) astra.HandlerFunc {
 			sig := tokenSignature(raw)
 			now := time.Now().Unix()
 			if cached, ok := cache.get(sig, now); ok {
+				// Revocation check must happen even for cached tokens.
+				if cfg.RevokeStore != nil && cfg.RevokeStore.IsRevoked(sig) {
+					cache.delete(sig)
+					err := astra.NewHTTPError(http.StatusUnauthorized, "token has been revoked")
+					if cfg.ErrorHandler != nil {
+						return cfg.ErrorHandler(c, err)
+					}
+					return err
+				}
 				claims = cached
 			} else {
 				var err error
 				claims, err = parseTokenPooled(raw, parser, keyFunc)
 				if err != nil {
 					he := astra.NewHTTPError(http.StatusUnauthorized, err.Error()).WithInternal(err)
+					if cfg.ErrorHandler != nil {
+						return cfg.ErrorHandler(c, he)
+					}
+					return he
+				}
+				if cfg.RevokeStore != nil && cfg.RevokeStore.IsRevoked(sig) {
+					releaseClaims(claims)
+					he := astra.NewHTTPError(http.StatusUnauthorized, "token has been revoked")
 					if cfg.ErrorHandler != nil {
 						return cfg.ErrorHandler(c, he)
 					}
@@ -282,6 +313,17 @@ func JWTWithConfig(cfg JWTConfig) astra.HandlerFunc {
 					return cfg.ErrorHandler(c, he)
 				}
 				return he
+			}
+			if cfg.RevokeStore != nil {
+				sig := tokenSignature(raw)
+				if cfg.RevokeStore.IsRevoked(sig) {
+					releaseClaims(claims)
+					he := astra.NewHTTPError(http.StatusUnauthorized, "token has been revoked")
+					if cfg.ErrorHandler != nil {
+						return cfg.ErrorHandler(c, he)
+					}
+					return he
+				}
 			}
 			pooled = true
 		}
