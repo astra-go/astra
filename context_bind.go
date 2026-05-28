@@ -90,7 +90,8 @@ func (c *Ctx) BindJSON(obj any) error {
 }
 
 // BindXML decodes the XML request body into obj.
-// Limits the body to 1 MiB to prevent memory exhaustion attacks.
+// Limits the body to MaxXMLBodySize (default 1 MiB) to prevent
+// memory exhaustion attacks.
 // Uses a pooled *bytes.Buffer (xmlBufPool) to avoid per-request allocations,
 // symmetric with the pooling strategy in BindJSON.
 func (c *Ctx) BindXML(obj any) error {
@@ -98,7 +99,7 @@ func (c *Ctx) BindXML(obj any) error {
 		return NewHTTPError(http.StatusBadRequest, "empty request body")
 	}
 	lr := bindBodyLRPool.Get().(*io.LimitedReader)
-	lr.R, lr.N = c.req.Body, 1<<20
+	lr.R, lr.N = c.req.Body, c.app.options.MaxXMLBodySize
 
 	buf := xmlBufPool.Get().(*bytes.Buffer)
 	buf.Reset()

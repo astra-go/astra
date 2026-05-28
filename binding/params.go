@@ -135,6 +135,23 @@ func lookupTagKey(field reflect.StructField, tagName string) string {
 // filters, batch IDs) while bounding the per-request allocation to a few KB.
 const MaxSliceParams = 1000
 
+// maxStringLen is the default maximum byte length for a single string field
+// bound from query params, path params, headers, or form data.
+// Prevents oversized strings from reaching the database or application logic.
+// Override with SetMaxStringLen.
+var maxStringLen = 4096 // 4 KiB
+
+// SetMaxStringLen overrides the package-level string length limit applied
+// during query / path / header / form binding. Pass 0 to disable the limit.
+func SetMaxStringLen(n int) {
+	maxStringLen = n
+}
+
+// GetMaxStringLen returns the current string length limit.
+func GetMaxStringLen() int {
+	return maxStringLen
+}
+
 func setFieldValue(fv reflect.Value, ft reflect.Type, vals []string) error {
 	// Handle pointer-to-scalar types.
 	if ft.Kind() == reflect.Ptr {
@@ -153,6 +170,9 @@ func setFieldValue(fv reflect.Value, ft reflect.Type, vals []string) error {
 
 	switch ft.Kind() {
 	case reflect.String:
+		if maxStringLen > 0 && len(val) > maxStringLen {
+			return fmt.Errorf("value exceeds maximum allowed length (%d bytes)", maxStringLen)
+		}
 		fv.SetString(val)
 
 	case reflect.Bool:
@@ -202,6 +222,9 @@ func setSliceField(fv reflect.Value, ft reflect.Type, vals []string) error {
 		elem := slice.Index(i)
 		switch elemKind {
 		case reflect.String:
+			if maxStringLen > 0 && len(v) > maxStringLen {
+				return fmt.Errorf("value at index %d exceeds maximum allowed length (%d bytes)", i, maxStringLen)
+			}
 			elem.SetString(v)
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			n, err := strconv.ParseInt(v, 10, ft.Elem().Bits())
