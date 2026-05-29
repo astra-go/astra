@@ -83,3 +83,5 @@ replace github.com/astra-go/astra/stream v0.0.0-00010101000000-000000000000 => .
 replace github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 => ../../taskqueue
 
 replace github.com/astra-go/astra/rule v0.0.0-00010101000000-000000000000 => ../../rule
+
+replace github.com/astra-go/astra/examples/quic v0.0.0-00010101000000-000000000000 => ../quic
