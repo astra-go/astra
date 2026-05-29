@@ -83,7 +83,8 @@
       "Bash(go tool *)",
       "Bash(tee .bench-current.txt)",
       "Bash(git *)",
-      "Skill(html-dev)"
+      "Skill(html-dev)",
+      "Bash(go doc *)"
     ]
   }
 }
