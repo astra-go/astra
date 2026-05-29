@@ -3,6 +3,9 @@ package quic
 import (
 	"crypto/tls"
 	"time"
+
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // QUICOptions holds configuration for the HTTP/3 server.
@@ -33,6 +36,17 @@ type QUICOptions struct {
 	// AltSvcMaxAge is the max-age value (in seconds) for the Alt-Svc header.
 	// Default: 86400 (24 h).
 	AltSvcMaxAge int
+
+	// MetricsProvider enables QUIC-layer OTel metrics (active connections,
+	// handshake duration, 0-RTT hits, path migration events).
+	// When nil, QUIC-layer metrics are disabled.
+	// Use go.opentelemetry.io/otel.GetMeterProvider() to wire into the global
+	// provider set up by observability.Module or otel.Setup.
+	MetricsProvider metric.MeterProvider
+
+	// TracerProvider enables per-connection OTel spans for QUIC connections.
+	// When nil, QUIC-layer tracing is disabled.
+	TracerProvider trace.TracerProvider
 }
 
 // QUICOption is a functional option for QUICOptions.
@@ -68,6 +82,18 @@ func WithMaxIncomingStreams(n int64) QUICOption {
 // WithAltSvcMaxAge sets the Alt-Svc max-age in seconds.
 func WithAltSvcMaxAge(seconds int) QUICOption {
 	return func(o *QUICOptions) { o.AltSvcMaxAge = seconds }
+}
+
+// WithQUICMetricsProvider enables QUIC-layer OTel metrics using mp.
+// Pass otel.GetMeterProvider() to reuse the provider set up by observability.Module.
+func WithQUICMetricsProvider(mp metric.MeterProvider) QUICOption {
+	return func(o *QUICOptions) { o.MetricsProvider = mp }
+}
+
+// WithQUICTracerProvider enables per-connection OTel spans using tp.
+// Pass otel.GetTracerProvider() to reuse the provider set up by observability.Module.
+func WithQUICTracerProvider(tp trace.TracerProvider) QUICOption {
+	return func(o *QUICOptions) { o.TracerProvider = tp }
 }
 
 func defaultQUICOptions() *QUICOptions {

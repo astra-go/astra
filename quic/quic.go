@@ -64,15 +64,25 @@ func RunQUICWithOptions(app *astra.App, addr, certFile, keyFile string, opts ...
 
 	altSvcValue := fmt.Sprintf(`h3="%s"; ma=%d`, tlsAddr, o.AltSvcMaxAge)
 
+	quicCfg := &quic.Config{
+		Allow0RTT:          o.Allow0RTT,
+		MaxIdleTimeout:     o.MaxIdleTimeout,
+		MaxIncomingStreams: o.MaxIncomingStreams,
+	}
+
+	if o.MetricsProvider != nil {
+		qm, err := newQUICMetrics(o.MetricsProvider)
+		if err != nil {
+			return fmt.Errorf("astra/quic: metrics init: %w", err)
+		}
+		quicCfg.Tracer = qm.newTracerFactory()
+	}
+
 	h3srv := &http3.Server{
-		Addr:      addr,
-		Handler:   app,
-		TLSConfig: tlsCfg,
-		QUICConfig: &quic.Config{
-			Allow0RTT:          o.Allow0RTT,
-			MaxIdleTimeout:     o.MaxIdleTimeout,
-			MaxIncomingStreams: o.MaxIncomingStreams,
-		},
+		Addr:       addr,
+		Handler:    app,
+		TLSConfig:  tlsCfg,
+		QUICConfig: quicCfg,
 	}
 	tlsSrv := &http.Server{
 		Addr:         tlsAddr,
