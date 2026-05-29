@@ -24,7 +24,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.64.x
+          version: latest
           args: --new-from-rev=HEAD~1 --timeout=5m
 
   # ── 2. 安全漏洞扫描 ──────────────────────────────────────────────────────────
