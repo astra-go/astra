@@ -48,7 +48,7 @@ type connState struct {
 	// New connections dispatched directly (dispatchNewDirect) start as false;
 	// rearmConn calls poller.add on the first keep-alive rearm and poller.mod
 	// on all subsequent rearms.
-	registered bool
+	registered atomic.Uint32
 
 	// dispatchFn is a pre-bound method value for dispatch(), allocated once
 	// per connState pointer lifetime.  Reusing the same func() across
@@ -77,7 +77,7 @@ func acquireConnState(nc net.Conn, fd int, loop *eventLoop) *connState {
 	cs.nc = nc
 	cs.fd = fd
 	cs.loop = loop
-	cs.registered = false
+	cs.registered.Store(0)
 	cs.state.Store(stateIdle)
 	if cs.br == nil {
 		cs.br = bufio.NewReaderSize(nc, loop.engine.cfg.ReadBufferSize)
