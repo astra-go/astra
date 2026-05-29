@@ -2,15 +2,44 @@ package netengine
 
 import (
 	"sync"
+	"sync/atomic"
 )
+
+// paddedInt64 is an atomic.Int64 padded to a full 64-byte cache line.
+// Placing each counter on its own line eliminates false sharing when multiple
+// goroutines increment different counters concurrently.
+type paddedInt64 struct {
+	v atomic.Int64
+	_ [56]byte // pad to 64 bytes (cache line size on x86-64 and ARM64)
+}
+
+// PoolMetrics holds atomic counters for worker pool statistics.
+// Each counter is padded to its own cache line to prevent false sharing.
+type PoolMetrics struct {
+	Submitted     paddedInt64 // successfully submitted tasks
+	Rejected      paddedInt64 // tasks rejected by trySubmit (pool saturated)
+	Completed     paddedInt64 // tasks that finished execution
+	QueueLen      paddedInt64 // approximate number of tasks waiting in queue
+	ActiveWorkers paddedInt64 // workers currently executing a task
+}
+
+// PoolMetricsSnapshot is a point-in-time copy of PoolMetrics.
+type PoolMetricsSnapshot struct {
+	Submitted     int64
+	Rejected      int64
+	Completed     int64
+	QueueLen      int64
+	ActiveWorkers int64
+}
 
 // workerPool is a bounded pool of goroutines that execute tasks (HTTP request
 // handling).  When all workers are busy, submit blocks until one is free,
 // providing natural back-pressure without goroutine proliferation.
 type workerPool struct {
-	tasks chan func()
-	quit  chan struct{}
-	wg    sync.WaitGroup
+	tasks   chan func()
+	quit    chan struct{}
+	wg      sync.WaitGroup
+	metrics PoolMetrics
 }
 
 func newWorkerPool(size int) *workerPool {
@@ -28,7 +57,12 @@ func newWorkerPool(size int) *workerPool {
 					if !ok {
 						return
 					}
+					// Track active workers and queue length
+					p.metrics.ActiveWorkers.v.Add(1)
+					p.metrics.QueueLen.v.Add(-1)
 					task()
+					p.metrics.Completed.v.Add(1)
+					p.metrics.ActiveWorkers.v.Add(-1)
 				case <-p.quit:
 					return
 				}
@@ -43,6 +77,8 @@ func newWorkerPool(size int) *workerPool {
 func (p *workerPool) submit(task func()) {
 	select {
 	case p.tasks <- task:
+		p.metrics.Submitted.v.Add(1)
+		p.metrics.QueueLen.v.Add(1)
 	case <-p.quit:
 	}
 }
@@ -54,8 +90,11 @@ func (p *workerPool) submit(task func()) {
 func (p *workerPool) trySubmit(task func()) bool {
 	select {
 	case p.tasks <- task:
+		p.metrics.Submitted.v.Add(1)
+		p.metrics.QueueLen.v.Add(1)
 		return true
 	default:
+		p.metrics.Rejected.v.Add(1)
 		return false
 	}
 }
@@ -64,4 +103,15 @@ func (p *workerPool) trySubmit(task func()) bool {
 func (p *workerPool) stop() {
 	close(p.quit)
 	p.wg.Wait()
+}
+
+// Metrics returns a snapshot of the current pool metrics.
+func (p *workerPool) Metrics() PoolMetricsSnapshot {
+	return PoolMetricsSnapshot{
+		Submitted:     p.metrics.Submitted.v.Load(),
+		Rejected:      p.metrics.Rejected.v.Load(),
+		Completed:     p.metrics.Completed.v.Load(),
+		QueueLen:      p.metrics.QueueLen.v.Load(),
+		ActiveWorkers: p.metrics.ActiveWorkers.v.Load(),
+	}
 }

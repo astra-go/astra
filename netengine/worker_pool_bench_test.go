@@ -88,3 +88,67 @@ func BenchmarkWorkerPool_TrySubmit_Parallel(b *testing.B) {
 	b.StopTimer()
 	poolBenchSink = atomic.LoadInt64(&n)
 }
+
+// BenchmarkWorkerPool_Metrics_Snapshot measures the cost of taking a metrics
+// snapshot. This is on the read path for health-check endpoints.
+func BenchmarkWorkerPool_Metrics_Snapshot(b *testing.B) {
+	size := runtime.GOMAXPROCS(0) * 4
+	p := newWorkerPool(size)
+	defer p.stop()
+
+	// Pre-submit some tasks to make the snapshot non-trivial
+	var n int64
+	for i := 0; i < size*2; i++ {
+		p.submit(func() {
+			atomic.AddInt64(&n, 1)
+		})
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		snap := p.Metrics()
+		poolBenchSink = snap.Submitted + snap.Completed
+	}
+}
+
+// BenchmarkWorkerPool_Submit_WithMetrics measures submit throughput with
+// metrics enabled, to verify the atomic operations don't significantly
+// impact performance.
+func BenchmarkWorkerPool_Submit_WithMetrics(b *testing.B) {
+	size := runtime.GOMAXPROCS(0) * 4
+	p := newWorkerPool(size)
+	defer p.stop()
+
+	var n int64
+	task := func() { atomic.AddInt64(&n, 1) }
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		p.submit(task)
+	}
+	b.StopTimer()
+	poolBenchSink = atomic.LoadInt64(&n)
+}
+
+// BenchmarkWorkerPool_TrySubmit_WithMetrics measures trySubmit throughput with
+// metrics enabled.
+func BenchmarkWorkerPool_TrySubmit_WithMetrics(b *testing.B) {
+	size := runtime.GOMAXPROCS(0) * 4
+	p := newWorkerPool(size)
+	defer p.stop()
+
+	var n int64
+	task := func() { atomic.AddInt64(&n, 1) }
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for !p.trySubmit(task) {
+			runtime.Gosched()
+		}
+	}
+	b.StopTimer()
+	poolBenchSink = atomic.LoadInt64(&n)
+}

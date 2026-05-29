@@ -372,10 +372,17 @@ func methodOrderRank(method string) int {
 // visible in logs instead of silently discarded.
 func (r *Router) Add(method, path string, handlers HandlersChain) {
 	if path == "" {
-		panic("astra: path cannot be empty")
+		panic(fmt.Sprintf("astra: path cannot be empty (method=%q)", method))
+	}
+	// Detect paths that are pure whitespace (e.g. " ", "\t", "  /  ").
+	// After trimming the leading '/' the path becomes " " or "\t", which
+	// would panic in the next guard as path[0] != '/'.  We give a clear
+	// message here so the root cause is obvious.
+	if strings.TrimSpace(path) == "" {
+		panic(fmt.Sprintf("astra: path cannot be empty or whitespace (method=%q, path=%q)", method, path))
 	}
 	if path[0] != '/' {
-		panic("astra: path must start with '/'")
+		panic(fmt.Sprintf("astra: path must start with '/' (method=%q, path=%q)", method, path))
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -429,6 +436,12 @@ func insertNode(root *node, path string, handlers HandlersChain) (overwritten bo
 	}
 
 	for i, part := range parts {
+		// Defensive: skip any empty segment returned by splitPath.
+		// splitPath already filters empty strings, but this guard protects
+		// against malformed inputs that slip through in future code paths.
+		if part == "" {
+			panic(fmt.Sprintf("astra: splitPath returned empty segment for path %q", path))
+		}
 		isLast := i == len(parts)-1
 
 		if strings.HasPrefix(part, "*") {
@@ -682,6 +695,13 @@ func matchSegments(current *node, path string, pos int, params Params, maxParamV
 		nextPos = pos + end + 1    // skip the '/'
 	}
 	isLast := nextPos >= len(path)
+
+	// Defensive guard: an empty segment (e.g. double "//" in the path) would
+	// cause a panic below when we access part[0] for the childIndex dispatch.
+	// Return false so the request falls through to 404 instead of crashing.
+	if part == "" {
+		return nil, nil, "", false
+	}
 
 	// Catch-all consumes the current segment and everything after it.
 	// path[pos-1:] is a sub-slice of the original string — no alloc.
