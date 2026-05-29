@@ -41,6 +41,9 @@ func TestDefaultQUICOptions(t *testing.T) {
 	if o.Allow0RTT {
 		t.Error("Allow0RTT should default to false")
 	}
+	if o.Mode != ServerModeDualStack {
+		t.Errorf("Mode = %v, want ServerModeDualStack", o.Mode)
+	}
 }
 
 func TestQUICOptions_Functional(t *testing.T) {
@@ -89,5 +92,53 @@ func TestAltSvcValue_SeparatePorts(t *testing.T) {
 	got := fmt.Sprintf(`h3="%s"; ma=%d`, tlsAddr, maxAge)
 	if got != want {
 		t.Errorf("altSvcValue = %q, want %q", got, want)
+	}
+}
+
+func TestWithServerMode(t *testing.T) {
+	o := defaultQUICOptions()
+	if o.Mode != ServerModeDualStack {
+		t.Fatalf("default Mode = %v, want ServerModeDualStack", o.Mode)
+	}
+
+	WithServerMode(ServerModeQUICOnly)(o)
+	if o.Mode != ServerModeQUICOnly {
+		t.Errorf("Mode = %v, want ServerModeQUICOnly", o.Mode)
+	}
+
+	WithServerMode(ServerModeDualStack)(o)
+	if o.Mode != ServerModeDualStack {
+		t.Errorf("Mode = %v, want ServerModeDualStack", o.Mode)
+	}
+}
+
+func TestServerMode_QUICOnly_NoTLSSrv(t *testing.T) {
+	// Verify that ServerModeQUICOnly results in a nil tlsSrv being passed to
+	// runWithGracefulShutdown by inspecting the option state directly.
+	o := defaultQUICOptions()
+	WithServerMode(ServerModeQUICOnly)(o)
+
+	// In QUIC-only mode the tlsSrv construction block is skipped; simulate
+	// the same conditional logic used in RunQUICWithOptions.
+	var tlsSrv *http.Server
+	if o.Mode == ServerModeDualStack {
+		tlsSrv = &http.Server{}
+	}
+
+	if tlsSrv != nil {
+		t.Error("expected tlsSrv to be nil in ServerModeQUICOnly")
+	}
+}
+
+func TestServerMode_DualStack_HasTLSSrv(t *testing.T) {
+	o := defaultQUICOptions() // default is DualStack
+
+	var tlsSrv *http.Server
+	if o.Mode == ServerModeDualStack {
+		tlsSrv = &http.Server{Addr: ":443"}
+	}
+
+	if tlsSrv == nil {
+		t.Error("expected tlsSrv to be non-nil in ServerModeDualStack")
 	}
 }

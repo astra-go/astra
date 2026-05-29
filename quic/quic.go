@@ -41,6 +41,11 @@ func RunQUIC(app *astra.App, addr, certFile, keyFile string) error {
 // configuration control. RunQUIC is a zero-option convenience wrapper around
 // this function.
 //
+// By default (ServerModeDualStack) both an HTTP/3 server and a companion TLS
+// server are started; the TLS server injects Alt-Svc headers so HTTP/1.1
+// clients upgrade automatically. Pass WithServerMode(ServerModeQUICOnly) to
+// skip the TLS companion server for intranet or forced-HTTP/3 deployments.
+//
 //	astraquic.RunQUICWithOptions(app, ":443", "cert.pem", "key.pem",
 //	    astraquic.WithAllow0RTT(true),
 //	    astraquic.WithMaxIdleTimeout(60*time.Second),
@@ -52,17 +57,10 @@ func RunQUICWithOptions(app *astra.App, addr, certFile, keyFile string, opts ...
 		opt(o)
 	}
 
-	tlsAddr := o.TLSAddr
-	if tlsAddr == "" {
-		tlsAddr = addr
-	}
-
 	tlsCfg := o.TLSConfig
 	if tlsCfg == nil {
 		tlsCfg = defaultTLSConfig()
 	}
-
-	altSvcValue := fmt.Sprintf(`h3="%s"; ma=%d`, tlsAddr, o.AltSvcMaxAge)
 
 	quicCfg := &quic.Config{
 		Allow0RTT:          o.Allow0RTT,
@@ -84,13 +82,22 @@ func RunQUICWithOptions(app *astra.App, addr, certFile, keyFile string, opts ...
 		TLSConfig:  tlsCfg,
 		QUICConfig: quicCfg,
 	}
-	tlsSrv := &http.Server{
-		Addr:         tlsAddr,
-		Handler:      altSvcHandler(app, altSvcValue),
-		TLSConfig:    tlsCfg.Clone(),
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
+
+	var tlsSrv *http.Server
+	if o.Mode == ServerModeDualStack {
+		tlsAddr := o.TLSAddr
+		if tlsAddr == "" {
+			tlsAddr = addr
+		}
+		altSvcValue := fmt.Sprintf(`h3="%s"; ma=%d`, tlsAddr, o.AltSvcMaxAge)
+		tlsSrv = &http.Server{
+			Addr:         tlsAddr,
+			Handler:      altSvcHandler(app, altSvcValue),
+			TLSConfig:    tlsCfg.Clone(),
+			ReadTimeout:  30 * time.Second,
+			WriteTimeout: 60 * time.Second,
+			IdleTimeout:  120 * time.Second,
+		}
 	}
 
 	return runWithGracefulShutdown(app, h3srv, tlsSrv, certFile, keyFile)
@@ -99,7 +106,7 @@ func RunQUICWithOptions(app *astra.App, addr, certFile, keyFile string, opts ...
 func runWithGracefulShutdown(
 	app *astra.App,
 	h3srv *http3.Server,
-	tlsSrv *http.Server,
+	tlsSrv *http.Server, // nil when Mode == ServerModeQUICOnly
 	certFile, keyFile string,
 ) error {
 	if err := app.Start(context.Background()); err != nil {
@@ -118,13 +125,15 @@ func runWithGracefulShutdown(
 		}
 	}()
 
-	go func() {
-		slog.Info("astra/quic: TLS server starting (Alt-Svc)", "addr", tlsSrv.Addr)
-		if err := tlsSrv.ListenAndServeTLS(certFile, keyFile); err != nil &&
-			err != http.ErrServerClosed {
-			errCh <- fmt.Errorf("tls: %w", err)
-		}
-	}()
+	if tlsSrv != nil {
+		go func() {
+			slog.Info("astra/quic: TLS server starting (Alt-Svc)", "addr", tlsSrv.Addr)
+			if err := tlsSrv.ListenAndServeTLS(certFile, keyFile); err != nil &&
+				err != http.ErrServerClosed {
+				errCh <- fmt.Errorf("tls: %w", err)
+			}
+		}()
+	}
 
 	var startErr error
 	select {
@@ -143,7 +152,9 @@ func runWithGracefulShutdown(
 
 	_ = app.Stop(shutCtx)
 	_ = h3srv.Shutdown(shutCtx)
-	_ = tlsSrv.Shutdown(shutCtx)
+	if tlsSrv != nil {
+		_ = tlsSrv.Shutdown(shutCtx)
+	}
 
 	return startErr
 }

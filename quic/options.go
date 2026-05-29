@@ -8,6 +8,19 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// ServerMode controls which servers are started by RunQUICWithOptions.
+type ServerMode int
+
+const (
+	// ServerModeDualStack starts both the HTTP/3 server and a companion TLS
+	// server that advertises HTTP/3 via Alt-Svc. This is the default.
+	ServerModeDualStack ServerMode = iota
+	// ServerModeQUICOnly starts only the HTTP/3 server. No TLS companion
+	// server is started. Clients must already know to use HTTP/3 (e.g. via
+	// DNS HTTPS records or explicit client configuration).
+	ServerModeQUICOnly
+)
+
 // QUICOptions holds configuration for the HTTP/3 server.
 type QUICOptions struct {
 	// TLSAddr is the address for the companion TLS/HTTP1.1 server that
@@ -36,6 +49,10 @@ type QUICOptions struct {
 	// AltSvcMaxAge is the max-age value (in seconds) for the Alt-Svc header.
 	// Default: 86400 (24 h).
 	AltSvcMaxAge int
+
+	// Mode controls whether a companion TLS server is started alongside HTTP/3.
+	// Default: ServerModeDualStack.
+	Mode ServerMode
 
 	// MetricsProvider enables QUIC-layer OTel metrics (active connections,
 	// handshake duration, 0-RTT hits, path migration events).
@@ -82,6 +99,14 @@ func WithMaxIncomingStreams(n int64) QUICOption {
 // WithAltSvcMaxAge sets the Alt-Svc max-age in seconds.
 func WithAltSvcMaxAge(seconds int) QUICOption {
 	return func(o *QUICOptions) { o.AltSvcMaxAge = seconds }
+}
+
+// WithServerMode sets the server startup mode.
+// Use ServerModeQUICOnly for intranet or forced-HTTP/3 deployments where
+// the TLS companion server is unnecessary or undesirable. In this mode no
+// Alt-Svc header is injected; clients must already know to use HTTP/3.
+func WithServerMode(m ServerMode) QUICOption {
+	return func(o *QUICOptions) { o.Mode = m }
 }
 
 // WithQUICMetricsProvider enables QUIC-layer OTel metrics using mp.
