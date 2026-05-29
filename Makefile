@@ -175,6 +175,24 @@ bench-publish-local: ## Generate HTML comparison report locally → site/benchma
 	  bench-vs-local.txt site/benchmarks/index.html
 	@echo "Report written to site/benchmarks/index.html"
 
+# ─── Code quality ─────────────────────────────────────────────────────────────
+
+.PHONY: lint
+lint: ## Run golangci-lint on core module (new issues only)
+	golangci-lint run --new-from-rev=HEAD~1 --timeout=5m ./...
+
+.PHONY: lint-all
+lint-all: ## Run golangci-lint on core module (all issues)
+	golangci-lint run --timeout=5m ./...
+
+.PHONY: lint-fix
+lint-fix: ## Run golangci-lint with auto-fix
+	golangci-lint run --fix --timeout=5m ./...
+
+.PHONY: vuln
+vuln: ## Run govulncheck on core module
+	govulncheck ./...
+
 # ─── Help ─────────────────────────────────────────────────────────────────────
 
 .PHONY: help

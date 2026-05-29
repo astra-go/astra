@@ -32,6 +32,7 @@ use (
 	./examples/crud
 	./examples/jwt
 	./examples/orm
+	./examples/quic
 	./examples/quickstart
 	./examples/techempower
 	./examples/websocket

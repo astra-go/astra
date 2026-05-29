@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. 静态分析 ──────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.x
+          args: --new-from-rev=HEAD~1 --timeout=5m
+
+  # ── 2. 安全漏洞扫描 ──────────────────────────────────────────────────────────
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  # ── 3. API 兼容性检查 ─────────────────────────────────────────────────────────
+  api-compat:
+    name: API Compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check API breaking changes
+        run: bash scripts/apicheck.sh --check
+
+  # ── 4. 计算受影响模块（供 test job 使用）────────────────────────────────────
+  affected:
+    name: Affected Modules
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.calc.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch main branch
+        run: git fetch origin main --depth=50 || true
+      - id: calc
+        name: Calculate affected modules
+        run: |
+          # 将 affected-modules.sh 输出转为 JSON 数组供 matrix 使用
+          MODS=$(bash scripts/affected-modules.sh origin/main 2>/dev/null || echo ".")
+          # 过滤掉 examples/ 和 benchmarks/（无需 CI 测试）
+          FILTERED=$(echo "$MODS" | grep -v '^examples/' | grep -v '^benchmarks' || echo ".")
+          JSON=$(echo "$FILTERED" | jq -R . | jq -sc .)
+          echo "matrix={\"module\":$JSON}" >> "$GITHUB_OUTPUT"
+
+  # ── 5. 测试（仅受影响模块）──────────────────────────────────────────────────
+  test:
+    name: Test (${{ matrix.module }})
+    needs: affected
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.affected.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test with race detector
+        run: |
+          dir="${{ matrix.module }}"
+          [ "$dir" = "." ] && dir="."
+          cd "$dir" && go test -race -coverprofile=coverage.out ./...
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ${{ matrix.module == '.' && 'coverage.out' || format('{0}/coverage.out', matrix.module) }}
+          flags: ${{ matrix.module == '.' && 'core' || matrix.module }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  # ── 6. go mod tidy 检查 ──────────────────────────────────────────────────────
+  tidy:
+    name: go mod tidy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check go mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum || {
+            echo "go mod tidy produced changes — please run 'go mod tidy' and commit the result"
+            exit 1
+          }
+
+  # ── 7. replace 指令同步检查 ──────────────────────────────────────────────────
+  replaces:
+    name: Replace Directives
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check intra-workspace replace directives
+        run: bash scripts/check-intra-replaces.sh
+
+  # ── 8. Go 版本一致性检查 ─────────────────────────────────────────────────────
+  go-versions:
+    name: Go Version Consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check Go versions across modules
+        run: go run magefiles/goversions.go 2>/dev/null || go run -tags mage magefiles/*.go checkGoVersions

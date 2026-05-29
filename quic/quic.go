@@ -22,6 +22,7 @@ import (
 	"time"
 
 	astra "github.com/astra-go/astra"
+	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 )
 
@@ -31,23 +32,72 @@ import (
 //
 // addr, certFile, and keyFile have the same semantics as app.RunTLS.
 //
-// Both servers share the same handler (app) and the same graceful shutdown
-// lifecycle. On SIGINT / SIGTERM, both servers shut down gracefully.
-//
 //	astraquic.RunQUIC(app, ":443", "cert.pem", "key.pem")
 func RunQUIC(app *astra.App, addr, certFile, keyFile string) error {
-	altSvcValue := fmt.Sprintf(`h3="%s"; ma=86400`, addr)
+	return RunQUICWithOptions(app, addr, certFile, keyFile)
+}
+
+// RunQUICWithOptions starts HTTP/3 and companion TLS servers with full
+// configuration control. RunQUIC is a zero-option convenience wrapper around
+// this function.
+//
+// By default (ServerModeDualStack) both an HTTP/3 server and a companion TLS
+// server are started; the TLS server injects Alt-Svc headers so HTTP/1.1
+// clients upgrade automatically. Pass WithServerMode(ServerModeQUICOnly) to
+// skip the TLS companion server for intranet or forced-HTTP/3 deployments.
+//
+//	astraquic.RunQUICWithOptions(app, ":443", "cert.pem", "key.pem",
+//	    astraquic.WithAllow0RTT(true),
+//	    astraquic.WithMaxIdleTimeout(60*time.Second),
+//	    astraquic.WithTLSAddr(":8443"),
+//	)
+func RunQUICWithOptions(app *astra.App, addr, certFile, keyFile string, opts ...QUICOption) error {
+	o := defaultQUICOptions()
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	tlsCfg := o.TLSConfig
+	if tlsCfg == nil {
+		tlsCfg = defaultTLSConfig()
+	}
+
+	quicCfg := &quic.Config{
+		Allow0RTT:          o.Allow0RTT,
+		MaxIdleTimeout:     o.MaxIdleTimeout,
+		MaxIncomingStreams: o.MaxIncomingStreams,
+	}
+
+	if o.MetricsProvider != nil {
+		qm, err := newQUICMetrics(o.MetricsProvider)
+		if err != nil {
+			return fmt.Errorf("astra/quic: metrics init: %w", err)
+		}
+		quicCfg.Tracer = qm.newTracerFactory()
+	}
 
 	h3srv := &http3.Server{
-		Addr:    addr,
-		Handler: app,
+		Addr:       addr,
+		Handler:    app,
+		TLSConfig:  tlsCfg,
+		QUICConfig: quicCfg,
 	}
-	tlsSrv := &http.Server{
-		Addr:         addr,
-		Handler:      altSvcHandler(app, altSvcValue),
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
+
+	var tlsSrv *http.Server
+	if o.Mode == ServerModeDualStack {
+		tlsAddr := o.TLSAddr
+		if tlsAddr == "" {
+			tlsAddr = addr
+		}
+		altSvcValue := fmt.Sprintf(`h3="%s"; ma=%d`, tlsAddr, o.AltSvcMaxAge)
+		tlsSrv = &http.Server{
+			Addr:         tlsAddr,
+			Handler:      altSvcHandler(app, altSvcValue),
+			TLSConfig:    tlsCfg.Clone(),
+			ReadTimeout:  30 * time.Second,
+			WriteTimeout: 60 * time.Second,
+			IdleTimeout:  120 * time.Second,
+		}
 	}
 
 	return runWithGracefulShutdown(app, h3srv, tlsSrv, certFile, keyFile)
@@ -56,7 +106,7 @@ func RunQUIC(app *astra.App, addr, certFile, keyFile string) error {
 func runWithGracefulShutdown(
 	app *astra.App,
 	h3srv *http3.Server,
-	tlsSrv *http.Server,
+	tlsSrv *http.Server, // nil when Mode == ServerModeQUICOnly
 	certFile, keyFile string,
 ) error {
 	if err := app.Start(context.Background()); err != nil {
@@ -75,21 +125,23 @@ func runWithGracefulShutdown(
 		}
 	}()
 
-	go func() {
-		slog.Info("astra/quic: TLS server starting (Alt-Svc)", "addr", tlsSrv.Addr)
-		if err := tlsSrv.ListenAndServeTLS(certFile, keyFile); err != nil &&
-			err != http.ErrServerClosed {
-			errCh <- fmt.Errorf("tls: %w", err)
-		}
-	}()
-
-	select {
-	case err := <-errCh:
-		signal.Stop(quit)
-		return err
-	case <-quit:
+	if tlsSrv != nil {
+		go func() {
+			slog.Info("astra/quic: TLS server starting (Alt-Svc)", "addr", tlsSrv.Addr)
+			if err := tlsSrv.ListenAndServeTLS(certFile, keyFile); err != nil &&
+				err != http.ErrServerClosed {
+				errCh <- fmt.Errorf("tls: %w", err)
+			}
+		}()
 	}
-	signal.Stop(quit)
+
+	var startErr error
+	select {
+	case startErr = <-errCh:
+		signal.Stop(quit)
+	case <-quit:
+		signal.Stop(quit)
+	}
 
 	timeout := time.Duration(app.ShutdownTimeout()) * time.Second
 	if timeout == 0 {
@@ -100,8 +152,11 @@ func runWithGracefulShutdown(
 
 	_ = app.Stop(shutCtx)
 	_ = h3srv.Shutdown(shutCtx)
-	_ = tlsSrv.Shutdown(shutCtx)
-	return nil
+	if tlsSrv != nil {
+		_ = tlsSrv.Shutdown(shutCtx)
+	}
+
+	return startErr
 }
 
 func altSvcHandler(next http.Handler, value string) http.Handler {
