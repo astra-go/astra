@@ -157,11 +157,15 @@ func BenchmarkRouter_Regex_FastPath_Parallel(b *testing.B) {
 // BenchmarkRouter_Regex_Custom_Parallel exercises a pattern NOT in
 // wellKnownMatchers, so it falls back to the regexp engine.  Compare with
 // BenchmarkRouter_Regex_FastPath_Parallel to quantify the fast-path gain.
+//
+// NOTE: After the compileFastMatcher enhancement, [0-9]{1,10} now also gets
+// a fast path.  See BenchmarkRouter_Regex_Hex_FastPath_Parallel for a
+// pattern that genuinely cannot be compiled.
 func BenchmarkRouter_Regex_Custom_Parallel(b *testing.B) {
 	app := astra.New()
-	// A non-trivial pattern with a quantifier range — not in wellKnownMatchers.
-	app.GET("/items/{id:[0-9]{1,10}}", nopHandler)
-	req := httptest.NewRequest(http.MethodGet, "/items/42", nil)
+	// A pattern with alternation — cannot be compiled by fastMatcher.
+	app.GET("/items/{id:(?:abc|def)[0-9]+}", nopHandler)
+	req := httptest.NewRequest(http.MethodGet, "/items/abc42", nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -592,6 +596,53 @@ func BenchmarkRouter_DeepParam_12_Sealed(b *testing.B) {
 		app.ServeHTTP(w, req)
 		benchSink = w.Code
 	}
+}
+
+// ─── 405 MethodNotAllowed benchmarks ─────────────────────────────────────────
+//
+// These benchmarks measure the cost of a 405 MethodNotAllowed response, which
+// requires traversing all registered method trees to build the Allow header
+// (RFC 9110 §15.5.6).  The slow path is acceptable because 405 requests are
+// rare and erroneous; the primary goal is correctness, not throughput.
+
+// BenchmarkRouter_Regex_Hex_FastPath_Parallel measures end-to-end throughput
+// for a hex pattern ([0-9a-f]+) that is NOT in the hand-maintained wellKnownMatchers
+// table but IS automatically compiled by compileFastMatcher.  This validates
+// that the compiler's closure-based matcher closes the performance gap.
+func BenchmarkRouter_Regex_Hex_FastPath_Parallel(b *testing.B) {
+	app := astra.New()
+	app.GET("/hex/{hash:[0-9a-f]+}", nopHandler)
+	req := httptest.NewRequest(http.MethodGet, "/hex/deadbeef", nil)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			w := httptest.NewRecorder()
+			app.ServeHTTP(w, req)
+			benchSink = w.Code
+		}
+	})
+}
+
+// BenchmarkRouter_Regex_Bounded_FastPath_Parallel measures end-to-end throughput
+// for a bounded-quantifier pattern ([0-9]{1,10}) that was previously NOT in
+// wellKnownMatchers and would fall back to the regexp engine.  After the
+// compileFastMatcher enhancement, this pattern now gets a fast path.
+func BenchmarkRouter_Regex_Bounded_FastPath_Parallel(b *testing.B) {
+	app := astra.New()
+	app.GET("/items/{id:[0-9]{1,10}}", nopHandler)
+	req := httptest.NewRequest(http.MethodGet, "/items/42", nil)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			w := httptest.NewRecorder()
+			app.ServeHTTP(w, req)
+			benchSink = w.Code
+		}
+	})
 }
 
 // ─── 405 MethodNotAllowed benchmarks ─────────────────────────────────────────
