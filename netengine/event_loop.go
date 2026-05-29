@@ -164,23 +164,23 @@ func (e *eventLoop) handleEvent(ev pollEvent) {
 // Called by worker pool goroutines after a successful response (state = dispatched).
 //
 // Ownership hand-back protocol:
-//  1. Mark stateIdle BEFORE calling poller.add/mod.
+//  1. Keep state = stateDispatched during the entire poller operation.
 //     For registered connections EPOLLONESHOT / EV_DISPATCH guarantees the fd is
 //     still disabled — no new event can fire until mod() is called.
 //     For unregistered (first keep-alive rearm) the fd is not yet in the poller,
-//     so no event can fire before add() returns.  In both cases marking idle first
-//     is safe; reversing the order would create a window where the event loop
-//     receives an event for a connection still marked dispatched.
+//     so no event can fire before add() returns.
 //  2. Call poller.add (first rearm) or poller.mod (subsequent rearms).
-//     If add/mod fails (engine shutting down), transition to closed and clean up.
+//     If add/mod fails (engine shutting down), transition directly from
+//     dispatched to closed and clean up.
+//  3. Only after the poller operation succeeds, mark stateIdle to hand ownership
+//     back to the event loop. This ensures the event loop cannot interfere with
+//     the connState while the worker is still operating on it.
 func (e *eventLoop) rearmConn(cs *connState) {
-	cs.state.Store(stateIdle)
-
 	var err error
-	if !cs.registered {
+	if cs.registered.Load() == 0 {
 		err = e.poller.add(cs.fd)
 		if err == nil {
-			cs.registered = true
+			cs.registered.Store(1)
 		}
 	} else {
 		err = e.poller.mod(cs.fd)
@@ -188,13 +188,18 @@ func (e *eventLoop) rearmConn(cs *connState) {
 
 	if err != nil {
 		// Poller is closed (engine shutdown) or the fd is invalid.
-		if cs.state.CompareAndSwap(stateIdle, stateClosed) {
+		// Transition directly from dispatched to closed.
+		if cs.state.CompareAndSwap(stateDispatched, stateClosed) {
 			e.conns.Delete(cs.fd)
 			cs.nc.Close()
 			atomic.AddInt64(&e.engine.activeConns, -1)
 			releaseConnState(cs)
 		}
+		return
 	}
+
+	// Poller operation succeeded. Now it's safe to mark idle.
+	cs.state.Store(stateIdle)
 }
 
 // closeConn closes a connection that is currently idle (event-loop owned).
@@ -205,7 +210,7 @@ func (e *eventLoop) closeConn(cs *connState) {
 		return // dispatched (worker will close) or already closed
 	}
 	e.conns.Delete(cs.fd)
-	if cs.registered {
+	if cs.registered.Load() == 1 {
 		e.poller.del(cs.fd) //nolint:errcheck
 	}
 	cs.nc.Close()
@@ -221,7 +226,7 @@ func (e *eventLoop) workerCloseConn(cs *connState) {
 		return // already closed (race with engine shutdown)
 	}
 	e.conns.Delete(cs.fd)
-	if cs.registered {
+	if cs.registered.Load() == 1 {
 		e.poller.del(cs.fd) //nolint:errcheck
 	}
 	cs.nc.Close()
@@ -268,7 +273,7 @@ func (e *eventLoop) close() {
 	e.conns.Range(func(_, val any) bool {
 		cs := val.(*connState)
 		if cs.state.CompareAndSwap(stateIdle, stateClosed) {
-			if cs.registered {
+			if cs.registered.Load() == 1 {
 				e.poller.del(cs.fd) //nolint:errcheck
 			}
 			cs.nc.Close()
