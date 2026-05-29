@@ -88,6 +88,8 @@ var wellKnownMatchers = map[string]fastMatcher{
 	`[a-zA-Z0-9_-]+`:  fastSlug,
 	`[a-zA-Z0-9_]+`:   fastIdentifier,
 	`\w+`:             fastIdentifier,
+	`[0-9a-f]+`:       fastHexLower,
+	`[0-9a-fA-F]+`:    fastHex,
 }
 
 func fastDigits(s string) bool {
@@ -477,7 +479,7 @@ func insertNode(root *node, path string, handlers HandlersChain) (overwritten bo
 					nType:     regexNode,
 					paramKey:  key,
 					regex:     re,
-					fastMatch: wellKnownMatchers[pattern],
+					fastMatch: compileFastMatcher(pattern),
 				}
 				current.regexChildren = append(current.regexChildren, child)
 			}
