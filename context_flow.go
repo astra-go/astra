@@ -16,10 +16,14 @@ const abortIndex int16 = math.MaxInt16
 
 // Next executes the next handler in the chain.
 // It is safe to call on an already-aborted context — the call is a no-op.
-func (c *Ctx) Next() {
+// Returns the first non-nil error returned by a handler, or nil if all
+// handlers completed without error.  The error is also passed to
+// ErrorHandler so the framework always records the error even if the
+// caller does not check the return value.
+func (c *Ctx) Next() (err error) {
 	c.index++
 	for c.index < int16(len(c.handlers)) {
-		err := c.handlers[c.index](c)
+		err = c.handlers[c.index](c)
 		if err != nil {
 			c.app.options.ErrorHandler(c, err)
 			return
@@ -32,6 +36,7 @@ func (c *Ctx) Next() {
 		}
 		c.index++
 	}
+	return nil
 }
 
 // Abort prevents remaining handlers from being called.

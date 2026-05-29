@@ -212,6 +212,16 @@ func (e *Engine) NumLoops() int { return len(e.loops) }
 // WorkerPoolSize returns the configured worker pool size.
 func (e *Engine) WorkerPoolSize() int { return e.cfg.WorkerPoolSize }
 
+// PoolSnapshot returns a point-in-time snapshot of the worker pool metrics.
+// If the engine was created without a worker pool (fallback mode), it returns
+// a zero-valued snapshot.
+func (e *Engine) PoolSnapshot() PoolMetricsSnapshot {
+	if e.workers != nil {
+		return e.workers.Metrics()
+	}
+	return PoolMetricsSnapshot{}
+}
+
 // quitCh returns a channel that is never closed (placeholder for future
 // graceful-shutdown integration via context).
 func (e *Engine) quitCh() <-chan struct{} {

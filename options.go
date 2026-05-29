@@ -53,6 +53,13 @@ type Options struct {
 	// Set via WithStrictConflict for non-test environments.
 	StrictConflict bool
 
+	// EnableRecovery controls whether the Recovery middleware is automatically
+	// registered at startup. When true (the default), any panic in a handler is
+	// recovered and turned into a 500 response instead of crashing the server.
+	// Set to false and call app.Use(middleware.Recovery()) manually if you need
+	// to control the exact placement of the Recovery middleware in the chain.
+	EnableRecovery bool
+
 	// customRouter, when non-nil, is used instead of newRouter(app).
 	// Set via WithRouter. Unexported: callers interact only through the option.
 	customRouter HttpRouter
@@ -112,9 +119,23 @@ func WithMode(m Mode) Option {
 }
 
 // WithSerializer replaces the default encoding/json serializer.
+// Use faster alternatives for high-throughput APIs:
+//
+// Sonic (recommended for x86_64/arm64):
+//
+//	import "github.com/astra-go/astra"
+//	app := astra.New(astra.WithSerializer(astra.SonicStd))  // safe, HTML-escaped
+//	app := astra.New(astra.WithSerializer(astra.SonicFast)) // fastest, no HTML escape
+//
+// Or use sonic directly:
 //
 //	import "github.com/bytedance/sonic"
 //	app := astra.New(astra.WithSerializer(sonic.ConfigStd))
+//
+// jsoniter (alternative):
+//
+//	import jsoniter "github.com/json-iterator/go"
+//	app := astra.New(astra.WithSerializer(jsoniter.ConfigFastest))
 func WithSerializer(s Serializer) Option {
 	return func(o *Options) { o.Serializer = s }
 }
@@ -240,6 +261,8 @@ func defaultOptions() *Options {
 		NotFoundHandler:         defaultNotFoundHandler,
 		MethodNotAllowedHandler: defaultMethodNotAllowedHandler,
 		Binder:                  binding.Default,
+		// EnableRecovery: true by default — see WithRecovery for details.
+		EnableRecovery: true,
 	}
 }
 
@@ -251,7 +274,7 @@ func slimDefaultOptions() *Options {
 	return &Options{
 		MaxMultipartMemory:      32 << 20,
 		MaxJSONBodySize:         1 << 20, // 1 MiB
-		MaxXMLBodySize:          1 << 20,  // 1 MiB
+		MaxXMLBodySize:          1 << 20, // 1 MiB
 		ShutdownTimeout:         10,
 		Mode:                    ModeDev,
 		ErrorHandler:            defaultErrorHandler,
@@ -259,4 +282,21 @@ func slimDefaultOptions() *Options {
 		MethodNotAllowedHandler: defaultMethodNotAllowedHandler,
 		// Binder: nil — binding/validation subsystem is disabled in slim mode.
 	}
+}
+
+// WithRecovery controls whether the built-in Recovery middleware is
+// automatically registered when calling New() or NewSlim().
+//
+// The default is true — panics in handlers return a 500 response instead
+// of crashing the process. Set to false when you want to use the advanced
+// middleware.Recovery() from the middleware sub-package, or when you prefer
+// no recovery at all.
+//
+//	// Disable built-in recovery and use the middleware package instead:
+//	app := astra.New(
+//	    astra.WithRecovery(false),
+//	)
+//	app.Use(middleware.Recovery())
+func WithRecovery(enabled bool) Option {
+	return func(o *Options) { o.EnableRecovery = enabled }
 }

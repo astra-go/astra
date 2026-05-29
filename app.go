@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+
 )
 
 // App is the core of the Astra framework.
@@ -94,6 +96,15 @@ func New(opts ...Option) *App {
 		return app.allocateContext()
 	}
 
+	// Auto-register the built-in Recovery middleware when EnableRecovery
+	// is true (the default). This ensures that a panic in any handler
+	// returns a 500 response instead of crashing the server process.
+	// Users who need advanced recovery features (alerts, custom handlers)
+	// can set WithRecovery(false) and use middleware.Recovery() directly.
+	if options.EnableRecovery {
+		app.middleware = append(app.middleware, builtinRecovery())
+	}
+
 	return app
 }
 
@@ -130,6 +141,12 @@ func NewSlim(opts ...Option) *App {
 
 	app.pool.New = func() any {
 		return app.allocateContext()
+	}
+
+	// Auto-register built-in Recovery in slim mode too.
+	// Serverless functions should not crash the process on a panic.
+	if options.EnableRecovery {
+		app.middleware = append(app.middleware, builtinRecovery())
 	}
 
 	return app
