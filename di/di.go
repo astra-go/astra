@@ -90,6 +90,14 @@ var ErrDuplicate = errors.New("di: provider already registered")
 // can use errors.Is(recover().(error), di.ErrCyclicDependency).
 var ErrCyclicDependency = errors.New("di: circular dependency detected")
 
+// ErrMaxDepthExceeded is the panic value when the resolution depth exceeds
+// the configured maximum (default 32).
+var ErrMaxDepthExceeded = errors.New("di: maximum resolution depth exceeded")
+
+// ErrMaxDepthExceeded is the panic value when the resolution depth exceeds
+// the configured maximum (default 32).
+var ErrMaxDepthExceeded = errors.New("di: maximum resolution depth exceeded")
+
 // ─── cycle-detection helpers ─────────────────────────────────────────────────
 
 // resolvingStack is the per-goroutine ordered list of type keys currently
@@ -137,6 +145,40 @@ func cyclePath(stack resolvingStack, repeated typeKey) string {
 	return sb.String()
 }
 
+// depthPath builds a human-readable dependency chain for depth-exceeded errors,
+// e.g. "*ServiceA → *ServiceB → *ServiceC → *ServiceD".
+func depthPath(stack resolvingStack, current typeKey) string {
+	var sb strings.Builder
+	for i, k := range stack {
+		sb.WriteString(k.String())
+		if i < len(stack)-1 {
+			sb.WriteString(" → ")
+		}
+	}
+	if len(stack) > 0 {
+		sb.WriteString(" → ")
+	}
+	sb.WriteString(current.String())
+	return sb.String()
+}
+
+// depthPath builds a human-readable dependency chain for depth-exceeded errors,
+// e.g. "*ServiceA → *ServiceB → *ServiceC → *ServiceD".
+func depthPath(stack resolvingStack, current typeKey) string {
+	var sb strings.Builder
+	for i, k := range stack {
+		sb.WriteString(k.String())
+		if i < len(stack)-1 {
+			sb.WriteString(" → ")
+		}
+	}
+	if len(stack) > 0 {
+		sb.WriteString(" → ")
+	}
+	sb.WriteString(current.String())
+	return sb.String()
+}
+
 // ─── internal key ─────────────────────────────────────────────────────────────
 
 // typeKey identifies a provider by its resolved Go type and an optional name.
@@ -178,8 +220,9 @@ func (e *entry) resolve(c *Container) (any, error) {
 	stackVal, _ := c.goroutineStacks.LoadOrStore(gid, &resolvingStack{})
 	stack := stackVal.(*resolvingStack)
 
-	// Cycle check: if our key is already on the stack the factory chain has
-	// re-entered its own resolution on the same goroutine.
+	// 1. Cycle check (MUST BE FIRST - highest priority)
+	// If our key is already on the stack the factory chain has re-entered
+	// its own resolution on the same goroutine.
 	for _, k := range *stack {
 		if k == e.key {
 			// Panic before entering once.Do — prevents the same-goroutine
@@ -188,16 +231,30 @@ func (e *entry) resolve(c *Container) (any, error) {
 		}
 	}
 
-	// Push our key; defer the pop so it runs even if the factory panics.
+	// 2. Depth check (second priority)
+	c.mu.RLock()
+	maxDepth := c.maxDepth
+	c.mu.RUnlock()
+
+	if maxDepth > 0 && len(*stack) >= maxDepth {
+		panic(fmt.Errorf("%w (limit: %d): %s",
+			ErrMaxDepthExceeded, maxDepth, depthPath(*stack, e.key)))
+	}
+
+	// 3. Push our key; defer the pop so it runs even if the factory panics.
 	*stack = append(*stack, e.key)
 	defer func() {
 		*stack = (*stack)[:len(*stack)-1]
 		if len(*stack) == 0 {
 			c.goroutineStacks.Delete(gid)
 		}
+		// Ensure cleanup even on panic
+		if r := recover(); r != nil {
+			panic(r)
+		}
 	}()
 
-	// sync.Once guarantees at-most-once execution and safe concurrent blocking.
+	// 4. Execute factory
 	e.once.Do(func() {
 		e.value, e.err = e.build(c)
 	})
@@ -226,11 +283,27 @@ type Container struct {
 	// Written at most once per goroutine (lazy init on first Invoke call),
 	// deleted when the stack drains to empty.
 	goroutineStacks sync.Map
+	// maxDepth is the maximum allowed resolution depth (0 = unlimited).
+	maxDepth int
 }
 
-// New creates an empty Container.
+// New creates an empty Container with default maxDepth of 32.
 func New() *Container {
-	return &Container{providers: make(map[typeKey]*entry)}
+	return &Container{
+		providers: make(map[typeKey]*entry),
+		maxDepth:  32,
+	}
+}
+
+// WithMaxDepth sets the maximum resolution depth limit.
+// depth=0 means unlimited (only cycle detection applies).
+// Default is 32.
+// Returns the container for method chaining.
+func (c *Container) WithMaxDepth(depth int) *Container {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.maxDepth = depth
+	return c
 }
 
 // ─── registration helpers ─────────────────────────────────────────────────────
