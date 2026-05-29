@@ -114,9 +114,34 @@ func (e *eventLoop) run() {
 }
 
 // handleEvent is called for each event returned by poller.wait.
-// All connections seen here are registered (cs.registered == true) because
-// only rearmConn calls poller.add/mod.
+// It first checks HTTP connections (connState), then delegates to
+// the WSEventLoop if the fd belongs to a WebSocket connection.
 func (e *eventLoop) handleEvent(ev pollEvent) {
+	// Check if this fd belongs to a WebSocket connection.
+	if e.engine.wsLoop != nil {
+		if _, ok := e.engine.wsLoop.conns.Load(ev.fd); ok {
+			if ev.readable {
+				e.engine.wsLoop.handleWSEvent(ev.fd)
+			}
+			if ev.hangup || ev.errored {
+				// Force-close the WS connection on hangup/error.
+				if val, ok := e.engine.wsLoop.conns.Load(ev.fd); ok {
+					conn := val.(*WSConn)
+					if conn.state.CompareAndSwap(uint32(wsIdle), uint32(wsClosed)) {
+						e.engine.wsLoop.conns.Delete(ev.fd)
+						e.poller.del(ev.fd) //nolint:errcheck
+						conn.netConn.Close()
+						atomic.AddInt64(&e.engine.wsLoop.activeConns, -1)
+						if e.engine.wsLoop.onClose != nil {
+							e.engine.wsLoop.onClose(conn)
+						}
+					}
+				}
+			}
+			return
+		}
+	}
+
 	val, ok := e.conns.Load(ev.fd)
 	if !ok {
 		return

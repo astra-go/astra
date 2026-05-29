@@ -191,3 +191,98 @@ func (a *App) RunReactorH2C(addr string) error {
 	handler := h2c.NewHandler(a, h2srv)
 	return a.runReactor(addr, nil, handler)
 }
+
+// WSEventLooper is the interface that the websocket.WSEventLoop satisfies.
+// It allows app.RunReactorWS to accept the event loop without importing
+// the websocket package (avoiding a circular dependency).
+type WSEventLooper interface {
+	RegisterEngine(e *netengine.Engine)
+}
+
+// RunReactorWS starts the Reactor engine with WebSocket event loop integration.
+// This is the recommended way to run an Astra server that serves both HTTP
+// and WebSocket endpoints at high concurrency.
+//
+// The wsLoop parameter must be a *websocket.WSEventLoop (created via
+// websocket.NewWSEventLoop). It is bound to the Reactor engine so that
+// WebSocket connections are managed by epoll/kqueue instead of goroutines.
+//
+// Example:
+//
+//	wsLoop := websocket.NewWSEventLoop(
+//	    websocket.WithOnMessage(func(c *websocket.WSConn, t int, d []byte) {
+//	        c.WriteMessage(t, d) // echo
+//	    }),
+//	)
+//	app.GET("/ws", wsLoop.Handler())
+//	app.RunReactorWS(":8080", wsLoop)
+//
+// Note: WebSocket endpoints MUST use wsLoop.Handler() (not websocket.Handler)
+// when using RunReactorWS. The standard Hub-mode Handler spawns goroutines
+// and does not integrate with the Reactor engine.
+func (a *App) RunReactorWS(addr string, wsLoop WSEventLooper) error {
+	return a.runReactorWS(addr, nil, a, wsLoop)
+}
+
+// RunReactorWSHandler is like RunReactorWS but uses h as the HTTP handler
+// instead of the App itself.
+func (a *App) RunReactorWSHandler(addr string, h http.Handler, wsLoop WSEventLooper) error {
+	return a.runReactorWS(addr, nil, h, wsLoop)
+}
+
+func (a *App) runReactorWS(addr string, tlsCfg *tls.Config, h http.Handler, wsLoop WSEventLooper) error {
+	// Run OnStart hooks.
+	if err := a.lifecycle.RunStartHooks(context.Background()); err != nil {
+		return err
+	}
+
+	engine, err := netengine.New(h, netengine.ReactorConfig{})
+	if err != nil {
+		// epoll/kqueue not available on this platform — fall back to net/http.
+		srv := newDefaultServer(addr, h)
+		return a.runWithGracefulShutdown(srv, srv.ListenAndServe)
+	}
+
+	// Bind the WebSocket event loop to the engine BEFORE serving.
+	wsLoop.RegisterEngine(engine)
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("astra: reactor-ws listen %s: %w", addr, err)
+	}
+	if tlsCfg != nil {
+		if tlsCfg.MinVersion == 0 {
+			tlsCfg.MinVersion = tls.VersionTLS12
+		}
+		tlsCfg.NextProtos = append([]string{"h2", "http/1.1"}, tlsCfg.NextProtos...)
+		ln = tls.NewListener(ln, tlsCfg)
+		h2srv := &http2.Server{}
+		engine.EnableH2(h2srv)
+	}
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-quit:
+			ln.Close()
+		case <-done:
+		}
+	}()
+
+	serveErr := engine.Serve(ln)
+
+	signal.Stop(quit)
+	close(done)
+
+	timeout := time.Duration(a.options.ShutdownTimeout) * time.Second
+	stopCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	a.lifecycle.RunStopHooks(stopCtx)
+
+	if serveErr != nil && !isClosedErr(serveErr) {
+		return serveErr
+	}
+	return nil
+}

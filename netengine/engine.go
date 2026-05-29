@@ -103,8 +103,9 @@ type Engine struct {
 	h2srv       *http2.Server // non-nil when TLS h2 is enabled
 	loops       []*eventLoop
 	workers     *workerPool
-	activeConns int64  // atomic counter
-	loopIdx     uint64 // atomic, round-robin index
+	wsLoop      *WSEventLoop // non-nil when WebSocket event loop is enabled
+	activeConns int64        // atomic counter
+	loopIdx     uint64       // atomic, round-robin index
 }
 
 // New creates a Reactor engine backed by the given HTTP handler.
@@ -138,6 +139,27 @@ func New(handler http.Handler, cfg ReactorConfig) (*Engine, error) {
 // Must be called before Serve.
 func (e *Engine) EnableH2(h2srv *http2.Server) {
 	e.h2srv = h2srv
+}
+
+// EnableWS enables WebSocket event loop integration.
+// When enabled, WebSocket connections registered via WSEventLoop.Register()
+// are polled by the Reactor engine's event loops instead of requiring
+// dedicated goroutines per connection.
+//
+// Parameters:
+//   - onMessage: called when a WebSocket message arrives; runs in worker goroutine
+//   - onError: called when a read error occurs (optional, may be nil)
+//   - onClose: called after a connection is fully cleaned up (optional, may be nil)
+//
+// Must be called before Serve.
+func (e *Engine) EnableWS(onMessage func(*WSConn, int, []byte), onError func(*WSConn, error), onClose func(*WSConn)) {
+	e.wsLoop = newWSEventLoop(e, onMessage, onError, onClose)
+}
+
+// WS returns the WSEventLoop for managing WebSocket connections.
+// Returns nil if EnableWS has not been called.
+func (e *Engine) WS() *WSEventLoop {
+	return e.wsLoop
 }
 
 // Serve starts all event loops and then blocks accepting connections from ln.
