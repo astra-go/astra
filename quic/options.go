@@ -8,6 +8,26 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// ConnectionMigrationMode controls how the QUIC server handles connection
+// migration (client IP address changes during an active connection).
+type ConnectionMigrationMode int
+
+const (
+	// MigrationDisabled blocks all connection migration. Use when strict IP
+	// binding is required (e.g., IP-based rate limiting, security policies).
+	MigrationDisabled ConnectionMigrationMode = iota
+
+	// MigrationNATRebindingOnly allows NAT rebinding (same network, different
+	// port) but blocks cross-network migration. Suitable for scenarios where
+	// clients may reconnect through the same NAT with a different port mapping.
+	MigrationNATRebindingOnly
+
+	// MigrationFullyEnabled allows full connection migration including
+	// cross-network changes (e.g., Wi-Fi ↔ cellular). Recommended for mobile
+	// clients and scenarios prioritizing connection continuity.
+	MigrationFullyEnabled
+)
+
 // ServerMode controls which servers are started by RunQUICWithOptions.
 type ServerMode int
 
@@ -64,6 +84,12 @@ type QUICOptions struct {
 	// TracerProvider enables per-connection OTel spans for QUIC connections.
 	// When nil, QUIC-layer tracing is disabled.
 	TracerProvider trace.TracerProvider
+
+	// ConnectionMigration controls whether and how QUIC connections can migrate
+	// when the client's IP address changes. Default: MigrationFullyEnabled.
+	// Note: This configuration takes effect only when quic-go provides the
+	// corresponding API. Currently it serves as a forward-compatible placeholder.
+	ConnectionMigration ConnectionMigrationMode
 }
 
 // QUICOption is a functional option for QUICOptions.
@@ -121,11 +147,20 @@ func WithQUICTracerProvider(tp trace.TracerProvider) QUICOption {
 	return func(o *QUICOptions) { o.TracerProvider = tp }
 }
 
+// WithConnectionMigration sets the connection migration mode.
+// Use MigrationDisabled for strict IP binding, MigrationNATRebindingOnly for
+// same-network rebinding, or MigrationFullyEnabled (default) for mobile scenarios.
+func WithConnectionMigration(mode ConnectionMigrationMode) QUICOption {
+	return func(o *QUICOptions) { o.ConnectionMigration = mode }
+}
+
 func defaultQUICOptions() *QUICOptions {
 	return &QUICOptions{
-		MaxIdleTimeout:    30 * time.Second,
-		MaxIncomingStreams: 100,
-		AltSvcMaxAge:      86400,
+		MaxIdleTimeout:      30 * time.Second,
+		MaxIncomingStreams:  100,
+		AltSvcMaxAge:        86400,
+		Mode:                ServerModeDualStack,
+		ConnectionMigration: MigrationFullyEnabled,
 	}
 }
 
