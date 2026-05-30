@@ -199,37 +199,40 @@ func (e *entry) resolve(c *Container) (any, error) {
 	stackVal, _ := c.goroutineStacks.LoadOrStore(gid, &resolvingStack{})
 	stack := stackVal.(*resolvingStack)
 
-	// 1. Cycle check (MUST BE FIRST - highest priority)
-	// If our key is already on the stack the factory chain has re-entered
-	// its own resolution on the same goroutine.
-	for _, k := range *stack {
-		if k == e.key {
-			panic(fmt.Errorf("%w: %s", ErrCyclicDependency, cyclePath(*stack, e.key)))
-		}
-	}
-
-	// 2. Depth check (second priority)
-	c.mu.RLock()
-	maxDepth := c.maxDepth
-	c.mu.RUnlock()
-
-	if maxDepth > 0 && len(*stack) >= maxDepth {
-		panic(fmt.Errorf("%w (limit: %d): %s",
-			ErrMaxDepthExceeded, maxDepth, depthPath(*stack, e.key)))
-	}
-
-	// 3. Push our key; defer the pop so it runs even if the factory panics.
+	// 1. Push our key FIRST; defer the pop so it runs even if the factory panics.
 	*stack = append(*stack, e.key)
 	defer func() {
 		*stack = (*stack)[:len(*stack)-1]
 		if len(*stack) == 0 {
 			c.goroutineStacks.Delete(gid)
 		}
-		// Ensure cleanup even on panic
 		if r := recover(); r != nil {
 			panic(r)
 		}
 	}()
+
+	// 2. Cycle check (MUST BE FIRST - highest priority)
+	// Count how many times our key appears on the stack.
+	// If count > 1, we've re-entered our own resolution on the same goroutine.
+	count := 0
+	for _, k := range *stack {
+		if k == e.key {
+			count++
+			if count > 1 {
+				panic(fmt.Errorf("%w: %s", ErrCyclicDependency, cyclePath(*stack, e.key)))
+			}
+		}
+	}
+
+	// 3. Depth check (second priority)
+	c.mu.RLock()
+	maxDepth := c.maxDepth
+	c.mu.RUnlock()
+
+	if maxDepth > 0 && len(*stack) > maxDepth {
+		panic(fmt.Errorf("%w (limit: %d): %s",
+			ErrMaxDepthExceeded, maxDepth, depthPath(*stack, e.key)))
+	}
 
 	// 4. Execute factory
 	e.once.Do(func() {
