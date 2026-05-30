@@ -94,10 +94,6 @@ var ErrCyclicDependency = errors.New("di: circular dependency detected")
 // the configured maximum (default 32).
 var ErrMaxDepthExceeded = errors.New("di: maximum resolution depth exceeded")
 
-// ErrMaxDepthExceeded is the panic value when the resolution depth exceeds
-// the configured maximum (default 32).
-var ErrMaxDepthExceeded = errors.New("di: maximum resolution depth exceeded")
-
 // ─── cycle-detection helpers ─────────────────────────────────────────────────
 
 // resolvingStack is the per-goroutine ordered list of type keys currently
@@ -142,23 +138,6 @@ func cyclePath(stack resolvingStack, repeated typeKey) string {
 		sb.WriteString(" → ")
 	}
 	sb.WriteString(repeated.String())
-	return sb.String()
-}
-
-// depthPath builds a human-readable dependency chain for depth-exceeded errors,
-// e.g. "*ServiceA → *ServiceB → *ServiceC → *ServiceD".
-func depthPath(stack resolvingStack, current typeKey) string {
-	var sb strings.Builder
-	for i, k := range stack {
-		sb.WriteString(k.String())
-		if i < len(stack)-1 {
-			sb.WriteString(" → ")
-		}
-	}
-	if len(stack) > 0 {
-		sb.WriteString(" → ")
-	}
-	sb.WriteString(current.String())
 	return sb.String()
 }
 
@@ -225,8 +204,6 @@ func (e *entry) resolve(c *Container) (any, error) {
 	// its own resolution on the same goroutine.
 	for _, k := range *stack {
 		if k == e.key {
-			// Panic before entering once.Do — prevents the same-goroutine
-			// mutex deadlock that sync.Once would otherwise cause.
 			panic(fmt.Errorf("%w: %s", ErrCyclicDependency, cyclePath(*stack, e.key)))
 		}
 	}
@@ -279,11 +256,7 @@ type Container struct {
 	providers  map[typeKey]*entry
 	startHooks []hookEntry
 	stopHooks  []hookEntry
-	// goroutineStacks maps goroutine ID → *resolvingStack for cycle detection.
-	// Written at most once per goroutine (lazy init on first Invoke call),
-	// deleted when the stack drains to empty.
 	goroutineStacks sync.Map
-	// maxDepth is the maximum allowed resolution depth (0 = unlimited).
 	maxDepth int
 }
 
