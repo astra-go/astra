@@ -13,19 +13,24 @@ import (
 const zeroVer = "v0.0.0-00010101000000-000000000000"
 
 // SyncReplaces syncs intra-workspace replace directives across all go.mod files.
-// Every go.mod gets a replace entry for every other workspace module, pointing
-// to its local path. This lets `go mod tidy` resolve intra-workspace deps
-// without hitting VCS.
+// Only adds replace directives for modules that are actually required (not all
+// workspace modules). Delegates to scripts/check-intra-replaces.sh --fix.
 func SyncReplaces() error {
 	root, err := repoRoot()
 	if err != nil {
 		return err
 	}
-	table, err := buildModTable(root)
-	if err != nil {
-		return err
+	scriptPath := filepath.Join(root, "scripts", "check-intra-replaces.sh")
+	args := []string{"bash", scriptPath, "--fix"}
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Dir = root
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("sync failed: %w", err)
 	}
-	return applyReplaces(root, table, root)
+	fmt.Printf("\n✓ 完成：SyncReplaces 仅添加必需模块的 replace 指令\n")
+	return nil
 }
 
 // CheckReplaces verifies that all go.mod intra-workspace replace directives are
@@ -45,58 +50,19 @@ func checkReplaces(fix bool) error {
 	if err != nil {
 		return err
 	}
-
-	// Build expected state in a scratch directory.
-	scratch, err := os.MkdirTemp("", "astra-check-replaces-*")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(scratch)
-
-	// Copy all go.mod files into scratch, preserving relative paths.
-	if err := copyGoMods(root, scratch); err != nil {
-		return err
-	}
-
-	// Build the module table from the scratch copy.
-	table, err := buildModTable(scratch)
-	if err != nil {
-		return err
-	}
-
-	// Apply sync logic to scratch tree.
-	if err := applyReplaces(scratch, table, scratch); err != nil {
-		return err
-	}
-
-	// Compare replace blocks between original and scratch.
-	driftFiles, err := findDrift(root, scratch)
-	if err != nil {
-		return err
-	}
-
-	if len(driftFiles) == 0 {
-		fmt.Println("✓ all go.mod intra-workspace replace directives are in sync")
-		return nil
-	}
-
-	fmt.Printf("✗ intra-workspace replace drift detected in %d file(s):\n", len(driftFiles))
-	for _, f := range driftFiles {
-		fmt.Printf("  %s\n", f)
-	}
-	fmt.Println()
-	fmt.Println("Fix: mage syncReplaces")
-
+	scriptPath := filepath.Join(root, "scripts", "check-intra-replaces.sh")
+	args := []string{"bash", scriptPath}
 	if fix {
-		fmt.Println()
-		fmt.Println("Running SyncReplaces ...")
-		if err := SyncReplaces(); err != nil {
-			return err
-		}
-		fmt.Println("✓ fixed")
-		return nil
+		args = append(args, "--fix")
 	}
-	return fmt.Errorf("replace drift detected")
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Dir = root
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("replace drift detected")
+	}
+	return nil
 }
 
 // DropReplaces removes all intra-workspace replace directives from every go.mod.
