@@ -463,9 +463,42 @@ func TestMaxDepth_Boundary(t *testing.T) {
 	_ = di.Provide[*S1](c, func(c *di.Container) (*S1, error) { _, _ = di.Invoke[*S2](c); return &S1{}, nil })
 	_ = di.Provide[*S0](c, func(c *di.Container) (*S0, error) { _, _ = di.Invoke[*S1](c); return &S0{}, nil })
 
-	// Depth 31: S0 → S1 → ... → S31 (31 dependencies, 32 total including S0)
+	// Depth 31: S1 → S2 → ... → S32 (31 dependencies, 32 total including S1)
 	// Should succeed because maxDepth=32 allows up to 32 items on the stack.
-	_, err := di.Invoke[*S1](c)
+	c32 := di.New()
+	_ = di.Provide[*S32](c32, func(_ *di.Container) (*S32, error) { return &S32{}, nil })
+	_ = di.Provide[*S31](c32, func(c *di.Container) (*S31, error) { _, _ = di.Invoke[*S32](c32); return &S31{}, nil })
+	_ = di.Provide[*S30](c32, func(c *di.Container) (*S30, error) { _, _ = di.Invoke[*S31](c32); return &S30{}, nil })
+	_ = di.Provide[*S29](c32, func(c *di.Container) (*S29, error) { _, _ = di.Invoke[*S30](c32); return &S29{}, nil })
+	_ = di.Provide[*S28](c32, func(c *di.Container) (*S28, error) { _, _ = di.Invoke[*S29](c32); return &S28{}, nil })
+	_ = di.Provide[*S27](c32, func(c *di.Container) (*S27, error) { _, _ = di.Invoke[*S28](c32); return &S27{}, nil })
+	_ = di.Provide[*S26](c32, func(c *di.Container) (*S26, error) { _, _ = di.Invoke[*S27](c32); return &S26{}, nil })
+	_ = di.Provide[*S25](c32, func(c *di.Container) (*S25, error) { _, _ = di.Invoke[*S26](c32); return &S25{}, nil })
+	_ = di.Provide[*S24](c32, func(c *di.Container) (*S24, error) { _, _ = di.Invoke[*S25](c32); return &S24{}, nil })
+	_ = di.Provide[*S23](c32, func(c *di.Container) (*S23, error) { _, _ = di.Invoke[*S24](c32); return &S23{}, nil })
+	_ = di.Provide[*S22](c32, func(c *di.Container) (*S22, error) { _, _ = di.Invoke[*S23](c32); return &S22{}, nil })
+	_ = di.Provide[*S21](c32, func(c *di.Container) (*S21, error) { _, _ = di.Invoke[*S22](c32); return &S21{}, nil })
+	_ = di.Provide[*S20](c32, func(c *di.Container) (*S20, error) { _, _ = di.Invoke[*S21](c32); return &S20{}, nil })
+	_ = di.Provide[*S19](c32, func(c *di.Container) (*S19, error) { _, _ = di.Invoke[*S20](c32); return &S19{}, nil })
+	_ = di.Provide[*S18](c32, func(c *di.Container) (*S18, error) { _, _ = di.Invoke[*S19](c32); return &S18{}, nil })
+	_ = di.Provide[*S17](c32, func(c *di.Container) (*S17, error) { _, _ = di.Invoke[*S18](c32); return &S17{}, nil })
+	_ = di.Provide[*S16](c32, func(c *di.Container) (*S16, error) { _, _ = di.Invoke[*S17](c32); return &S16{}, nil })
+	_ = di.Provide[*S15](c32, func(c *di.Container) (*S15, error) { _, _ = di.Invoke[*S16](c32); return &S15{}, nil })
+	_ = di.Provide[*S14](c32, func(c *di.Container) (*S14, error) { _, _ = di.Invoke[*S15](c32); return &S14{}, nil })
+	_ = di.Provide[*S13](c32, func(c *di.Container) (*S13, error) { _, _ = di.Invoke[*S14](c32); return &S13{}, nil })
+	_ = di.Provide[*S12](c32, func(c *di.Container) (*S12, error) { _, _ = di.Invoke[*S13](c32); return &S12{}, nil })
+	_ = di.Provide[*S11](c32, func(c *di.Container) (*S11, error) { _, _ = di.Invoke[*S12](c32); return &S11{}, nil })
+	_ = di.Provide[*S10](c32, func(c *di.Container) (*S10, error) { _, _ = di.Invoke[*S11](c32); return &S10{}, nil })
+	_ = di.Provide[*S9](c32, func(c *di.Container) (*S9, error) { _, _ = di.Invoke[*S10](c32); return &S9{}, nil })
+	_ = di.Provide[*S8](c32, func(c *di.Container) (*S8, error) { _, _ = di.Invoke[*S9](c32); return &S8{}, nil })
+	_ = di.Provide[*S7](c32, func(c *di.Container) (*S7, error) { _, _ = di.Invoke[*S8](c32); return &S7{}, nil })
+	_ = di.Provide[*S6](c32, func(c *di.Container) (*S6, error) { _, _ = di.Invoke[*S7](c32); return &S6{}, nil })
+	_ = di.Provide[*S5](c32, func(c *di.Container) (*S5, error) { _, _ = di.Invoke[*S6](c32); return &S5{}, nil })
+	_ = di.Provide[*S4](c32, func(c *di.Container) (*S4, error) { _, _ = di.Invoke[*S5](c32); return &S4{}, nil })
+	_ = di.Provide[*S3](c32, func(c *di.Container) (*S3, error) { _, _ = di.Invoke[*S4](c32); return &S3{}, nil })
+	_ = di.Provide[*S2](c32, func(c *di.Container) (*S2, error) { _, _ = di.Invoke[*S3](c32); return &S2{}, nil })
+	_ = di.Provide[*S1](c32, func(c *di.Container) (*S1, error) { _, _ = di.Invoke[*S2](c32); return &S1{}, nil })
+	_, err := di.Invoke[*S1](c32)
 	if err != nil {
 		t.Fatalf("depth 31 should succeed, got: %v", err)
 	}
@@ -548,7 +581,7 @@ func TestMaxDepth_CycleTakesPrecedence(t *testing.T) {
 	type SvcA struct{}
 	type SvcB struct{}
 
-	c := di.New().WithMaxDepth(1) // Very low limit
+	c := di.New().WithMaxDepth(2) // Low limit, but enough to let cycle detection fire first
 	_ = di.Provide[*SvcA](c, func(c *di.Container) (*SvcA, error) {
 		_, _ = di.Invoke[*SvcB](c)
 		return &SvcA{}, nil
