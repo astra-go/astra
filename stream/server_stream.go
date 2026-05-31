@@ -49,6 +49,11 @@ func (s *sseCtx) Send(v any) error {
 	return nil
 }
 
+// Next overrides Ctx.Next() to match contract.Context signature (no return value).
+func (s *sseCtx) Next() {
+	_ = s.Ctx.Next()
+}
+
 func (s *sseCtx) Done() <-chan struct{} { return s.done }
 
 func (s *sseCtx) close() {
