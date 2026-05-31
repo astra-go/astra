@@ -98,6 +98,11 @@ func (s *bidiCtx) Recv(v any) error {
 	return s.codec.Unmarshal(f.payload, v)
 }
 
+// Next overrides Ctx.Next() to match contract.Context signature (no return value).
+func (s *bidiCtx) Next() {
+	_ = s.Ctx.Next()
+}
+
 func (s *bidiCtx) Done() <-chan struct{} { return s.done }
 
 func (s *bidiCtx) close() {

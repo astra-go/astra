@@ -73,6 +73,11 @@ func (s *clientCtx) Recv(v any) error {
 	return s.codec.Unmarshal(f.payload, v)
 }
 
+// Next overrides Ctx.Next() to match contract.Context signature (no return value).
+func (s *clientCtx) Next() {
+	_ = s.Ctx.Next()
+}
+
 // SendAndClose sends a single response to the client and closes the stream.
 // Must be called exactly once after all Recv calls are complete.
 func (s *clientCtx) SendAndClose(v any) error {
