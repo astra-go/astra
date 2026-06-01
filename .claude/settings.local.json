@@ -85,7 +85,8 @@
       "Bash(git *)",
       "Skill(html-dev)",
       "Bash(go doc *)",
-      "Bash(go clean *)"
+      "Bash(go clean *)",
+      "Bash(govulncheck ./...)"
     ]
   }
 }
