@@ -113,6 +113,13 @@ type JWTConfig struct {
 	// Required unless Secret is set.
 	KeyFunc func(token *jwt.Token) (any, error)
 
+	// AllowedAlgorithms is a whitelist of permitted signing algorithms.
+	// If nil or empty, defaults to: HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384, ES512.
+	// Use this to prevent algorithm confusion attacks (e.g., reject "none" or unexpected algorithms).
+	//
+	// Example: []string{"RS256", "RS384"} to only accept RSA-signed tokens.
+	AllowedAlgorithms []string
+
 	// Secret is a shorthand for HMAC (HS256) shared-secret validation.
 	// Ignored when KeyFunc is set.
 	//
@@ -239,8 +246,23 @@ func JWTWithConfig(cfg JWTConfig) astra.HandlerFunc {
 		originalKeyFunc = HMACKey(cfg.Secret.Plain())
 	}
 
-	// Wrapped keyFunc that also validates the "alg" header.
+	// Set default allowed algorithms if not specified
+	allowedAlgs := cfg.AllowedAlgorithms
+	if len(allowedAlgs) == 0 {
+		allowedAlgs = []string{"HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512"}
+	}
+	allowedAlgSet := make(map[string]struct{}, len(allowedAlgs))
+	for _, alg := range allowedAlgs {
+		allowedAlgSet[alg] = struct{}{}
+	}
+
+	// Wrapped keyFunc that validates the "alg" header against whitelist.
 	keyFunc := func(t *jwt.Token) (any, error) {
+		// Check algorithm whitelist first
+		alg := t.Method.Alg()
+		if _, ok := allowedAlgSet[alg]; !ok {
+			return nil, fmt.Errorf("astra/jwt: unexpected signing method: %v", t.Header["alg"])
+		}
 		// Reject "alg: none" explicitly (CVE-2015-2951)
 		if t.Method == jwt.SigningMethodNone {
 			return nil, fmt.Errorf("astra/jwt: unexpected signing method: %v", t.Header["alg"])
