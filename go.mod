@@ -84,7 +84,6 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
 	modernc.org/libc v1.72.5 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
@@ -98,3 +97,7 @@ replace github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000
 replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ./middleware/security
 
 replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ./testutil
+
+replace github.com/astra-go/astra/config => ./config
+
+replace github.com/astra-go/astra/config/nacos => ./config/nacos
