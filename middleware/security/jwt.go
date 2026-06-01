@@ -228,12 +228,24 @@ func JWTWithConfig(cfg JWTConfig) astra.HandlerFunc {
 	}
 
 	// Build keyFunc: prefer explicit KeyFunc, fall back to HMAC.
-	keyFunc := cfg.KeyFunc
-	if keyFunc == nil {
+	// Wrap keyFunc to reject algorithm confusion attacks:
+	//   - "alg: none" bypass
+	//   - RSA public key as HMAC secret (Key Confusion)
+	originalKeyFunc := cfg.KeyFunc
+	if originalKeyFunc == nil {
 		if cfg.Secret.IsZero() {
 			panic("jwt middleware: either Secret or KeyFunc must be set")
 		}
-		keyFunc = HMACKey(cfg.Secret.Plain())
+		originalKeyFunc = HMACKey(cfg.Secret.Plain())
+	}
+
+	// Wrapped keyFunc that also validates the "alg" header.
+	keyFunc := func(t *jwt.Token) (any, error) {
+		// Reject "alg: none" explicitly (CVE-2015-2951)
+		if t.Method == jwt.SigningMethodNone {
+			return nil, fmt.Errorf("astra/jwt: unexpected signing method: %v", t.Header["alg"])
+		}
+		return originalKeyFunc(t)
 	}
 
 	parts := strings.SplitN(cfg.TokenLookup, ":", 2)
@@ -589,6 +601,9 @@ func humanizeJWTError(err error) error {
 		return errJWTSignature
 	case errors.Is(err, jwt.ErrTokenMalformed):
 		return errJWTMalformed
+	case strings.Contains(err.Error(), "unexpected signing method"):
+		// Preserve algorithm confusion attack error message
+		return err
 	default:
 		return errJWTInvalid
 	}

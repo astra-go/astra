@@ -17,6 +17,21 @@ import (
 	"github.com/astra-go/astra/netengine"
 )
 
+// Default values for http2.Server that provide protection against
+// HTTP/2 Rapid Reset attacks (CVE-2023-44487). The lower
+// MaxConcurrentStreams limit constrains how many streams an attacker
+// can reset per connection, reducing the effectiveness of the attack.
+// See: https://www.cve.org/CVERecord?id=CVE-2023-44487
+const h2MaxConcurrentStreams = 100 // below the 250 RFC-7540 default to limit reset blast radius
+
+// newH2Server returns an http2.Server configured with conservative limits
+// that mitigate Rapid Reset attacks while remaining suitable for most workloads.
+func newH2Server() *http2.Server {
+	return &http2.Server{
+		MaxConcurrentStreams: h2MaxConcurrentStreams,
+	}
+}
+
 // RunReactor starts the HTTP server using the Reactor-pattern engine from the
 // netengine package.  It offers significantly lower goroutine overhead under
 // high concurrency compared to RunServer / Run:
@@ -128,7 +143,7 @@ func (a *App) runReactor(addr string, tlsCfg *tls.Config, h http.Handler) error 
 		ln = tls.NewListener(ln, tlsCfg)
 		// Register an http2.Server so the engine routes h2 connections off the
 		// Reactor path and into Go's standard HTTP/2 implementation.
-		h2srv := &http2.Server{}
+		h2srv := newH2Server()
 		engine.EnableH2(h2srv)
 	}
 
@@ -187,7 +202,7 @@ func isClosedErr(err error) bool {
 // Both HTTP/1.1 and HTTP/2 clients can connect without TLS.
 // For TLS+H2, use RunReactorTLS instead.
 func (a *App) RunReactorH2C(addr string) error {
-	h2srv := &http2.Server{}
+	h2srv := newH2Server()
 	handler := h2c.NewHandler(a, h2srv)
 	return a.runReactor(addr, nil, handler)
 }
@@ -256,7 +271,7 @@ func (a *App) runReactorWS(addr string, tlsCfg *tls.Config, h http.Handler, wsLo
 		}
 		tlsCfg.NextProtos = append([]string{"h2", "http/1.1"}, tlsCfg.NextProtos...)
 		ln = tls.NewListener(ln, tlsCfg)
-		h2srv := &http2.Server{}
+		h2srv := newH2Server()
 		engine.EnableH2(h2srv)
 	}
 
