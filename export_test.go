@@ -1,5 +1,7 @@
 package astra
 
+import "github.com/astra-go/astra/router"
+
 // SealPool exposes the private sealPool method for white-box benchmarks and
 // tests that exercise the pool-sizing path without starting a real server.
 func (a *App) SealPool() { a.sealPool() }
@@ -12,20 +14,20 @@ const JsonBufMaxCap = jsonBufMaxCap
 
 // Fast matcher exports for fuzz tests.
 var (
-	FastDigits        = fastDigits
-	FastLower         = fastLower
-	FastUpper         = fastUpper
-	FastAlpha         = fastAlpha
-	FastAlphanum      = fastAlphanum
-	FastAlphanumLower = fastAlphanumLower
-	FastAlphanumUpper = fastAlphanumUpper
-	FastSlugLower     = fastSlugLower
-	FastSlug          = fastSlug
-	FastIdentifier    = fastIdentifier
+	FastDigits        = router.FastDigits
+	FastLower         = router.FastLower
+	FastUpper         = router.FastUpper
+	FastAlpha         = router.FastAlpha
+	FastAlphanum      = router.FastAlphanum
+	FastAlphanumLower = router.FastAlphanumLower
+	FastAlphanumUpper = router.FastAlphanumUpper
+	FastSlugLower     = router.FastSlugLower
+	FastSlug          = router.FastSlug
+	FastIdentifier    = router.FastIdentifier
 )
 
 // GetOrCompileRegexp exposes getOrCompileRegexp for fuzz tests.
-var GetOrCompileRegexp = getOrCompileRegexp
+var GetOrCompileRegexp = router.GetOrCompileRegexp
 
 // KvStoreMapThreshold exposes kvStoreMapThreshold for white-box tests.
 const KvStoreMapThreshold = kvStoreMapThreshold
@@ -48,6 +50,7 @@ func AppRouter(a *App) *Router {
 // allowedMethods cache for white-box tests.
 func RouterAllowedCacheLen(r *Router) int {
 	n := 0
-	r.allowedCache.Range(func(_, _ any) bool { n++; return true })
+	cache := router.AllowedCache(r.impl)
+	cache.Range(func(_, _ any) bool { n++; return true })
 	return n
 }

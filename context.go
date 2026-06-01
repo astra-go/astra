@@ -114,6 +114,10 @@ type Ctx struct {
 	// Exposed via Get/GetString(contract.RouteKey) through a special-case fast path.
 	routeKey string
 
+	// allowedMethods holds the comma-separated list of allowed HTTP methods for
+	// the current request path, populated by the router on 405 responses.
+	allowedMethods string
+
 	// kvStore is the per-request key-value store. It grows on demand via append
 	// and is reset to [:0] on each request to retain the backing array.
 	// No mutex: the context is single-goroutine (see concurrency note above).
@@ -176,6 +180,7 @@ func (c *Ctx) reset(w http.ResponseWriter, r *http.Request) {
 
 	// Clear the direct routeKey field.
 	c.routeKey = ""
+	c.allowedMethods = ""
 
 	// Invalidate the query parameter cache so the next Query() call re-parses
 	// the new request's URL (url.Values map is GC'd; we don't retain it).
@@ -249,3 +254,13 @@ func (c *Ctx) CloneWithContext(ctx context.Context) *Ctx {
 
 // IsClone reports whether this Ctx was created by Clone or CloneWithContext.
 func (c *Ctx) IsClone() bool { return c.isClone }
+
+// SetAllowedMethods sets the allowed HTTP methods for 405 responses.
+func (c *Ctx) SetAllowedMethods(methods string) {
+	c.allowedMethods = methods
+}
+
+// AllowedMethods returns the allowed HTTP methods for the current request.
+func (c *Ctx) AllowedMethods() string {
+	return c.allowedMethods
+}
