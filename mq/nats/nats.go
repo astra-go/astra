@@ -175,6 +175,11 @@ func (p *Producer) Close() error {
 	return p.conn.Drain()
 }
 
+// Conn returns the underlying NATS connection for advanced usage.
+func (p *Producer) Conn() *nats.Conn {
+	return p.conn
+}
+
 // Compile-time assertion.
 var _ mq.Producer = (*Producer)(nil)
 
