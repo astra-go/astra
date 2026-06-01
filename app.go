@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-
+	"golang.org/x/net/http2"
 )
 
 // App is the core of the Astra framework.
@@ -415,10 +415,25 @@ func newDefaultTLSConfig() *tls.Config {
 	}
 }
 
+// configureHTTP2 applies HTTP/2 settings to the server with protection against
+// HTTP/2 Rapid Reset attacks (CVE-2023-44487). The MaxConcurrentStreams limit
+// constrains how many streams an attacker can reset per connection, reducing
+// the effectiveness of the attack.
+func configureHTTP2(srv *http.Server) error {
+	h2srv := &http2.Server{
+		MaxConcurrentStreams: 100, // below the 250 RFC-7540 default to limit reset blast radius
+	}
+	return http2.ConfigureServer(srv, h2srv)
+}
+
 // Run starts the HTTP server on the given address.
 // It also listens for OS signals (SIGINT, SIGTERM) for graceful shutdown.
 func (a *App) Run(addr string) error {
-	return a.RunServer(newDefaultServer(addr, a))
+	server := newDefaultServer(addr, a)
+	if err := configureHTTP2(server); err != nil {
+		return err
+	}
+	return a.RunServer(server)
 }
 
 // RunTLS starts the HTTPS server with a secure TLS configuration.
@@ -428,6 +443,9 @@ func (a *App) Run(addr string) error {
 func (a *App) RunTLS(addr, certFile, keyFile string) error {
 	server := newDefaultServer(addr, a)
 	server.TLSConfig = newDefaultTLSConfig()
+	if err := configureHTTP2(server); err != nil {
+		return err
+	}
 	return a.runWithGracefulShutdown(server, func() error {
 		return server.ListenAndServeTLS(certFile, keyFile)
 	})
