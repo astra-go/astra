@@ -2,8 +2,7 @@
 //
 // Write operations (INSERT, UPDATE, DELETE, DDL, transactions) are always
 // routed to the primary. Read operations are distributed across replicas
-// using round-robin. When a replica is unhealthy it is removed from rotation
-// and re-added automatically once it recovers.
+// using configurable load balancing strategies.
 //
 // # Quick start
 //
@@ -28,6 +27,22 @@
 //	    return db.Create(&user).Error
 //	})
 //
+// # Advanced load balancing
+//
+// Use weighted round-robin for replicas with different capacities:
+//
+//	weights := map[*gorm.DB]int{
+//	    replica1: 3,  // 75% of traffic
+//	    replica2: 1,  // 25% of traffic
+//	}
+//	rw := orm.NewReadWriteRouter(primary, replica1, replica2)
+//	rw.SetLoadBalancer(orm.NewWeightedRoundRobinBalancer(weights))
+//
+// Use least-connections for dynamic load distribution:
+//
+//	rw := orm.NewReadWriteRouter(primary, replica1, replica2)
+//	rw.SetLoadBalancer(orm.NewLeastConnectionsBalancer())
+//
 // # Transaction safety
 //
 // Read always returns the primary when an active transaction is present in ctx
@@ -38,7 +53,6 @@ package orm
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/astra-go/astra"
@@ -48,7 +62,7 @@ import (
 const rwRouterKey = "gorm:rw_router"
 
 // ReadWriteRouter routes write operations to the primary DB and read
-// operations to replicas using round-robin with automatic health checking.
+// operations to replicas using configurable load balancing strategies.
 //
 // The zero value is not usable; construct with NewReadWriteRouter.
 type ReadWriteRouter struct {
@@ -58,7 +72,7 @@ type ReadWriteRouter struct {
 	mu      sync.RWMutex
 	healthy []*gorm.DB // subset of replicas currently passing health checks
 
-	counter uint64 // atomic round-robin index
+	balancer LoadBalancer
 
 	stopOnce sync.Once
 	stopCh   chan struct{}
@@ -67,6 +81,8 @@ type ReadWriteRouter struct {
 // NewReadWriteRouter creates a router with the given primary and zero or more
 // replicas. When no replicas are provided all reads also go to primary.
 //
+// Default load balancer is round-robin. Use SetLoadBalancer to change strategy.
+//
 // A background goroutine starts immediately to health-check replicas every
 // 30 seconds. Call Close to stop it.
 func NewReadWriteRouter(primary *gorm.DB, replicas ...*gorm.DB) *ReadWriteRouter {
@@ -74,6 +90,7 @@ func NewReadWriteRouter(primary *gorm.DB, replicas ...*gorm.DB) *ReadWriteRouter
 		primary:  primary,
 		replicas: replicas,
 		healthy:  make([]*gorm.DB, 0, len(replicas)),
+		balancer: &RoundRobinBalancer{},
 		stopCh:   make(chan struct{}),
 	}
 	// Seed healthy list synchronously so the first request doesn't always hit primary.
@@ -88,13 +105,21 @@ func NewReadWriteRouter(primary *gorm.DB, replicas ...*gorm.DB) *ReadWriteRouter
 	return r
 }
 
+// SetLoadBalancer changes the load balancing strategy.
+// Must be called before serving requests to avoid race conditions.
+func (r *ReadWriteRouter) SetLoadBalancer(lb LoadBalancer) {
+	r.mu.Lock()
+	r.balancer = lb
+	r.mu.Unlock()
+}
+
 // Write returns the primary *gorm.DB scoped to ctx.
 // Always use Write for INSERT / UPDATE / DELETE / DDL.
 func (r *ReadWriteRouter) Write(ctx context.Context) *gorm.DB {
 	return r.primary.WithContext(ctx)
 }
 
-// Read returns a replica *gorm.DB scoped to ctx using round-robin selection.
+// Read returns a replica *gorm.DB scoped to ctx using the configured load balancer.
 //
 // Falls back to primary when:
 //   - no replicas are registered
@@ -108,14 +133,19 @@ func (r *ReadWriteRouter) Read(ctx context.Context) *gorm.DB {
 
 	r.mu.RLock()
 	h := r.healthy
+	lb := r.balancer
 	r.mu.RUnlock()
 
 	if len(h) == 0 {
 		return r.primary.WithContext(ctx)
 	}
 
-	idx := atomic.AddUint64(&r.counter, 1) % uint64(len(h))
-	return h[idx].WithContext(ctx)
+	selected := lb.Select(ctx, h)
+	if selected == nil {
+		return r.primary.WithContext(ctx)
+	}
+
+	return selected.WithContext(ctx)
 }
 
 // Middleware injects the ReadWriteRouter into every request context so that

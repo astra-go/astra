@@ -88,6 +88,7 @@ func contentLengthSlice(n int) []string {
 // 0 allocs.  Otherwise the fallback Marshal path incurs 1 alloc for the
 // intermediate []byte.
 func (c *Ctx) JSON(code int, obj any) error {
+	c.debugCheckConcurrency()
 	buf := jsonBufPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	defer func() {
@@ -122,6 +123,7 @@ func (c *Ctx) JSON(code int, obj any) error {
 
 // XML writes an XML response.
 func (c *Ctx) XML(code int, obj any) error {
+	c.debugCheckConcurrency()
 	h := c.writer.Header()
 	h["Content-Type"] = ctXML
 	c.writer.WriteHeader(code)
@@ -137,6 +139,7 @@ func (c *Ctx) XML(code int, obj any) error {
 // which delegates to responseWriter.WriteString and avoids the []byte(format)
 // heap allocation that Write([]byte(s)) would incur.
 func (c *Ctx) String(code int, format string, values ...any) error {
+	c.debugCheckConcurrency()
 	c.writer.Header()["Content-Type"] = ctPlain
 	c.writer.WriteHeader(code)
 	if len(values) > 0 {
@@ -149,6 +152,7 @@ func (c *Ctx) String(code int, format string, values ...any) error {
 
 // HTML writes an HTML response.
 func (c *Ctx) HTML(code int, html string) error {
+	c.debugCheckConcurrency()
 	c.writer.Header()["Content-Type"] = ctHTML
 	c.writer.WriteHeader(code)
 	_, err := io.WriteString(c.writer, html)
@@ -163,6 +167,7 @@ func (c *Ctx) HTML(code int, html string) error {
 //
 //	return c.Render(200, "pages/index.html", astra.Map{"Title": "Home"})
 func (c *Ctx) Render(code int, name string, data any) error {
+	c.debugCheckConcurrency()
 	r := c.app.options.Renderer
 	if r == nil {
 		return fmt.Errorf("astra: no renderer registered — use astra.WithRenderer to set one")
@@ -183,6 +188,7 @@ func (c *Ctx) Render(code int, name string, data any) error {
 // Trade-off: Content-Length is not set, so HTTP/1.1 connections use chunked
 // transfer encoding. HTTP/2 and HTTP/3 are unaffected.
 func (c *Ctx) JSONStream(code int, obj any) error {
+	c.debugCheckConcurrency()
 	h := c.writer.Header()
 	h["Content-Type"] = ctJSON
 	c.writer.WriteHeader(code)
@@ -218,6 +224,7 @@ func (c *Ctx) JSONStream(code int, obj any) error {
 
 // Blob writes raw bytes with the given content type.
 func (c *Ctx) Blob(code int, contentType string, data []byte) error {
+	c.debugCheckConcurrency()
 	c.writer.Header().Set("Content-Type", contentType)
 	c.writer.WriteHeader(code)
 	_, err := c.writer.Write(data)
@@ -226,12 +233,14 @@ func (c *Ctx) Blob(code int, contentType string, data []byte) error {
 
 // NoContent writes a response with no body.
 func (c *Ctx) NoContent(code int) error {
+	c.debugCheckConcurrency()
 	c.writer.WriteHeader(code)
 	return nil
 }
 
 // Redirect sends an HTTP redirect response.
 func (c *Ctx) Redirect(code int, location string) error {
+	c.debugCheckConcurrency()
 	if code < 300 || code > 308 {
 		return NewHTTPError(http.StatusInternalServerError, "invalid redirect code")
 	}
@@ -241,12 +250,14 @@ func (c *Ctx) Redirect(code int, location string) error {
 
 // File serves the named file.
 func (c *Ctx) File(filepath string) error {
+	c.debugCheckConcurrency()
 	http.ServeFile(c.writer, c.req, filepath)
 	return nil
 }
 
 // SSEvent writes a Server-Sent Event to the response.
 func (c *Ctx) SSEvent(event, data string) error {
+	c.debugCheckConcurrency()
 	h := c.writer.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-cache")
@@ -289,6 +300,7 @@ func (c *Ctx) Push(target string, opts *http.PushOptions) error {
 // EarlyHints is a no-op if headers have already been written.
 // It works on all transport paths (HTTP/1.1 Reactor, HTTP/2, HTTP/3).
 func (c *Ctx) EarlyHints(targets []string, opts map[string]string) error {
+	c.debugCheckConcurrency()
 	if c.writer.Written() {
 		return nil
 	}

@@ -23,14 +23,20 @@ func (c *Ctx) Request() *http.Request { return c.req }
 
 // SetRequest replaces the underlying HTTP request.
 // Used by middleware (e.g. tracing) to attach a context-carrying request.
-func (c *Ctx) SetRequest(r *http.Request) { c.req = r }
+func (c *Ctx) SetRequest(r *http.Request) {
+	c.debugCheckConcurrency()
+	c.req = r
+}
 
 // Writer returns the enhanced response writer.
 func (c *Ctx) Writer() contract.ResponseWriter { return c.writer }
 
 // SetWriter replaces the response writer.
 // Used by middleware (e.g. compress) to wrap the writer with a buffering layer.
-func (c *Ctx) SetWriter(w contract.ResponseWriter) { c.writer = w }
+func (c *Ctx) SetWriter(w contract.ResponseWriter) {
+	c.debugCheckConcurrency()
+	c.writer = w
+}
 
 // ─── Path Parameters ─────────────────────────────────────────────────────────
 
@@ -135,6 +141,7 @@ func (c *Ctx) FormFile(key string) (*multipart.FileHeader, error) {
 
 // SetHeader sets a response header.
 func (c *Ctx) SetHeader(key, value string) {
+	c.debugCheckConcurrency()
 	c.writer.Header().Set(key, value)
 }
 
