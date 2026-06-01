@@ -84,7 +84,9 @@
       "Bash(tee .bench-current.txt)",
       "Bash(git *)",
       "Skill(html-dev)",
-      "Bash(go doc *)"
+      "Bash(go doc *)",
+      "Bash(go clean *)",
+      "Bash(govulncheck ./...)"
     ]
   }
 }

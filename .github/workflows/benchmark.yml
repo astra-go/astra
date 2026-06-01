@@ -1,0 +1,113 @@
+name: Benchmark
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  benchmark:
+    name: Performance Regression Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run benchmarks on current branch
+        run: |
+          go test -bench=. -benchmem -count=5 -run=^$ ./... > new.txt
+
+      - name: Checkout base branch
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git checkout origin/${{ github.base_ref }}
+
+      - name: Run benchmarks on base branch
+        if: github.event_name == 'pull_request'
+        run: |
+          go test -bench=. -benchmem -count=5 -run=^$ ./... > old.txt
+
+      - name: Compare benchmarks
+        if: github.event_name == 'pull_request'
+        id: benchstat
+        run: |
+          echo "## Benchmark Results" > comment.txt
+          echo "" >> comment.txt
+          echo "\`\`\`" >> comment.txt
+          benchstat old.txt new.txt >> comment.txt || true
+          echo "\`\`\`" >> comment.txt
+          echo "" >> comment.txt
+          echo "<details><summary>Full benchmark output</summary>" >> comment.txt
+          echo "" >> comment.txt
+          echo "\`\`\`" >> comment.txt
+          cat new.txt >> comment.txt
+          echo "\`\`\`" >> comment.txt
+          echo "</details>" >> comment.txt
+
+      - name: Comment PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const comment = fs.readFileSync('comment.txt', 'utf8');
+
+            // Find existing benchmark comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Benchmark Results')
+            );
+
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+
+      - name: Store baseline benchmarks
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p benchmarks
+          cp new.txt benchmarks/baseline-$(date +%Y%m%d-%H%M%S).txt
+          cp new.txt benchmarks/latest.txt
+
+      - name: Upload benchmark results
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmarks/
+          retention-days: 90

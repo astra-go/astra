@@ -47,6 +47,9 @@ func defaultErrorHandler(c *Ctx, err error) {
 		return
 	}
 	if err == errDefaultMethodNotAllowed {
+		if allow := c.AllowedMethods(); allow != "" {
+			c.SetHeader("Allow", allow)
+		}
 		writePrebuiltError(c, http.StatusMethodNotAllowed, prebuiltBody405)
 		return
 	}

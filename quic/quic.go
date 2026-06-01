@@ -9,6 +9,15 @@
 //	app := astra.New()
 //	// ... register routes ...
 //	astraquic.RunQUIC(app, ":443", "cert.pem", "key.pem")
+//
+// Alternatively, import this package with a blank identifier to enable
+// app.RunQUIC() directly:
+//
+//	import _ "github.com/astra-go/astra/quic"
+//
+//	app := astra.New()
+//	// ... register routes ...
+//	app.RunQUIC(":443", "cert.pem", "key.pem")
 package quic
 
 import (
@@ -25,6 +34,17 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 )
+
+func init() {
+	// Register the QUIC runner with the core astra package.
+	// This allows app.RunQUIC() to work when this package is imported.
+	astra.RegisterQUICRunner(runQUICBridge)
+}
+
+// runQUICBridge is the bridge function that connects app.RunQUIC() to this package.
+func runQUICBridge(app *astra.App, addr, certFile, keyFile string) error {
+	return RunQUIC(app, addr, certFile, keyFile)
+}
 
 // RunQUIC starts an HTTP/3 (QUIC) server on addr and simultaneously starts a
 // TLS server that advertises HTTP/3 via the Alt-Svc response header. Clients

@@ -1,5 +1,7 @@
 package astra
 
+import "github.com/astra-go/astra/router"
+
 // context_flow.go — handler-chain flow control methods for Ctx.
 //
 // These methods let middleware and handlers cooperate within the chain:
@@ -59,4 +61,33 @@ func (c *Ctx) AbortWithError(code int, err error) {
 // IsAborted returns true if the current context has been aborted.
 func (c *Ctx) IsAborted() bool {
 	return c.index >= abortIndex
+}
+
+// SetHandlers sets the handler chain for this request.
+// Called by the router during request dispatch.
+func (c *Ctx) SetHandlers(handlers router.HandlersChain) {
+	// Convert router.HandlersChain to astra.HandlersChain
+	c.handlers = make(HandlersChain, len(handlers))
+	for i, h := range handlers {
+		c.handlers[i] = func(ctx *Ctx) error {
+			return h(ctx)
+		}
+	}
+	c.index = -1
+}
+
+// SetParams sets the path parameters for this request.
+// Called by the router during request dispatch.
+func (c *Ctx) SetParams(params router.Params) {
+	// Convert router.Params to astra.Params
+	c.params = make(Params, len(params))
+	for i, p := range params {
+		c.params[i] = Param{Key: p.Key, Value: p.Value}
+	}
+}
+
+// SetRouteKey sets the matched route template.
+// Called by the router during request dispatch.
+func (c *Ctx) SetRouteKey(fullPath string) {
+	c.routeKey = fullPath
 }

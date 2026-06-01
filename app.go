@@ -3,10 +3,13 @@ package astra
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -289,8 +292,59 @@ func (a *App) Group(prefix string, middleware ...MiddlewareFunc) *Group {
 
 // Static serves static files from the given filesystem root.
 func (a *App) Static(prefix, root string) {
-	fs := http.FileServer(http.Dir(root))
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		panic(fmt.Sprintf("astra: invalid static root path: %v", err))
+	}
+
+	// Resolve symlinks in the root path itself to get the canonical path.
+	// This ensures that comparisons with resolved symlink targets work correctly
+	// on systems where /var is a symlink to /private/var (macOS).
+	absRoot, err = filepath.EvalSymlinks(absRoot)
+	if err != nil {
+		panic(fmt.Sprintf("astra: cannot resolve static root path: %v", err))
+	}
+
+	fs := http.FileServer(http.Dir(absRoot))
 	handler := func(c *Ctx) error {
+		// Extract the requested file path from the URL
+		reqPath := c.Param("filepath")
+		if reqPath == "" {
+			reqPath = "/"
+		}
+
+		// Clean the path to resolve . and .. elements
+		cleanPath := filepath.Clean("/" + reqPath)
+
+		// Build the full path
+		fullPath := filepath.Join(absRoot, cleanPath)
+
+		// Normalize both paths for comparison
+		fullPathNorm := filepath.Clean(fullPath)
+		absRootNorm := filepath.Clean(absRoot)
+
+		// First check: ensure the cleaned path is within root (before symlink resolution)
+		// Use filepath.Rel to check if fullPath is under absRoot
+		relPath, err := filepath.Rel(absRootNorm, fullPathNorm)
+		if err != nil || strings.HasPrefix(relPath, "..") {
+			return c.NoContent(http.StatusForbidden)
+		}
+
+		// Second check: if file exists and is a symlink, resolve and verify again
+		if info, err := os.Lstat(fullPath); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			resolvedPath, err := filepath.EvalSymlinks(fullPath)
+			if err != nil {
+				return c.NoContent(http.StatusNotFound)
+			}
+
+			// Ensure resolved path is still within root
+			resolvedPathNorm := filepath.Clean(resolvedPath)
+			relPath, err := filepath.Rel(absRootNorm, resolvedPathNorm)
+			if err != nil || strings.HasPrefix(relPath, "..") {
+				return c.NoContent(http.StatusForbidden)
+			}
+		}
+
 		http.StripPrefix(prefix, fs).ServeHTTP(c.Writer(), c.Request())
 		return nil
 	}

@@ -1,4 +1,4 @@
-package astra
+package router
 
 // fastmatch_compile.go — compile-time regex-to-byte-scan compiler.
 //
