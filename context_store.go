@@ -36,6 +36,8 @@ const kvStoreMapThreshold = 16
 // Set stores a key-value pair in the per-request context store.
 // If the key already exists it is updated in-place (no duplicate entries).
 func (c *Ctx) Set(key string, value any) {
+	c.debugCheckConcurrency()
+
 	if key == RouteKey {
 		if s, ok := value.(string); ok {
 			c.routeKey = s
@@ -79,6 +81,8 @@ func (c *Ctx) Set(key string, value any) {
 // Get retrieves a value from the context store.
 // Returns (value, true) if found, (nil, false) otherwise.
 func (c *Ctx) Get(key string) (any, bool) {
+	c.debugCheckConcurrency()
+
 	if key == RouteKey {
 		if c.routeKey != "" {
 			return c.routeKey, true

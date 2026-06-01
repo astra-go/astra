@@ -82,6 +82,10 @@ type kvPair struct {
 type Ctx struct {
 	req *http.Request
 
+	// debugFields is embedded to add goroutine tracking in debug builds.
+	// In production builds (without astra_debug tag), this is an empty struct.
+	debugFields
+
 	// rw is the embedded response writer value.  Its fields are updated in-place
 	// by reset() so that c.writer (the interface) never needs to point at a freshly
 	// allocated object.
@@ -144,6 +148,9 @@ type Ctx struct {
 //  5. c.kvStore is reset to [:0] — retains the backing array for the next request.
 func (c *Ctx) reset(w http.ResponseWriter, r *http.Request) {
 	c.req = r
+
+	// Clear debug fields (goroutine ID tracking in debug builds).
+	c.debugReset()
 
 	// Update the embedded responseWriter in-place.
 	// c.writer already points to &c.rw (set in allocateContext); restoring it here
