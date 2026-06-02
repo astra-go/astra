@@ -7,7 +7,7 @@ go 1.25.1
 // sub-modules under this monorepo and are versioned independently.
 // Run `go mod tidy` after editing this file to refresh the indirect section.
 require (
-	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/testutil v0.1.0
 
 	// Request validation (validate/ package)
 	github.com/go-playground/validator/v10 v10.30.3
@@ -47,8 +47,8 @@ require (
 )
 
 require (
-	github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000 // test-only
-	github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 // test-only
+	github.com/astra-go/astra/middleware/observability v0.1.0 // test-only
+	github.com/astra-go/astra/middleware/security v0.1.0 // test-only
 	github.com/golang-jwt/jwt/v5 v5.3.1 // test-only
 	github.com/prometheus/client_golang v1.23.2 // test-only
 	gopkg.in/yaml.v3 v3.0.1
@@ -58,7 +58,7 @@ require (
 require github.com/bytedance/sonic v1.15.1
 
 require (
-	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 // indirect
+	github.com/astra-go/astra/cache v0.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
@@ -89,15 +89,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ./cache
-
-replace github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000 => ./middleware/observability
-
-replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ./middleware/security
-
-replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ./testutil
-
-replace github.com/astra-go/astra/config => ./config
-
-replace github.com/astra-go/astra/config/nacos => ./config/nacos

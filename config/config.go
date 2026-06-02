@@ -443,6 +443,25 @@ func (c *Config) Scan(obj any) error {
 	return dec.Decode(obj)
 }
 
+// ScanAndValidate unmarshals the entire config into obj and then validates it
+// against the struct's `validate` tags. Returns the first error encountered
+// (either a decode error or a ValidationErrors).
+func (c *Config) ScanAndValidate(obj any) error {
+	if err := c.Scan(obj); err != nil {
+		return err
+	}
+	return Validate(obj)
+}
+
+// ScanKeyAndValidate unmarshals a sub-tree rooted at key into obj and then
+// validates it against the struct's `validate` tags.
+func (c *Config) ScanKeyAndValidate(key string, obj any) error {
+	if err := c.ScanKey(key, obj); err != nil {
+		return err
+	}
+	return Validate(obj)
+}
+
 // ScanKey unmarshals a sub-tree rooted at key into obj.
 // Supports the same default tag semantics as Scan.
 func (c *Config) ScanKey(key string, obj any) error {

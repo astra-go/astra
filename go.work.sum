@@ -522,6 +522,13 @@ github.com/apache/arrow/go/v14 v14.0.2/go.mod h1:u3fgh3EdgN/YQ8cVQRguVW3R+seMybF
 github.com/apache/pulsar-client-go v0.12.1/go.mod h1:dkutuH4oS2pXiGm+Ti7fQZ4MRjrMPZ8IJeEGAWMeckk=
 github.com/apache/pulsar-client-go v0.19.0/go.mod h1:/Zf8Q8bSSc6ndEJ8V1muIHf6ZWsMrHoQU+98Ww9pOeI=
 github.com/ardielle/ardielle-go v1.5.2/go.mod h1:I4hy1n795cUhaVt/ojz83SNVCYIGsAFAONtv2Dr7HUI=
+github.com/astra-go/astra/grpc v0.1.0/go.mod h1:g5jqcZJLszagU3lIETsHhGJvfVIUCu3GI5BW0yWWwHc=
+github.com/astra-go/astra/middleware/observability v0.1.0/go.mod h1:qq0x9lZPPnsmy6mkzaenw+sGVGePt0FjSj85XgUn22Y=
+github.com/astra-go/astra/middleware/security v0.1.0/go.mod h1:y5Kgw0H0axMuPolnDPItl/AGKa1igmOJ291JQrXrlu0=
+github.com/astra-go/astra/otel v0.1.0/go.mod h1:GssspyZJiweMdvVAO0qBgkKIMvZduhUAGHkybenksSc=
+github.com/astra-go/astra/quic v0.1.0/go.mod h1:iwxGOUvMpiU9SOjxO9hhQATG1JO68nk05cIhUISXx0U=
+github.com/astra-go/astra/rule v0.1.0/go.mod h1:Q8dCAm7ws5pBR+wNwTo5I4nqBpo5/O/Rli6+/hw8NZU=
+github.com/astra-go/astra/taskqueue v0.1.0/go.mod h1:VZnWs4je6XTN1BjQusf8RcrbvHJnoIpOGq9SsWqN1rU=
 github.com/aws/aws-sdk-go-v2/config v1.29.9/go.mod h1:oU3jj2O53kgOU4TXq/yipt6ryiooYjlkqqVaZk7gY/U=
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.11/go.mod h1:SeSUYBLsMYFoRvHE0Tjvn7kbxaUhl75CJi1sbfhMxkU=
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.30/go.mod h1:Jpne2tDnYiFascUEs2AWHJL9Yp7A5ZVy3TNyxaAjD6M=
