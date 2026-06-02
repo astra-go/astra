@@ -5,3 +5,5 @@
 trace.out
 .bench-baseline.txt
 .bench-current.txt
+docs/*
+tools/modproxy/*

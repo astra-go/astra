@@ -30,6 +30,15 @@ check-go-versions: ## CI check: fail if any go.mod declares a Go version below t
 check-test-deps: ## Detect test-only packages declared as production deps
 	$(MAGE) checkTestDeps
 
+.PHONY: check-arch
+check-arch: ## Architecture fitness checks (core deps + circular deps)
+	$(MAGE) checkCoreDeps
+	$(MAGE) checkCircularDeps
+
+.PHONY: check-arch-test
+check-arch-test: ## Run architecture fitness function unit tests
+	go test -tags mage -v ./magefiles/
+
 .PHONY: install-hooks
 install-hooks: ## Install git pre-commit hook
 	$(MAGE) installHooks

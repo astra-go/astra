@@ -1,0 +1,97 @@
+# Astra 架构适应度规则配置
+# 参考：docs/adr/ADR-001-core-dependency-boundary.md
+
+# 核心模块禁止依赖列表
+core_forbidden_deps:
+  # ORM 库
+  - pattern: "gorm.io/**"
+    reason: "ORM libraries must be in orm/ sub-module (ADR-001)"
+    fix_hint: "Use contract.Repository[T] interface or import github.com/astra-go/astra/orm"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  - pattern: "github.com/go-gorm/**"
+    reason: "GORM drivers must be in orm/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/orm"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  # 缓存客户端
+  - pattern: "github.com/redis/go-redis/**"
+    reason: "Redis client must be in cache/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/cache"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  - pattern: "github.com/bradfitz/gomemcache/**"
+    reason: "Memcache client must be in cache/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/cache"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  # 数据库驱动
+  - pattern: "github.com/lib/pq/**"
+    reason: "PostgreSQL driver must be in orm/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/orm"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  - pattern: "github.com/go-sql-driver/mysql/**"
+    reason: "MySQL driver must be in orm/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/orm"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  # 消息队列客户端
+  - pattern: "github.com/segmentio/kafka-go/**"
+    reason: "Kafka client must be in mq/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/mq"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  - pattern: "github.com/rabbitmq/**"
+    reason: "RabbitMQ client must be in mq/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/mq"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  - pattern: "github.com/nats-io/nats.go/**"
+    reason: "NATS client must be in mq/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/mq"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  # NoSQL 数据库
+  - pattern: "go.mongodb.org/mongo-driver/**"
+    reason: "MongoDB driver must be in mongodb/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/mongodb"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  - pattern: "github.com/elastic/go-elasticsearch/**"
+    reason: "Elasticsearch client must be in search/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/search"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  # 可观测性（带例外）
+  - pattern: "go.opentelemetry.io/otel/**"
+    reason: "OpenTelemetry libs must be in otel/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/otel"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+    exceptions:
+      - "go.opentelemetry.io/otel/trace/noop"  # noop tracer is allowed
+
+  - pattern: "github.com/prometheus/client_golang/**"
+    reason: "Prometheus client must be in observability/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/observability"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  # 服务发现
+  - pattern: "github.com/hashicorp/consul/**"
+    reason: "Consul client must be in discovery/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/discovery"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  - pattern: "go.etcd.io/etcd/**"
+    reason: "etcd client must be in discovery/ or config/ sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/discovery or github.com/astra-go/astra/config"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+  # JWT 库
+  - pattern: "github.com/golang-jwt/jwt/**"
+    reason: "JWT lib must be in auth/ or middleware/security sub-module (ADR-001)"
+    fix_hint: "Import github.com/astra-go/astra/auth"
+    adr: "docs/adr/ADR-001-core-dependency-boundary.md"
+
+# 未来扩展配置
+max_dep_depth: 10  # 依赖深度上限（未启用）

@@ -147,3 +147,20 @@ jobs:
           cache: true
       - name: Check Go versions across modules
         run: go run magefiles/goversions.go 2>/dev/null || go run -tags mage magefiles/*.go checkGoVersions
+
+  # ── 9. 架构适应度函数 ────────────────────────────────────────────────────────
+  architecture:
+    name: Architecture Fitness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install Mage
+        run: go install github.com/magefile/mage@latest
+      - name: Check core dependency boundary (ADR-001)
+        run: mage -d magefiles checkCoreDeps
+      - name: Check circular dependencies
+        run: mage -d magefiles checkCircularDeps
