@@ -1,17 +1,8 @@
-// Package consul provides a service registry backed by HashiCorp Consul.
-//
-// Usage:
-//
-//	cfg := api.DefaultConfig()
-//	cfg.Address = "localhost:8500"
-//	reg, err := consul.NewFromConfig(cfg)
-//	if err != nil { ... }
-//	defer reg.Close()
-//
-//	_ = reg.Register(ctx, &discovery.ServiceInstance{
-//	    ID: "user-svc-1", Name: "user-svc", Address: "10.0.0.1", Port: 8081,
-//	})
-package consul
+//go:build consul || alltags
+
+// Package discovery provides service registry implementations.
+// This file contains the Consul backend.
+package discovery
 
 import (
 	"context"
@@ -19,39 +10,49 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/astra-go/astra/discovery"
 	"github.com/hashicorp/consul/api"
 )
 
 const (
-	checkTTL          = "30s"
-	deregisterTimeout = "5m"
-	keepaliveInterval = 10 * time.Second
+	consulCheckTTL          = "30s"
+	consulDeregisterTimeout = "5m"
+	consulKeepaliveInterval = 10 * time.Second
 )
 
-// Registry implements discovery.Registry using Consul.
-type Registry struct {
+// ConsulRegistry implements Registry using Consul.
+type ConsulRegistry struct {
 	client *api.Client
 }
 
-// New creates a Registry wrapping the given Consul client.
-func New(client *api.Client) *Registry {
-	return &Registry{client: client}
+// NewConsulRegistry creates a Registry wrapping the given Consul client.
+//
+// Usage:
+//
+//	cfg := api.DefaultConfig()
+//	cfg.Address = "localhost:8500"
+//	reg := discovery.NewConsulRegistry(client)
+//	defer reg.Close()
+//
+//	_ = reg.Register(ctx, &discovery.ServiceInstance{
+//	    ID: "user-svc-1", Name: "user-svc", Address: "10.0.0.1:8081",
+//	})
+func NewConsulRegistry(client *api.Client) *ConsulRegistry {
+	return &ConsulRegistry{client: client}
 }
 
-// NewFromConfig creates a Consul client from cfg and returns a Registry.
-func NewFromConfig(cfg *api.Config) (*Registry, error) {
+// NewConsulRegistryFromConfig creates a Consul client from cfg and returns a Registry.
+func NewConsulRegistryFromConfig(cfg *api.Config) (*ConsulRegistry, error) {
 	client, err := api.NewClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("consul: create client: %w", err)
 	}
-	return New(client), nil
+	return NewConsulRegistry(client), nil
 }
 
 // Register registers an instance with a TTL health check and starts a keepalive goroutine.
-func (r *Registry) Register(ctx context.Context, instance *discovery.ServiceInstance) error {
+func (r *ConsulRegistry) Register(ctx context.Context, instance *ServiceInstance) error {
 	if instance.ID == "" {
-		return discovery.ErrInstanceIDEmpty
+		return ErrInstanceIDEmpty
 	}
 	if instance.Weight <= 0 {
 		instance.Weight = 1
@@ -60,7 +61,7 @@ func (r *Registry) Register(ctx context.Context, instance *discovery.ServiceInst
 		instance.Scheme = "http"
 	}
 
-	host, port, err := splitHostPort(instance.Address)
+	host, port, err := splitHostPortConsul(instance.Address)
 	if err != nil {
 		return fmt.Errorf("consul: invalid address %q: %w", instance.Address, err)
 	}
@@ -81,8 +82,8 @@ func (r *Registry) Register(ctx context.Context, instance *discovery.ServiceInst
 		Meta:    meta,
 		Check: &api.AgentServiceCheck{
 			CheckID:                        "service:" + instance.ID,
-			TTL:                            checkTTL,
-			DeregisterCriticalServiceAfter: deregisterTimeout,
+			TTL:                            consulCheckTTL,
+			DeregisterCriticalServiceAfter: consulDeregisterTimeout,
 		},
 	}
 
@@ -93,7 +94,7 @@ func (r *Registry) Register(ctx context.Context, instance *discovery.ServiceInst
 	// Keepalive: pass TTL check on interval.
 	go func() {
 		checkID := "service:" + instance.ID
-		ticker := time.NewTicker(keepaliveInterval)
+		ticker := time.NewTicker(consulKeepaliveInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -109,7 +110,7 @@ func (r *Registry) Register(ctx context.Context, instance *discovery.ServiceInst
 }
 
 // Deregister deregisters the service instance.
-func (r *Registry) Deregister(_ context.Context, instanceID string) error {
+func (r *ConsulRegistry) Deregister(_ context.Context, instanceID string) error {
 	if err := r.client.Agent().ServiceDeregister(instanceID); err != nil {
 		return fmt.Errorf("consul: deregister service %s: %w", instanceID, err)
 	}
@@ -117,16 +118,16 @@ func (r *Registry) Deregister(_ context.Context, instanceID string) error {
 }
 
 // Discover returns all passing instances of serviceName.
-func (r *Registry) Discover(_ context.Context, serviceName string) ([]*discovery.ServiceInstance, error) {
+func (r *ConsulRegistry) Discover(_ context.Context, serviceName string) ([]*ServiceInstance, error) {
 	services, _, err := r.client.Health().Service(serviceName, "", true, nil)
 	if err != nil {
 		return nil, fmt.Errorf("consul: discover %s: %w", serviceName, err)
 	}
 	if len(services) == 0 {
-		return nil, fmt.Errorf("%w: %s", discovery.ErrNotFound, serviceName)
+		return nil, fmt.Errorf("%w: %s", ErrNotFound, serviceName)
 	}
 
-	result := make([]*discovery.ServiceInstance, 0, len(services))
+	result := make([]*ServiceInstance, 0, len(services))
 	for _, s := range services {
 		addr := s.Service.Address
 		if addr == "" {
@@ -140,7 +141,7 @@ func (r *Registry) Discover(_ context.Context, serviceName string) ([]*discovery
 		if scheme == "" {
 			scheme = "http"
 		}
-		result = append(result, &discovery.ServiceInstance{
+		result = append(result, &ServiceInstance{
 			ID:       s.Service.ID,
 			Name:     s.Service.Service,
 			Address:  fmt.Sprintf("%s:%d", addr, s.Service.Port),
@@ -153,8 +154,8 @@ func (r *Registry) Discover(_ context.Context, serviceName string) ([]*discovery
 }
 
 // Watch returns a channel that emits updated instance lists using Consul blocking queries.
-func (r *Registry) Watch(ctx context.Context, serviceName string) (<-chan []*discovery.ServiceInstance, error) {
-	ch := make(chan []*discovery.ServiceInstance, 8)
+func (r *ConsulRegistry) Watch(ctx context.Context, serviceName string) (<-chan []*ServiceInstance, error) {
+	ch := make(chan []*ServiceInstance, 8)
 
 	// Emit current state immediately.
 	if instances, err := r.Discover(ctx, serviceName); err == nil {
@@ -189,7 +190,7 @@ func (r *Registry) Watch(ctx context.Context, serviceName string) (<-chan []*dis
 			}
 			lastIndex = meta.LastIndex
 
-			result := make([]*discovery.ServiceInstance, 0, len(services))
+			result := make([]*ServiceInstance, 0, len(services))
 			for _, s := range services {
 				addr := s.Service.Address
 				if addr == "" {
@@ -203,7 +204,7 @@ func (r *Registry) Watch(ctx context.Context, serviceName string) (<-chan []*dis
 				if scheme == "" {
 					scheme = "http"
 				}
-				result = append(result, &discovery.ServiceInstance{
+				result = append(result, &ServiceInstance{
 					ID:       s.Service.ID,
 					Name:     s.Service.Service,
 					Address:  fmt.Sprintf("%s:%d", addr, s.Service.Port),
@@ -226,10 +227,10 @@ func (r *Registry) Watch(ctx context.Context, serviceName string) (<-chan []*dis
 }
 
 // Close is a no-op; the Consul client has no Close method.
-func (r *Registry) Close() error { return nil }
+func (r *ConsulRegistry) Close() error { return nil }
 
-// splitHostPort splits "host:port" into host and int port.
-func splitHostPort(addr string) (string, int, error) {
+// splitHostPortConsul splits "host:port" into host and int port.
+func splitHostPortConsul(addr string) (string, int, error) {
 	var host, portStr string
 	var err error
 	// Handle IPv6 addresses.

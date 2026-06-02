@@ -1,33 +1,8 @@
-// Package k8s provides a Kubernetes-backed service registry for Astra,
-// implementing the discovery.Registry interface using the Kubernetes
-// Endpoints API.
-//
-// # How it works
-//
-// Kubernetes manages Pod lifecycle and network identity through Service and
-// Endpoints objects. This registry reads Endpoints objects to discover
-// healthy service instances, and watches them for changes using the
-// Kubernetes Informer mechanism (list-and-watch).
-//
-// Register and Deregister write to a custom Pod Annotation
-// ("astra.io/instances") rather than creating Service/Endpoint objects —
-// that responsibility stays with the deployment platform.
-//
-// # In-cluster usage (recommended for production)
-//
-//	reg, err := k8s.New(k8s.Config{
-//	    Namespace: "production",
-//	    InCluster: true,
-//	})
-//	instances, err := reg.Discover(ctx, "user-svc")
-//
-// # Out-of-cluster usage (local development)
-//
-//	reg, err := k8s.New(k8s.Config{
-//	    Namespace:      "default",
-//	    KubeconfigPath: os.Getenv("KUBECONFIG"),
-//	})
-package k8s
+//go:build k8s || alltags
+
+// Package discovery provides service registry implementations.
+// This file contains the Kubernetes backend.
+package discovery
 
 import (
 	"context"
@@ -41,15 +16,22 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/astra-go/astra/discovery"
 )
 
 // annotationKey is the Pod annotation used to store Astra instance metadata.
-const annotationKey = "astra.io/instance"
+const k8sAnnotationKey = "astra.io/instance"
 
-// Config configures the Kubernetes registry.
-type Config struct {
+// K8sConfig configures the Kubernetes registry.
+//
+// Kubernetes manages Pod lifecycle and network identity through Service and
+// Endpoints objects. This registry reads Endpoints objects to discover
+// healthy service instances, and watches them for changes using the
+// Kubernetes Informer mechanism (list-and-watch).
+//
+// Register and Deregister write to a custom Pod Annotation
+// ("astra.io/instances") rather than creating Service/Endpoint objects —
+// that responsibility stays with the deployment platform.
+type K8sConfig struct {
 	// Namespace to query for Endpoints. Default: "default".
 	Namespace string
 
@@ -62,25 +44,40 @@ type Config struct {
 	KubeconfigPath string
 }
 
-func (c *Config) setDefaults() {
+func (c *K8sConfig) setDefaults() {
 	if c.Namespace == "" {
 		c.Namespace = "default"
 	}
 }
 
-// Registry implements discovery.Registry using the Kubernetes Endpoints API.
-type Registry struct {
+// K8sRegistry implements Registry using the Kubernetes Endpoints API.
+//
+// # In-cluster usage (recommended for production)
+//
+//	reg, err := discovery.NewK8sRegistry(discovery.K8sConfig{
+//	    Namespace: "production",
+//	    InCluster: true,
+//	})
+//	instances, err := reg.Discover(ctx, "user-svc")
+//
+// # Out-of-cluster usage (local development)
+//
+//	reg, err := discovery.NewK8sRegistry(discovery.K8sConfig{
+//	    Namespace:      "default",
+//	    KubeconfigPath: os.Getenv("KUBECONFIG"),
+//	})
+type K8sRegistry struct {
 	client    kubernetes.Interface
 	namespace string
 
 	mu       sync.RWMutex
-	watchers map[string][]chan []*discovery.ServiceInstance
+	watchers map[string][]chan []*ServiceInstance
 	cancelFn context.CancelFunc
 	ctx      context.Context
 }
 
-// New creates a Kubernetes Registry.
-func New(cfg Config) (*Registry, error) {
+// NewK8sRegistry creates a Kubernetes Registry.
+func NewK8sRegistry(cfg K8sConfig) (*K8sRegistry, error) {
 	cfg.setDefaults()
 
 	var restCfg *rest.Config
@@ -108,10 +105,10 @@ func New(cfg Config) (*Registry, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	r := &Registry{
+	r := &K8sRegistry{
 		client:    client,
 		namespace: cfg.Namespace,
-		watchers:  make(map[string][]chan []*discovery.ServiceInstance),
+		watchers:  make(map[string][]chan []*ServiceInstance),
 		cancelFn:  cancel,
 		ctx:       ctx,
 	}
@@ -125,12 +122,12 @@ func New(cfg Config) (*Registry, error) {
 // deployment, services are discovered via Endpoints (see Discover). Use
 // Register when you need Astra-specific metadata (scheme, weight) attached
 // to the Pod.
-func (r *Registry) Register(ctx context.Context, instance *discovery.ServiceInstance) error {
+func (r *K8sRegistry) Register(ctx context.Context, instance *ServiceInstance) error {
 	if instance.ID == "" {
-		return discovery.ErrInstanceIDEmpty
+		return ErrInstanceIDEmpty
 	}
 
-	data, err := json.Marshal(instanceAnnotation{
+	data, err := json.Marshal(k8sInstanceAnnotation{
 		ID:       instance.ID,
 		Name:     instance.Name,
 		Address:  instance.Address,
@@ -145,7 +142,7 @@ func (r *Registry) Register(ctx context.Context, instance *discovery.ServiceInst
 	patch := map[string]any{
 		"metadata": map[string]any{
 			"annotations": map[string]string{
-				annotationKey: string(data),
+				k8sAnnotationKey: string(data),
 			},
 		},
 	}
@@ -164,14 +161,14 @@ func (r *Registry) Register(ctx context.Context, instance *discovery.ServiceInst
 }
 
 // Deregister removes the Astra annotation from the Pod.
-func (r *Registry) Deregister(ctx context.Context, instanceID string) error {
+func (r *K8sRegistry) Deregister(ctx context.Context, instanceID string) error {
 	if instanceID == "" {
-		return discovery.ErrInstanceIDEmpty
+		return ErrInstanceIDEmpty
 	}
 	patch := map[string]any{
 		"metadata": map[string]any{
 			"annotations": map[string]any{
-				annotationKey: nil,
+				k8sAnnotationKey: nil,
 			},
 		},
 	}
@@ -191,22 +188,22 @@ func (r *Registry) Deregister(ctx context.Context, instanceID string) error {
 
 // Discover returns all ready Endpoint addresses for the given service name.
 // The serviceName must match the Kubernetes Service name.
-func (r *Registry) Discover(ctx context.Context, serviceName string) ([]*discovery.ServiceInstance, error) {
+func (r *K8sRegistry) Discover(ctx context.Context, serviceName string) ([]*ServiceInstance, error) {
 	ep, err := r.client.CoreV1().Endpoints(r.namespace).Get(ctx, serviceName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("k8s: get endpoints %s: %w", serviceName, err)
 	}
 	instances := endpointsToInstances(ep, serviceName)
 	if len(instances) == 0 {
-		return nil, discovery.ErrNoInstances
+		return nil, ErrNoInstances
 	}
 	return instances, nil
 }
 
 // Watch returns a channel that receives updated instance lists whenever the
 // Endpoints object for serviceName changes.
-func (r *Registry) Watch(ctx context.Context, serviceName string) (<-chan []*discovery.ServiceInstance, error) {
-	ch := make(chan []*discovery.ServiceInstance, 8)
+func (r *K8sRegistry) Watch(ctx context.Context, serviceName string) (<-chan []*ServiceInstance, error) {
+	ch := make(chan []*ServiceInstance, 8)
 
 	r.mu.Lock()
 	r.watchers[serviceName] = append(r.watchers[serviceName], ch)
@@ -217,13 +214,13 @@ func (r *Registry) Watch(ctx context.Context, serviceName string) (<-chan []*dis
 }
 
 // Close cancels all Watch goroutines.
-func (r *Registry) Close() error {
+func (r *K8sRegistry) Close() error {
 	r.cancelFn()
 	return nil
 }
 
 // watchEndpoints uses the k8s watch API to stream Endpoint changes.
-func (r *Registry) watchEndpoints(ctx context.Context, serviceName string, ch chan []*discovery.ServiceInstance) {
+func (r *K8sRegistry) watchEndpoints(ctx context.Context, serviceName string, ch chan []*ServiceInstance) {
 	defer func() {
 		r.mu.Lock()
 		watchers := r.watchers[serviceName]
@@ -269,8 +266,8 @@ func (r *Registry) watchEndpoints(ctx context.Context, serviceName string, ch ch
 }
 
 // endpointsToInstances converts a k8s Endpoints object to discovery instances.
-func endpointsToInstances(ep *corev1.Endpoints, serviceName string) []*discovery.ServiceInstance {
-	var instances []*discovery.ServiceInstance
+func endpointsToInstances(ep *corev1.Endpoints, serviceName string) []*ServiceInstance {
+	var instances []*ServiceInstance
 	for _, subset := range ep.Subsets {
 		for _, addr := range subset.Addresses {
 			for _, port := range subset.Ports {
@@ -278,7 +275,7 @@ func endpointsToInstances(ep *corev1.Endpoints, serviceName string) []*discovery
 				if addr.TargetRef != nil {
 					id = addr.TargetRef.Name
 				}
-				instances = append(instances, &discovery.ServiceInstance{
+				instances = append(instances, &ServiceInstance{
 					ID:      id,
 					Name:    serviceName,
 					Address: fmt.Sprintf("%s:%d", addr.IP, port.Port),
@@ -291,8 +288,8 @@ func endpointsToInstances(ep *corev1.Endpoints, serviceName string) []*discovery
 	return instances
 }
 
-// instanceAnnotation is the data stored in the astra.io/instance Pod annotation.
-type instanceAnnotation struct {
+// k8sInstanceAnnotation is the data stored in the astra.io/instance Pod annotation.
+type k8sInstanceAnnotation struct {
 	ID       string            `json:"id"`
 	Name     string            `json:"name"`
 	Address  string            `json:"address"`
@@ -300,6 +297,3 @@ type instanceAnnotation struct {
 	Weight   int               `json:"weight"`
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
-
-// Compile-time assertion.
-var _ discovery.Registry = (*Registry)(nil)

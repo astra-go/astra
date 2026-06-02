@@ -36,7 +36,7 @@ go get github.com/astra-go/astra/grpc@v1.0.0
 | **grpc** | `github.com/astra-go/astra/grpc` | gRPC server/client |
 | **auth** | `github.com/astra-go/astra/auth` | Authentication (JWT + OAuth2) |
 | **config** | `github.com/astra-go/astra/config` | Configuration management |
-| **discovery** | `github.com/astra-go/astra/discovery` | Service discovery (Consul/etcd/Nacos) |
+| **discovery** | `github.com/astra-go/astra/discovery` | Service discovery (Consul/etcd/K8s/Nacos) |
 | **mq** | `github.com/astra-go/astra/mq` | Message queue (Kafka/RabbitMQ/NATS) |
 | **observability** | `github.com/astra-go/astra/observability` | Metrics/tracing/logging |
 | **testutil** | `github.com/astra-go/astra/testutil` | Testing utilities |

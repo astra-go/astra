@@ -1,18 +1,48 @@
-// Package nacos provides a Nacos-backed service registry implementing
-// discovery.Registry.
+//go:build nacos || alltags
+
+// Package discovery provides service registry implementations.
+// This file contains the Nacos backend.
+package discovery
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"strconv"
+	"sync"
+
+	"github.com/nacos-group/nacos-sdk-go/v2/clients/naming_client"
+	"github.com/nacos-group/nacos-sdk-go/v2/model"
+	"github.com/nacos-group/nacos-sdk-go/v2/vo"
+)
+
+// metaKeyID and metaKeyScheme are hidden metadata keys used to carry
+// Astra-specific fields through the Nacos naming server.
+const (
+	nacosMetaKeyID     = "_astra_id"
+	nacosMetaKeyScheme = "_astra_scheme"
+)
+
+// NacosConfig configures the Nacos registry.
+type NacosConfig struct {
+	// Group is the Nacos service group. Default: "DEFAULT_GROUP".
+	Group string
+}
+
+// NacosRegistry implements Registry using the Nacos naming service.
+// All methods are safe for concurrent use.
 //
 // Service instances are registered to the Nacos naming service with a health
 // check. The Astra-specific fields (instance ID, scheme, metadata) are stored
 // in the Nacos instance Metadata map so they survive round-trips through the
 // Nacos server.
 //
-// # Usage
+// Usage:
 //
 //	import (
 //	    "github.com/nacos-group/nacos-sdk-go/v2/clients"
 //	    "github.com/nacos-group/nacos-sdk-go/v2/common/constant"
 //	    "github.com/nacos-group/nacos-sdk-go/v2/vo"
-//	    nacosdiscovery "github.com/astra-go/astra/discovery/nacos"
 //	)
 //
 //	sc := []constant.ServerConfig{{IpAddr: "127.0.0.1", Port: 8848}}
@@ -26,7 +56,7 @@
 //	    ServerConfigs: sc,
 //	})
 //
-//	reg := nacosdiscovery.New(namingClient)
+//	reg := discovery.NewNacosRegistry(namingClient)
 //
 //	_ = reg.Register(ctx, &discovery.ServiceInstance{
 //	    ID:      "user-svc-1",
@@ -35,67 +65,36 @@
 //	    Scheme:  "http",
 //	    Weight:  1,
 //	})
-package nacos
-
-import (
-	"context"
-	"fmt"
-	"net"
-	"strconv"
-	"sync"
-
-	"github.com/nacos-group/nacos-sdk-go/v2/clients/naming_client"
-	"github.com/nacos-group/nacos-sdk-go/v2/model"
-	"github.com/nacos-group/nacos-sdk-go/v2/vo"
-
-	"github.com/astra-go/astra/discovery"
-)
-
-// metaKeyID and metaKeyScheme are hidden metadata keys used to carry
-// Astra-specific fields through the Nacos naming server.
-const (
-	metaKeyID     = "_astra_id"
-	metaKeyScheme = "_astra_scheme"
-)
-
-// Config configures the Nacos registry.
-type Config struct {
-	// Group is the Nacos service group. Default: "DEFAULT_GROUP".
-	Group string
-}
-
-// Registry implements discovery.Registry using the Nacos naming service.
-// All methods are safe for concurrent use.
-type Registry struct {
+type NacosRegistry struct {
 	client naming_client.INamingClient
 	group  string
 
 	mu        sync.Mutex
-	instances map[string]*discovery.ServiceInstance // instanceID → instance
+	instances map[string]*ServiceInstance // instanceID → instance
 }
 
-// New creates a Nacos-backed Registry.
-func New(client naming_client.INamingClient, cfgs ...Config) *Registry {
-	cfg := Config{}
+// NewNacosRegistry creates a Nacos-backed Registry.
+func NewNacosRegistry(client naming_client.INamingClient, cfgs ...NacosConfig) *NacosRegistry {
+	cfg := NacosConfig{}
 	if len(cfgs) > 0 {
 		cfg = cfgs[0]
 	}
 	if cfg.Group == "" {
 		cfg.Group = "DEFAULT_GROUP"
 	}
-	return &Registry{
+	return &NacosRegistry{
 		client:    client,
 		group:     cfg.Group,
-		instances: make(map[string]*discovery.ServiceInstance),
+		instances: make(map[string]*ServiceInstance),
 	}
 }
 
 // Register registers a service instance with the Nacos naming service.
 // Ephemeral instances are used so the entry is automatically removed if the
 // process dies without calling Deregister.
-func (r *Registry) Register(ctx context.Context, instance *discovery.ServiceInstance) error {
+func (r *NacosRegistry) Register(ctx context.Context, instance *ServiceInstance) error {
 	if instance.ID == "" {
-		return discovery.ErrInstanceIDEmpty
+		return ErrInstanceIDEmpty
 	}
 	if instance.Weight <= 0 {
 		instance.Weight = 1
@@ -104,14 +103,14 @@ func (r *Registry) Register(ctx context.Context, instance *discovery.ServiceInst
 		instance.Scheme = "http"
 	}
 
-	host, port, err := splitHostPort(instance.Address)
+	host, port, err := splitHostPortNacos(instance.Address)
 	if err != nil {
 		return fmt.Errorf("discovery/nacos: invalid address %q: %w", instance.Address, err)
 	}
 
-	meta := cloneMeta(instance.Metadata)
-	meta[metaKeyID] = instance.ID
-	meta[metaKeyScheme] = instance.Scheme
+	meta := cloneMetaNacos(instance.Metadata)
+	meta[nacosMetaKeyID] = instance.ID
+	meta[nacosMetaKeyScheme] = instance.Scheme
 
 	ok, err := r.client.RegisterInstance(vo.RegisterInstanceParam{
 		ServiceName: instance.Name,
@@ -138,7 +137,7 @@ func (r *Registry) Register(ctx context.Context, instance *discovery.ServiceInst
 }
 
 // Deregister removes a service instance from the Nacos naming service.
-func (r *Registry) Deregister(_ context.Context, instanceID string) error {
+func (r *NacosRegistry) Deregister(_ context.Context, instanceID string) error {
 	r.mu.Lock()
 	inst, ok := r.instances[instanceID]
 	if ok {
@@ -149,7 +148,7 @@ func (r *Registry) Deregister(_ context.Context, instanceID string) error {
 		return nil // already gone or never registered through this client
 	}
 
-	host, port, err := splitHostPort(inst.Address)
+	host, port, err := splitHostPortNacos(inst.Address)
 	if err != nil {
 		return fmt.Errorf("discovery/nacos: invalid address %q: %w", inst.Address, err)
 	}
@@ -171,7 +170,7 @@ func (r *Registry) Deregister(_ context.Context, instanceID string) error {
 }
 
 // Discover returns all healthy, enabled instances of the named service.
-func (r *Registry) Discover(_ context.Context, serviceName string) ([]*discovery.ServiceInstance, error) {
+func (r *NacosRegistry) Discover(_ context.Context, serviceName string) ([]*ServiceInstance, error) {
 	instances, err := r.client.SelectInstances(vo.SelectInstancesParam{
 		ServiceName: serviceName,
 		GroupName:   r.group,
@@ -181,7 +180,7 @@ func (r *Registry) Discover(_ context.Context, serviceName string) ([]*discovery
 		return nil, fmt.Errorf("discovery/nacos: discover %q: %w", serviceName, err)
 	}
 	if len(instances) == 0 {
-		return nil, fmt.Errorf("%w: %s", discovery.ErrNotFound, serviceName)
+		return nil, fmt.Errorf("%w: %s", ErrNotFound, serviceName)
 	}
 	return nacosToServiceInstances(serviceName, instances), nil
 }
@@ -189,8 +188,8 @@ func (r *Registry) Discover(_ context.Context, serviceName string) ([]*discovery
 // Watch returns a channel that emits the full healthy instance list whenever
 // the service changes. The channel is closed when ctx is cancelled.
 // The first emit is the current healthy state.
-func (r *Registry) Watch(ctx context.Context, serviceName string) (<-chan []*discovery.ServiceInstance, error) {
-	ch := make(chan []*discovery.ServiceInstance, 8)
+func (r *NacosRegistry) Watch(ctx context.Context, serviceName string) (<-chan []*ServiceInstance, error) {
+	ch := make(chan []*ServiceInstance, 8)
 
 	// Emit current state immediately (best-effort; ignore errors on first load).
 	if instances, err := r.Discover(ctx, serviceName); err == nil {
@@ -234,31 +233,31 @@ func (r *Registry) Watch(ctx context.Context, serviceName string) (<-chan []*dis
 
 // Close is a no-op for the Nacos registry.
 // The underlying naming client lifecycle is managed by the caller.
-func (r *Registry) Close() error { return nil }
+func (r *NacosRegistry) Close() error { return nil }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-func nacosToServiceInstances(serviceName string, hosts []model.Instance) []*discovery.ServiceInstance {
-	result := make([]*discovery.ServiceInstance, 0, len(hosts))
+func nacosToServiceInstances(serviceName string, hosts []model.Instance) []*ServiceInstance {
+	result := make([]*ServiceInstance, 0, len(hosts))
 	for _, h := range hosts {
 		if !h.Enable || !h.Healthy {
 			continue
 		}
-		id := h.Metadata[metaKeyID]
+		id := h.Metadata[nacosMetaKeyID]
 		if id == "" {
 			id = fmt.Sprintf("%s:%d", h.Ip, h.Port)
 		}
-		scheme := h.Metadata[metaKeyScheme]
+		scheme := h.Metadata[nacosMetaKeyScheme]
 		if scheme == "" {
 			scheme = "http"
 		}
 		meta := make(map[string]string, len(h.Metadata))
 		for k, v := range h.Metadata {
-			if k != metaKeyID && k != metaKeyScheme {
+			if k != nacosMetaKeyID && k != nacosMetaKeyScheme {
 				meta[k] = v
 			}
 		}
-		result = append(result, &discovery.ServiceInstance{
+		result = append(result, &ServiceInstance{
 			ID:       id,
 			Name:     serviceName,
 			Address:  fmt.Sprintf("%s:%d", h.Ip, h.Port),
@@ -270,7 +269,7 @@ func nacosToServiceInstances(serviceName string, hosts []model.Instance) []*disc
 	return result
 }
 
-func splitHostPort(address string) (string, uint64, error) {
+func splitHostPortNacos(address string) (string, uint64, error) {
 	host, portStr, err := net.SplitHostPort(address)
 	if err != nil {
 		return "", 0, err
@@ -282,13 +281,10 @@ func splitHostPort(address string) (string, uint64, error) {
 	return host, port, nil
 }
 
-func cloneMeta(src map[string]string) map[string]string {
+func cloneMetaNacos(src map[string]string) map[string]string {
 	dst := make(map[string]string, len(src)+2)
 	for k, v := range src {
 		dst[k] = v
 	}
 	return dst
 }
-
-// Compile-time assertion.
-var _ discovery.Registry = (*Registry)(nil)
