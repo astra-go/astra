@@ -1,30 +1,9 @@
-// Package kafka provides a Kafka-backed implementation of the taskqueue.Broker
-// interface using franz-go.
-//
-// # Topic layout
-//
-//	tq-{queue}        — main work topic; consumed by the worker consumer group
-//	tq-{queue}-retry  — retry messages (header: x-process-at = unix seconds)
-//	tq-{queue}-dead   — dead-lettered messages
-//
-// # Delayed delivery
-//
-// Delayed tasks (ProcessAt in the future) are produced to the retry topic with
-// an "x-process-at" header. The broker's Schedule method periodically moves
-// due messages from retry topics to the main topic.
-//
-// Kafka does not provide message-level acknowledgement. Ack commits the
-// consumer group offset for the processed record. Nack (retry) commits the
-// original record and produces a new message to the retry topic.
-//
-// # Usage
-//
-//	broker, err := kafka.New(kafka.Config{
-//	    Brokers:       []string{"localhost:9092"},
-//	    ConsumerGroup: "my-app-workers",
-//	})
-//	defer broker.Close()
-package kafka
+//go:build kafka
+// +build kafka
+
+package taskqueue
+
+// This file provides the Kafka broker, enabled with build tag "kafka".
 
 import (
 	"context"
@@ -35,16 +14,14 @@ import (
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
-
-	"github.com/astra-go/astra/taskqueue"
 )
 
 const (
-	headerProcessAt = "x-process-at" // unix seconds, string-encoded
+	kafkaHeaderProcessAt = "x-process-at" // unix seconds, string-encoded
 )
 
-// Config configures the Kafka broker.
-type Config struct {
+// KafkaConfig configures the Kafka broker.
+type KafkaConfig struct {
 	// Brokers is the list of Kafka bootstrap broker addresses.
 	// e.g. []string{"localhost:9092"}
 	Brokers []string
@@ -61,7 +38,7 @@ type Config struct {
 	KGOOpts []kgo.Opt
 }
 
-func (c *Config) setDefaults() {
+func (c *KafkaConfig) setKafkaDefaults() {
 	if c.KeyPrefix == "" {
 		c.KeyPrefix = "tq"
 	}
@@ -70,8 +47,8 @@ func (c *Config) setDefaults() {
 	}
 }
 
-// Broker is a Kafka-backed taskqueue.Broker.
-type Broker struct {
+// KafkaBroker is a Kafka-backed Broker.
+type KafkaBroker struct {
 	producerCl  *kgo.Client // for all produce operations
 	consumerCl  *kgo.Client // consumer group on main topics
 	scheduleCl  *kgo.Client // manual-offset client for retry topics
@@ -85,18 +62,18 @@ type Broker struct {
 
 // ─── Topic helpers ────────────────────────────────────────────────────────────
 
-func (b *Broker) mainTopic(q string) string  { return b.prefix + "-" + q }
-func (b *Broker) retryTopic(q string) string { return b.prefix + "-" + q + "-retry" }
-func (b *Broker) deadTopic(q string) string  { return b.prefix + "-" + q + "-dead" }
+func (b *KafkaBroker) kafkaMainTopic(q string) string  { return b.prefix + "-" + q }
+func (b *KafkaBroker) kafkaRetryTopic(q string) string { return b.prefix + "-" + q + "-retry" }
+func (b *KafkaBroker) kafkaDeadTopic(q string) string  { return b.prefix + "-" + q + "-dead" }
 
 // ─── Constructor ──────────────────────────────────────────────────────────────
 
-// New creates a Broker with three internal kgo.Client instances:
+// NewKafkaBroker creates a Broker with three internal kgo.Client instances:
 //   - producerCl: produce-only
 //   - consumerCl: consumer group on main topics (added dynamically per Dequeue)
 //   - scheduleCl: no consumer group, used by Schedule to consume retry topics
-func New(cfg Config) (*Broker, error) {
-	cfg.setDefaults()
+func NewKafkaBroker(cfg KafkaConfig) (*KafkaBroker, error) {
+	cfg.setKafkaDefaults()
 
 	base := append([]kgo.Opt{kgo.SeedBrokers(cfg.Brokers...)}, cfg.KGOOpts...)
 
@@ -123,7 +100,7 @@ func New(cfg Config) (*Broker, error) {
 		return nil, fmt.Errorf("taskqueue kafka: create schedule client: %w", err)
 	}
 
-	return &Broker{
+	return &KafkaBroker{
 		producerCl: producerCl,
 		consumerCl: consumerCl,
 		scheduleCl: scheduleCl,
@@ -138,7 +115,7 @@ func New(cfg Config) (*Broker, error) {
 // Enqueue produces the task to the appropriate Kafka topic.
 // Tasks with ProcessAt in the future are placed in the retry topic so that
 // Schedule can promote them to the main topic when due.
-func (b *Broker) Enqueue(ctx context.Context, task *taskqueue.Task) error {
+func (b *KafkaBroker) Enqueue(ctx context.Context, task *Task) error {
 	now := time.Now()
 	task.UpdatedAt = now
 
@@ -150,23 +127,23 @@ func (b *Broker) Enqueue(ctx context.Context, task *taskqueue.Task) error {
 	b.knownQueues.Store(task.Queue, struct{}{})
 
 	// Register the main topic with the consumer client (idempotent).
-	b.consumerCl.AddConsumeTopics(b.mainTopic(task.Queue))
+	b.consumerCl.AddConsumeTopics(b.kafkaMainTopic(task.Queue))
 
 	var topic string
 	var headers []kgo.RecordHeader
 
 	if task.ProcessAt.After(now) {
 		// Scheduled task → retry topic with x-process-at header.
-		task.State = taskqueue.StateScheduled
-		topic = b.retryTopic(task.Queue)
+		task.State = StateScheduled
+		topic = b.kafkaRetryTopic(task.Queue)
 		headers = []kgo.RecordHeader{
-			{Key: headerProcessAt, Value: []byte(strconv.FormatInt(task.ProcessAt.Unix(), 10))},
+			{Key: kafkaHeaderProcessAt, Value: []byte(strconv.FormatInt(task.ProcessAt.Unix(), 10))},
 		}
 		// Register retry topic with schedule client.
-		b.scheduleCl.AddConsumeTopics(b.retryTopic(task.Queue))
+		b.scheduleCl.AddConsumeTopics(b.kafkaRetryTopic(task.Queue))
 	} else {
-		task.State = taskqueue.StatePending
-		topic = b.mainTopic(task.Queue)
+		task.State = StatePending
+		topic = b.kafkaMainTopic(task.Queue)
 	}
 
 	record := &kgo.Record{
@@ -185,10 +162,10 @@ func (b *Broker) Enqueue(ctx context.Context, task *taskqueue.Task) error {
 
 // Dequeue polls the main consumer topic for one task and returns it.
 // Returns ErrNoTask when no message is immediately available.
-func (b *Broker) Dequeue(ctx context.Context, queues []string, _ time.Time) (*taskqueue.Task, error) {
+func (b *KafkaBroker) Dequeue(ctx context.Context, queues []string, _ time.Time) (*Task, error) {
 	// Register all requested queues with the consumer client.
 	for _, q := range queues {
-		b.consumerCl.AddConsumeTopics(b.mainTopic(q))
+		b.consumerCl.AddConsumeTopics(b.kafkaMainTopic(q))
 		b.knownQueues.Store(q, struct{}{})
 	}
 
@@ -198,21 +175,21 @@ func (b *Broker) Dequeue(ctx context.Context, queues []string, _ time.Time) (*ta
 
 	fetches := b.consumerCl.PollRecords(pollCtx, 1)
 	if fetches.IsClientClosed() {
-		return nil, taskqueue.ErrNoTask
+		return nil, ErrNoTask
 	}
 	if err := fetches.Err(); err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, taskqueue.ErrNoTask
+		return nil, ErrNoTask
 	}
 
-	var firstTask *taskqueue.Task
+	var firstTask *Task
 	fetches.EachRecord(func(r *kgo.Record) {
 		if firstTask != nil {
 			return
 		}
-		var task taskqueue.Task
+		var task Task
 		if err := json.Unmarshal(r.Value, &task); err != nil {
 			// Poison message — commit and skip.
 			_ = b.consumerCl.CommitRecords(ctx, r)
@@ -223,20 +200,20 @@ func (b *Broker) Dequeue(ctx context.Context, queues []string, _ time.Time) (*ta
 			_ = b.consumerCl.CommitRecords(ctx, r)
 			return
 		}
-		task.State = taskqueue.StateActive
+		task.State = StateActive
 		b.inflight.Store(task.ID, r)
 		firstTask = &task
 	})
 
 	if firstTask == nil {
-		return nil, taskqueue.ErrNoTask
+		return nil, ErrNoTask
 	}
 	return firstTask, nil
 }
 
 // Ack commits the consumer offset for the task's Kafka record.
-func (b *Broker) Ack(ctx context.Context, task *taskqueue.Task) error {
-	record, ok := b.inflightLoad(task.ID)
+func (b *KafkaBroker) Ack(ctx context.Context, task *Task) error {
+	record, ok := b.kafkaInflightLoad(task.ID)
 	if !ok {
 		return fmt.Errorf("taskqueue kafka: ack %q: not found in inflight map", task.ID)
 	}
@@ -250,11 +227,11 @@ func (b *Broker) Ack(ctx context.Context, task *taskqueue.Task) error {
 // Nack records task failure. For retry tasks it produces to the retry topic
 // with an x-process-at header; for dead tasks it produces to the dead topic.
 // The original record is committed in both cases.
-func (b *Broker) Nack(ctx context.Context, task *taskqueue.Task, lastErr string, retryAt time.Time) error {
+func (b *KafkaBroker) Nack(ctx context.Context, task *Task, lastErr string, retryAt time.Time) error {
 	task.LastError = lastErr
 	task.UpdatedAt = time.Now()
 
-	record, ok := b.inflightLoad(task.ID)
+	record, ok := b.kafkaInflightLoad(task.ID)
 	if !ok {
 		return fmt.Errorf("taskqueue kafka: nack %q: not found in inflight map", task.ID)
 	}
@@ -269,13 +246,13 @@ func (b *Broker) Nack(ctx context.Context, task *taskqueue.Task, lastErr string,
 	var headers []kgo.RecordHeader
 
 	if retryAt.IsZero() {
-		task.State = taskqueue.StateDead
-		destTopic = b.deadTopic(task.Queue)
+		task.State = StateDead
+		destTopic = b.kafkaDeadTopic(task.Queue)
 	} else {
-		task.State = taskqueue.StateRetry
-		destTopic = b.retryTopic(task.Queue)
+		task.State = StateRetry
+		destTopic = b.kafkaRetryTopic(task.Queue)
 		headers = []kgo.RecordHeader{
-			{Key: headerProcessAt, Value: []byte(strconv.FormatInt(retryAt.Unix(), 10))},
+			{Key: kafkaHeaderProcessAt, Value: []byte(strconv.FormatInt(retryAt.Unix(), 10))},
 		}
 		// Make sure the schedule client is watching this retry topic.
 		b.scheduleCl.AddConsumeTopics(destTopic)
@@ -300,12 +277,7 @@ func (b *Broker) Nack(ctx context.Context, task *taskqueue.Task, lastErr string,
 
 // Schedule polls retry topics and promotes messages whose x-process-at has
 // elapsed to the corresponding main topic.
-//
-// The scheduleCl uses manual offset management: records that are due are
-// committed after being re-produced to the main topic. Records that are not
-// yet due cause the partition offset to be reset to their position so they
-// are re-polled on the next Schedule call.
-func (b *Broker) Schedule(ctx context.Context) error {
+func (b *KafkaBroker) Schedule(ctx context.Context) error {
 	pollCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 
@@ -325,17 +297,17 @@ func (b *Broker) Schedule(ctx context.Context) error {
 	fetches.EachRecord(func(r *kgo.Record) {
 		processAt := int64(0)
 		for _, h := range r.Headers {
-			if h.Key == headerProcessAt {
+			if h.Key == kafkaHeaderProcessAt {
 				processAt, _ = strconv.ParseInt(string(h.Value), 10, 64)
 			}
 		}
 
 		if processAt == 0 || time.Unix(processAt, 0).Before(now) {
 			// Due — re-produce to main topic.
-			var task taskqueue.Task
+			var task Task
 			if err := json.Unmarshal(r.Value, &task); err == nil {
 				mainRecord := &kgo.Record{
-					Topic: b.mainTopic(task.Queue),
+					Topic: b.kafkaMainTopic(task.Queue),
 					Key:   r.Key,
 					Value: r.Value,
 				}
@@ -375,13 +347,11 @@ func (b *Broker) Schedule(ctx context.Context) error {
 	return nil
 }
 
-// ReapStale is a no-op for the Kafka broker. When a consumer's session
-// expires, the consumer group rebalances and the uncommitted records are
-// re-delivered to another consumer automatically.
-func (b *Broker) ReapStale(_ context.Context) error { return nil }
+// ReapStale is a no-op for the Kafka broker.
+func (b *KafkaBroker) ReapStale(_ context.Context) error { return nil }
 
 // Close closes all three internal kgo.Client instances.
-func (b *Broker) Close() error {
+func (b *KafkaBroker) Close() error {
 	b.producerCl.Close()
 	b.consumerCl.Close()
 	b.scheduleCl.Close()
@@ -390,10 +360,13 @@ func (b *Broker) Close() error {
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-func (b *Broker) inflightLoad(taskID string) (*kgo.Record, bool) {
+func (b *KafkaBroker) kafkaInflightLoad(taskID string) (*kgo.Record, bool) {
 	v, ok := b.inflight.Load(taskID)
 	if !ok {
 		return nil, false
 	}
 	return v.(*kgo.Record), true
 }
+
+// Verify KafkaBroker implements Broker at compile time.
+var _ Broker = (*KafkaBroker)(nil)

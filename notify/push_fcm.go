@@ -1,38 +1,9 @@
-// Package fcm provides a Firebase Cloud Messaging (FCM) backend for the
-// github.com/astra-go/astra/notify/push package.
-//
-// It calls the FCM HTTP v1 API (fcm.googleapis.com/v1) using a service-account
-// OAuth2 Bearer token — no Firebase Admin SDK dependency required.
-//
-// # Authentication
-//
-// FCM HTTP v1 requires a Google OAuth2 access token scoped to
-// "https://www.googleapis.com/auth/firebase.messaging".
-// Supply the raw JSON service-account key file content in ServiceAccountJSON,
-// and the sender will exchange it for short-lived access tokens automatically.
-//
-// Alternatively, supply a static BearerToken for testing or environments where
-// token exchange is handled externally.
-//
-// # Usage
-//
-//	import (
-//	    "github.com/astra-go/astra/notify/push"
-//	    pushfcm "github.com/astra-go/astra/notify/push/fcm"
-//	)
-//
-//	sender, err := pushfcm.New(pushfcm.Config{
-//	    ProjectID:          os.Getenv("FIREBASE_PROJECT_ID"),
-//	    ServiceAccountJSON: serviceAccountBytes,
-//	})
-//
-//	result, err := sender.Send(ctx, &push.Message{
-//	    Token: deviceToken,
-//	    Title: "Hello",
-//	    Body:  "World",
-//	    Data:  map[string]string{"key": "value"},
-//	})
-package fcm
+//go:build push
+// +build push
+
+package notify
+
+// This file provides the FCM push sender, enabled with build tag "push".
 
 import (
 	"bytes"
@@ -51,43 +22,39 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/astra-go/astra/notify/push"
 )
 
-// Config configures the FCM sender.
-type Config struct {
+// FcmConfig configures the FCM sender.
+type FcmConfig struct {
 	// ProjectID is the Firebase project ID (e.g. "my-project-123"). Required.
 	ProjectID string
 
 	// BearerToken is a pre-obtained OAuth2 Bearer token.
-	// Use for testing or when token management is external.
 	// Mutually exclusive with ServiceAccountJSON.
 	BearerToken string
 
 	// ServiceAccountJSON is the content of the Firebase service-account key
-	// JSON file. The sender exchanges it for short-lived access tokens.
-	// Mutually exclusive with BearerToken.
+	// JSON file. Mutually exclusive with BearerToken.
 	ServiceAccountJSON []byte
 
 	// HTTPTimeout sets the HTTP client timeout. Default: 10 seconds.
 	HTTPTimeout time.Duration
 }
 
-// Sender implements push.Sender using the FCM HTTP v1 API.
-type Sender struct {
-	cfg       Config
+// FcmSender implements PushSender using the FCM HTTP v1 API.
+type FcmSender struct {
+	cfg       FcmConfig
 	client    *http.Client
 	tokenFunc func(ctx context.Context) (string, error)
 }
 
-// New creates an FCM Sender.
-func New(cfg Config) (*Sender, error) {
+// NewFcmSender creates an FCM PushSender.
+func NewFcmSender(cfg FcmConfig) (*FcmSender, error) {
 	timeout := cfg.HTTPTimeout
 	if timeout == 0 {
 		timeout = 10 * time.Second
 	}
-	s := &Sender{
+	s := &FcmSender{
 		cfg:    cfg,
 		client: &http.Client{Timeout: timeout},
 	}
@@ -95,7 +62,7 @@ func New(cfg Config) (*Sender, error) {
 	case cfg.BearerToken != "":
 		s.tokenFunc = func(_ context.Context) (string, error) { return cfg.BearerToken, nil }
 	case len(cfg.ServiceAccountJSON) > 0:
-		tf, err := newServiceAccountTokenFunc(cfg.ServiceAccountJSON, &http.Client{Timeout: 10 * time.Second})
+		tf, err := newFcmServiceAccountTokenFunc(cfg.ServiceAccountJSON, &http.Client{Timeout: 10 * time.Second})
 		if err != nil {
 			return nil, fmt.Errorf("fcm: parse service account: %w", err)
 		}
@@ -107,13 +74,13 @@ func New(cfg Config) (*Sender, error) {
 }
 
 // Send delivers a push notification to a single token or topic.
-func (s *Sender) Send(ctx context.Context, msg *push.Message) (*push.SendResult, error) {
+func (s *FcmSender) Send(ctx context.Context, msg *PushMessage) (*PushSendResult, error) {
 	token, err := s.tokenFunc(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("fcm: get token: %w", err)
 	}
 
-	fcmMsg := buildFCMMessage(msg)
+	fcmMsg := fcmBuildMessage(msg)
 	body, _ := json.Marshal(map[string]any{"message": fcmMsg})
 
 	url := fmt.Sprintf("https://fcm.googleapis.com/v1/projects/%s/messages:send", s.cfg.ProjectID)
@@ -132,23 +99,23 @@ func (s *Sender) Send(ctx context.Context, msg *push.Message) (*push.SendResult,
 
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return &push.SendResult{Error: fmt.Errorf("fcm: HTTP %d: %s", resp.StatusCode, string(respBody))}, nil
+		return &PushSendResult{Error: fmt.Errorf("fcm: HTTP %d: %s", resp.StatusCode, string(respBody))}, nil
 	}
 
 	var result struct {
 		Name string `json:"name"`
 	}
 	_ = json.Unmarshal(respBody, &result)
-	return &push.SendResult{MessageID: result.Name}, nil
+	return &PushSendResult{MessageID: result.Name}, nil
 }
 
-// SendBatch sends messages sequentially (FCM v1 has no free-tier batch endpoint).
-func (s *Sender) SendBatch(ctx context.Context, msgs []*push.Message) ([]*push.SendResult, error) {
-	results := make([]*push.SendResult, len(msgs))
+// SendBatch sends messages sequentially.
+func (s *FcmSender) SendBatch(ctx context.Context, msgs []*PushMessage) ([]*PushSendResult, error) {
+	results := make([]*PushSendResult, len(msgs))
 	for i, m := range msgs {
 		r, err := s.Send(ctx, m)
 		if err != nil {
-			results[i] = &push.SendResult{Error: err}
+			results[i] = &PushSendResult{Error: err}
 		} else {
 			results[i] = r
 		}
@@ -156,12 +123,12 @@ func (s *Sender) SendBatch(ctx context.Context, msgs []*push.Message) ([]*push.S
 	return results, nil
 }
 
-// Compile-time assertion.
-var _ push.Sender = (*Sender)(nil)
+// Verify FcmSender implements PushSender at compile time.
+var _ PushSender = (*FcmSender)(nil)
 
 // ─── FCM message builder ──────────────────────────────────────────────────────
 
-func buildFCMMessage(msg *push.Message) map[string]any {
+func fcmBuildMessage(msg *PushMessage) map[string]any {
 	notification := map[string]any{}
 	if msg.Title != "" {
 		notification["title"] = msg.Title
@@ -201,14 +168,14 @@ func buildFCMMessage(msg *push.Message) map[string]any {
 
 // ─── service-account token exchange ──────────────────────────────────────────
 
-type serviceAccount struct {
+type fcmServiceAccount struct {
 	ClientEmail string `json:"client_email"`
 	PrivateKey  string `json:"private_key"`
 	TokenURI    string `json:"token_uri"`
 }
 
-func newServiceAccountTokenFunc(saJSON []byte, hc *http.Client) (func(context.Context) (string, error), error) {
-	var sa serviceAccount
+func newFcmServiceAccountTokenFunc(saJSON []byte, hc *http.Client) (func(context.Context) (string, error), error) {
+	var sa fcmServiceAccount
 	if err := json.Unmarshal(saJSON, &sa); err != nil {
 		return nil, err
 	}
@@ -219,7 +186,7 @@ func newServiceAccountTokenFunc(saJSON []byte, hc *http.Client) (func(context.Co
 		sa.TokenURI = "https://oauth2.googleapis.com/token"
 	}
 
-	key, err := parseRSAPrivateKey([]byte(sa.PrivateKey))
+	key, err := fcmParseRSAPrivateKey([]byte(sa.PrivateKey))
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +203,7 @@ func newServiceAccountTokenFunc(saJSON []byte, hc *http.Client) (func(context.Co
 		if cachedToken != "" && time.Now().Before(cachedExpiry) {
 			return cachedToken, nil
 		}
-		tok, expiry, err := exchangeJWT(ctx, sa, key, hc)
+		tok, expiry, err := fcmExchangeJWT(ctx, sa, key, hc)
 		if err != nil {
 			return "", err
 		}
@@ -246,9 +213,9 @@ func newServiceAccountTokenFunc(saJSON []byte, hc *http.Client) (func(context.Co
 	}, nil
 }
 
-func exchangeJWT(ctx context.Context, sa serviceAccount, key *rsa.PrivateKey, hc *http.Client) (string, time.Time, error) {
+func fcmExchangeJWT(ctx context.Context, sa fcmServiceAccount, key *rsa.PrivateKey, hc *http.Client) (string, time.Time, error) {
 	now := time.Now()
-	jwt, err := signRS256JWT(key, map[string]any{
+	jwt, err := fcmSignRS256JWT(key, map[string]any{
 		"iss":   sa.ClientEmail,
 		"sub":   sa.ClientEmail,
 		"aud":   sa.TokenURI,
@@ -290,9 +257,9 @@ func exchangeJWT(ctx context.Context, sa serviceAccount, key *rsa.PrivateKey, hc
 
 // ─── JWT / RSA helpers ────────────────────────────────────────────────────────
 
-func signRS256JWT(key *rsa.PrivateKey, claims map[string]any) (string, error) {
-	header := base64RawURL(mustJSON(map[string]any{"alg": "RS256", "typ": "JWT"}))
-	payload := base64RawURL(mustJSON(claims))
+func fcmSignRS256JWT(key *rsa.PrivateKey, claims map[string]any) (string, error) {
+	header := fcmBase64RawURL(fcmMustJSON(map[string]any{"alg": "RS256", "typ": "JWT"}))
+	payload := fcmBase64RawURL(fcmMustJSON(claims))
 	signingInput := header + "." + payload
 
 	h := sha256.New()
@@ -301,17 +268,16 @@ func signRS256JWT(key *rsa.PrivateKey, claims map[string]any) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return signingInput + "." + base64RawURL(sig), nil
+	return signingInput + "." + fcmBase64RawURL(sig), nil
 }
 
-func parseRSAPrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
+func fcmParseRSAPrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
 		return nil, fmt.Errorf("fcm: failed to decode PEM block")
 	}
 	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		// Try PKCS1 as fallback.
 		return x509.ParsePKCS1PrivateKey(block.Bytes)
 	}
 	rsaKey, ok := key.(*rsa.PrivateKey)
@@ -321,11 +287,11 @@ func parseRSAPrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
 	return rsaKey, nil
 }
 
-func mustJSON(v any) []byte {
+func fcmMustJSON(v any) []byte {
 	b, _ := json.Marshal(v)
 	return b
 }
 
-func base64RawURL(b []byte) string {
+func fcmBase64RawURL(b []byte) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }

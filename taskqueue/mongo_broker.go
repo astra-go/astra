@@ -1,26 +1,9 @@
-// Package mongo provides a MongoDB-backed implementation of the taskqueue.Broker
-// interface using mongo-driver/v2.
-//
-// # Collections
-//
-//   - taskqueue_messages  — one document per task (fields mirror taskqueue.Task)
-//   - taskqueue_dedup     — deduplication locks with TTL
-//
-// # Indexes
-//
-//   - messages: {queue, state, process_at} — hot dequeue path
-//   - messages: {task_id} unique           — Ack/Nack lookup
-//   - messages: {state, active_by}         — ReapStale
-//   - dedup: {expires_at} TTL (expireAfterSeconds:0) — automatic expiry
-//
-// # Usage
-//
-//	broker, err := tqmongo.New(ctx, tqmongo.Config{
-//	    URI:      "mongodb://localhost:27017",
-//	    Database: "myapp",
-//	})
-//	defer broker.Close(ctx)
-package mongo
+//go:build mongo
+// +build mongo
+
+package taskqueue
+
+// This file provides the MongoDB broker, enabled with build tag "mongo".
 
 import (
 	"context"
@@ -32,12 +15,10 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
-
-	"github.com/astra-go/astra/taskqueue"
 )
 
-// Config configures the MongoDB broker.
-type Config struct {
+// MongoConfig configures the MongoDB broker.
+type MongoConfig struct {
 	// URI is the MongoDB connection string. e.g. "mongodb://localhost:27017".
 	URI string
 
@@ -53,7 +34,7 @@ type Config struct {
 	DedupCollection string
 }
 
-func (c *Config) setDefaults() {
+func (c *MongoConfig) setMongoDefaults() {
 	if c.MessagesCollection == "" {
 		c.MessagesCollection = "taskqueue_messages"
 	}
@@ -64,8 +45,8 @@ func (c *Config) setDefaults() {
 
 // ─── document shapes ──────────────────────────────────────────────────────────
 
-// taskDoc is the MongoDB representation of a Task.
-type taskDoc struct {
+// mongoTaskDoc is the MongoDB representation of a Task.
+type mongoTaskDoc struct {
 	TaskID     string    `bson:"task_id"`
 	Type       string    `bson:"type"`
 	Payload    []byte    `bson:"payload"`
@@ -83,15 +64,15 @@ type taskDoc struct {
 	UpdatedAt  time.Time `bson:"updated_at"`
 }
 
-// dedupDoc is the deduplication lock document.
-type dedupDoc struct {
+// mongoDedupDoc is the deduplication lock document.
+type mongoDedupDoc struct {
 	ID        string    `bson:"_id"`
 	TaskID    string    `bson:"task_id"`
 	ExpiresAt time.Time `bson:"expires_at"`
 }
 
-func taskToDoc(t *taskqueue.Task) *taskDoc {
-	return &taskDoc{
+func mongoTaskToDoc(t *Task) *mongoTaskDoc {
+	return &mongoTaskDoc{
 		TaskID:     t.ID,
 		Type:       t.Type,
 		Payload:    t.Payload,
@@ -109,13 +90,13 @@ func taskToDoc(t *taskqueue.Task) *taskDoc {
 	}
 }
 
-func docToTask(d *taskDoc) *taskqueue.Task {
-	return &taskqueue.Task{
+func mongoDocToTask(d *mongoTaskDoc) *Task {
+	return &Task{
 		ID:         d.TaskID,
 		Type:       d.Type,
 		Payload:    d.Payload,
 		Queue:      d.Queue,
-		State:      taskqueue.State(d.State),
+		State:      State(d.State),
 		MaxRetries: d.MaxRetries,
 		Retried:    d.Retried,
 		Timeout:    time.Duration(d.TimeoutSec) * time.Second,
@@ -130,16 +111,16 @@ func docToTask(d *taskDoc) *taskqueue.Task {
 
 // ─── Broker ───────────────────────────────────────────────────────────────────
 
-// Broker is a MongoDB-backed taskqueue.Broker.
-type Broker struct {
+// MongoBroker is a MongoDB-backed Broker.
+type MongoBroker struct {
 	client   *mongo.Client
 	messages *mongo.Collection
 	dedup    *mongo.Collection
 }
 
-// New connects to MongoDB, creates collections, and ensures indexes.
-func New(ctx context.Context, cfg Config) (*Broker, error) {
-	cfg.setDefaults()
+// NewMongoBroker connects to MongoDB, creates collections, and ensures indexes.
+func NewMongoBroker(ctx context.Context, cfg MongoConfig) (*MongoBroker, error) {
+	cfg.setMongoDefaults()
 
 	client, err := mongo.Connect(options.Client().ApplyURI(cfg.URI))
 	if err != nil {
@@ -149,29 +130,29 @@ func New(ctx context.Context, cfg Config) (*Broker, error) {
 		_ = client.Disconnect(ctx)
 		return nil, fmt.Errorf("taskqueue mongo: ping: %w", err)
 	}
-	return newFromClient(ctx, client, cfg)
+	return newMongoBrokerFromClient(ctx, client, cfg)
 }
 
-// NewFromClient creates a Broker from an existing *mongo.Client.
-func NewFromClient(ctx context.Context, client *mongo.Client, cfg Config) (*Broker, error) {
-	cfg.setDefaults()
-	return newFromClient(ctx, client, cfg)
+// NewMongoBrokerFromClient creates a Broker from an existing *mongo.Client.
+func NewMongoBrokerFromClient(ctx context.Context, client *mongo.Client, cfg MongoConfig) (*MongoBroker, error) {
+	cfg.setMongoDefaults()
+	return newMongoBrokerFromClient(ctx, client, cfg)
 }
 
-func newFromClient(ctx context.Context, client *mongo.Client, cfg Config) (*Broker, error) {
+func newMongoBrokerFromClient(ctx context.Context, client *mongo.Client, cfg MongoConfig) (*MongoBroker, error) {
 	db := client.Database(cfg.Database)
-	b := &Broker{
+	b := &MongoBroker{
 		client:   client,
 		messages: db.Collection(cfg.MessagesCollection),
 		dedup:    db.Collection(cfg.DedupCollection),
 	}
-	if err := b.ensureIndexes(ctx); err != nil {
+	if err := b.mongoEnsureIndexes(ctx); err != nil {
 		return nil, err
 	}
 	return b, nil
 }
 
-func (b *Broker) ensureIndexes(ctx context.Context) error {
+func (b *MongoBroker) mongoEnsureIndexes(ctx context.Context) error {
 	// ── messages indexes ──────────────────────────────────────────────────────
 	msgIndexes := []mongo.IndexModel{
 		{
@@ -210,19 +191,19 @@ func (b *Broker) ensureIndexes(ctx context.Context) error {
 // ─── Broker interface ─────────────────────────────────────────────────────────
 
 // Enqueue stores the task. Returns ErrDuplicateTask on unique key collision.
-func (b *Broker) Enqueue(ctx context.Context, task *taskqueue.Task) error {
+func (b *MongoBroker) Enqueue(ctx context.Context, task *Task) error {
 	now := time.Now()
 	task.UpdatedAt = now
 
 	if task.ProcessAt.After(now) {
-		task.State = taskqueue.StateScheduled
+		task.State = StateScheduled
 	} else {
-		task.State = taskqueue.StatePending
+		task.State = StatePending
 	}
 
 	// Deduplication: try to insert a dedup lock first.
 	if task.UniqueKey != "" && task.UniqueFor > 0 {
-		lock := &dedupDoc{
+		lock := &mongoDedupDoc{
 			ID:        task.UniqueKey,
 			TaskID:    task.ID,
 			ExpiresAt: now.Add(task.UniqueFor),
@@ -230,13 +211,13 @@ func (b *Broker) Enqueue(ctx context.Context, task *taskqueue.Task) error {
 		_, err := b.dedup.InsertOne(ctx, lock)
 		if err != nil {
 			if isMongoDuplicateKey(err) {
-				return taskqueue.ErrDuplicateTask
+				return ErrDuplicateTask
 			}
 			return fmt.Errorf("taskqueue mongo: insert dedup lock: %w", err)
 		}
 	}
 
-	doc := taskToDoc(task)
+	doc := mongoTaskToDoc(task)
 	if _, err := b.messages.InsertOne(ctx, doc); err != nil {
 		return fmt.Errorf("taskqueue mongo: insert task: %w", err)
 	}
@@ -244,18 +225,17 @@ func (b *Broker) Enqueue(ctx context.Context, task *taskqueue.Task) error {
 }
 
 // Dequeue atomically moves the next pending task to active state.
-// It iterates queues in order and returns the first available task.
-func (b *Broker) Dequeue(ctx context.Context, queues []string, deadline time.Time) (*taskqueue.Task, error) {
+func (b *MongoBroker) Dequeue(ctx context.Context, queues []string, deadline time.Time) (*Task, error) {
 	now := time.Now()
 	for _, q := range queues {
 		filter := bson.D{
 			{Key: "queue", Value: q},
-			{Key: "state", Value: string(taskqueue.StatePending)},
+			{Key: "state", Value: string(StatePending)},
 			{Key: "process_at", Value: bson.D{{Key: "$lte", Value: now}}},
 		}
 		update := bson.D{
 			{Key: "$set", Value: bson.D{
-				{Key: "state", Value: string(taskqueue.StateActive)},
+				{Key: "state", Value: string(StateActive)},
 				{Key: "active_by", Value: deadline},
 				{Key: "updated_at", Value: now},
 			}},
@@ -264,7 +244,7 @@ func (b *Broker) Dequeue(ctx context.Context, queues []string, deadline time.Tim
 			SetSort(bson.D{{Key: "process_at", Value: 1}}).
 			SetReturnDocument(options.After)
 
-		var doc taskDoc
+		var doc mongoTaskDoc
 		err := b.messages.FindOneAndUpdate(ctx, filter, update, opts).Decode(&doc)
 		if err != nil {
 			if errors.Is(err, mongo.ErrNoDocuments) {
@@ -272,20 +252,20 @@ func (b *Broker) Dequeue(ctx context.Context, queues []string, deadline time.Tim
 			}
 			return nil, fmt.Errorf("taskqueue mongo: dequeue %q: %w", q, err)
 		}
-		t := docToTask(&doc)
-		t.State = taskqueue.StateActive
+		t := mongoDocToTask(&doc)
+		t.State = StateActive
 		return t, nil
 	}
-	return nil, taskqueue.ErrNoTask
+	return nil, ErrNoTask
 }
 
 // Ack marks the task as successfully done.
-func (b *Broker) Ack(ctx context.Context, task *taskqueue.Task) error {
+func (b *MongoBroker) Ack(ctx context.Context, task *Task) error {
 	now := time.Now()
 	filter := bson.D{{Key: "task_id", Value: task.ID}}
 	update := bson.D{
 		{Key: "$set", Value: bson.D{
-			{Key: "state", Value: string(taskqueue.StateDone)},
+			{Key: "state", Value: string(StateDone)},
 			{Key: "updated_at", Value: now},
 		}},
 	}
@@ -294,7 +274,7 @@ func (b *Broker) Ack(ctx context.Context, task *taskqueue.Task) error {
 		return fmt.Errorf("taskqueue mongo: ack %q: %w", task.ID, err)
 	}
 	if res.MatchedCount == 0 {
-		return taskqueue.ErrTaskNotFound
+		return ErrTaskNotFound
 	}
 
 	// Remove dedup lock if present.
@@ -305,13 +285,13 @@ func (b *Broker) Ack(ctx context.Context, task *taskqueue.Task) error {
 }
 
 // Nack records failure. If retryAt is zero the task is dead-lettered.
-func (b *Broker) Nack(ctx context.Context, task *taskqueue.Task, lastErr string, retryAt time.Time) error {
+func (b *MongoBroker) Nack(ctx context.Context, task *Task, lastErr string, retryAt time.Time) error {
 	now := time.Now()
 
-	newState := taskqueue.StateDead
+	newState := StateDead
 	var processAt time.Time
 	if !retryAt.IsZero() {
-		newState = taskqueue.StateRetry
+		newState = StateRetry
 		processAt = retryAt
 	}
 
@@ -332,25 +312,24 @@ func (b *Broker) Nack(ctx context.Context, task *taskqueue.Task, lastErr string,
 		return fmt.Errorf("taskqueue mongo: nack %q: %w", task.ID, err)
 	}
 	if res.MatchedCount == 0 {
-		return taskqueue.ErrTaskNotFound
+		return ErrTaskNotFound
 	}
 	return nil
 }
 
-// Schedule promotes scheduled and retry tasks whose process_at has elapsed
-// to pending state.
-func (b *Broker) Schedule(ctx context.Context) error {
+// Schedule promotes scheduled and retry tasks whose process_at has elapsed.
+func (b *MongoBroker) Schedule(ctx context.Context) error {
 	now := time.Now()
 	filter := bson.D{
 		{Key: "state", Value: bson.D{{Key: "$in", Value: bson.A{
-			string(taskqueue.StateScheduled),
-			string(taskqueue.StateRetry),
+			string(StateScheduled),
+			string(StateRetry),
 		}}}},
 		{Key: "process_at", Value: bson.D{{Key: "$lte", Value: now}}},
 	}
 	update := bson.D{
 		{Key: "$set", Value: bson.D{
-			{Key: "state", Value: string(taskqueue.StatePending)},
+			{Key: "state", Value: string(StatePending)},
 			{Key: "updated_at", Value: now},
 		}},
 	}
@@ -361,15 +340,15 @@ func (b *Broker) Schedule(ctx context.Context) error {
 }
 
 // ReapStale recovers active tasks whose active_by lease has passed.
-func (b *Broker) ReapStale(ctx context.Context) error {
+func (b *MongoBroker) ReapStale(ctx context.Context) error {
 	now := time.Now()
 	filter := bson.D{
-		{Key: "state", Value: string(taskqueue.StateActive)},
+		{Key: "state", Value: string(StateActive)},
 		{Key: "active_by", Value: bson.D{{Key: "$lt", Value: now}}},
 	}
 	update := bson.D{
 		{Key: "$set", Value: bson.D{
-			{Key: "state", Value: string(taskqueue.StatePending)},
+			{Key: "state", Value: string(StatePending)},
 			{Key: "updated_at", Value: now},
 		}},
 		{Key: "$unset", Value: bson.D{{Key: "active_by", Value: ""}}},
@@ -381,7 +360,7 @@ func (b *Broker) ReapStale(ctx context.Context) error {
 }
 
 // Close disconnects the MongoDB client.
-func (b *Broker) Close() error {
+func (b *MongoBroker) Close() error {
 	return b.client.Disconnect(context.Background())
 }
 
@@ -399,8 +378,10 @@ func isMongoDuplicateKey(err error) bool {
 	return false
 }
 
-// marshalPayload is a convenience shim used in tests; kept for JSON round-trip
-// verification without importing encoding/json at the call site.
-func marshalPayload(v any) ([]byte, error) {
+// mongoMarshalPayload is a convenience shim used in tests.
+func mongoMarshalPayload(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
+
+// Verify MongoBroker implements Broker at compile time.
+var _ Broker = (*MongoBroker)(nil)

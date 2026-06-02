@@ -1,35 +1,14 @@
-// Package email defines a broker-agnostic email sending abstraction.
-//
-// All backends implement the Sender interface so application code is decoupled
-// from the underlying transport (SMTP, SendGrid, SES, Mailgun, …).
-//
-// # Quick start
-//
-//	import (
-//	    "github.com/astra-go/astra/notify/email"
-//	    emailsmtp "github.com/astra-go/astra/notify/email/smtp"
-//	)
-//
-//	sender := emailsmtp.New(emailsmtp.Config{
-//	    Host:     "smtp.example.com",
-//	    Port:     587,
-//	    Username: "user@example.com",
-//	    Password: os.Getenv("SMTP_PASSWORD"),
-//	    From:     "no-reply@example.com",
-//	})
-//
-//	err := sender.Send(ctx, &email.Message{
-//	    To:       []string{"alice@example.com"},
-//	    Subject:  "Welcome!",
-//	    HTMLBody: "<h1>Hello Alice</h1>",
-//	    TextBody: "Hello Alice",
-//	})
-package email
+//go:build email
+// +build email
+
+package notify
+
+// This file provides the email types and interfaces, enabled with build tag "email".
 
 import "context"
 
-// Message represents an email message.
-type Message struct {
+// EmailMessage represents an email message.
+type EmailMessage struct {
 	// From overrides the sender address. If empty, the backend's default From is used.
 	From string
 
@@ -58,11 +37,11 @@ type Message struct {
 	HTMLBody string
 
 	// Attachments is a list of files to attach to the message.
-	Attachments []Attachment
+	Attachments []EmailAttachment
 }
 
-// Attachment represents a file to attach to an email.
-type Attachment struct {
+// EmailAttachment represents a file to attach to an email.
+type EmailAttachment struct {
 	// Filename is the name shown in the email client.
 	Filename string
 
@@ -74,9 +53,9 @@ type Attachment struct {
 	Data []byte
 }
 
-// Sender sends email messages.
+// EmailSender sends email messages.
 // All implementations must be safe for concurrent use.
-type Sender interface {
+type EmailSender interface {
 	// Send delivers msg to all recipients.
-	Send(ctx context.Context, msg *Message) error
+	Send(ctx context.Context, msg *EmailMessage) error
 }

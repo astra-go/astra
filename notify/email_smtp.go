@@ -1,27 +1,9 @@
-// Package smtp provides an SMTP-backed email.Sender implementation.
-//
-// It supports both STARTTLS (port 587, default) and implicit TLS (port 465).
-// Authentication uses PLAIN SASL over the encrypted connection.
-//
-// # Usage
-//
-//	import emailsmtp "github.com/astra-go/astra/notify/email/smtp"
-//
-//	sender := emailsmtp.New(emailsmtp.Config{
-//	    Host:     "smtp.gmail.com",
-//	    Port:     587,
-//	    Username: "you@gmail.com",
-//	    Password: os.Getenv("GMAIL_APP_PASSWORD"),
-//	    From:     "you@gmail.com",
-//	})
-//
-//	err := sender.Send(ctx, &email.Message{
-//	    To:       []string{"alice@example.com"},
-//	    Subject:  "Hello from Astra",
-//	    TextBody: "Hello!",
-//	    HTMLBody: "<b>Hello!</b>",
-//	})
-package smtp
+//go:build email
+// +build email
+
+package notify
+
+// This file provides the SMTP email sender, enabled with build tag "email".
 
 import (
 	"bytes"
@@ -37,12 +19,10 @@ import (
 	"net/textproto"
 	"strings"
 	"time"
-
-	"github.com/astra-go/astra/notify/email"
 )
 
-// Config configures the SMTP sender.
-type Config struct {
+// SmtpConfig configures the SMTP sender.
+type SmtpConfig struct {
 	// Host is the SMTP server hostname. Required.
 	Host string
 
@@ -64,31 +44,30 @@ type Config struct {
 	ImplicitTLS bool
 
 	// TLSConfig overrides the default TLS configuration.
-	// Useful for custom CA certificates or mutual TLS.
 	TLSConfig *tls.Config
 
 	// DialTimeout is the connection timeout. Default: 10 seconds.
 	DialTimeout time.Duration
 }
 
-// Sender is an SMTP-backed email.Sender.
-type Sender struct {
-	cfg Config
+// SmtpSender is an SMTP-backed EmailSender.
+type SmtpSender struct {
+	cfg SmtpConfig
 }
 
-// New creates an SMTP-backed Sender.
-func New(cfg Config) *Sender {
+// NewSmtpSender creates an SMTP-backed EmailSender.
+func NewSmtpSender(cfg SmtpConfig) *SmtpSender {
 	if cfg.Port == 0 {
 		cfg.Port = 587
 	}
 	if cfg.DialTimeout <= 0 {
 		cfg.DialTimeout = 10 * time.Second
 	}
-	return &Sender{cfg: cfg}
+	return &SmtpSender{cfg: cfg}
 }
 
 // Send delivers msg via SMTP. A new connection is opened per call.
-func (s *Sender) Send(ctx context.Context, msg *email.Message) error {
+func (s *SmtpSender) Send(ctx context.Context, msg *EmailMessage) error {
 	from := msg.From
 	if from == "" {
 		from = s.cfg.From
@@ -113,7 +92,6 @@ func (s *Sender) Send(ctx context.Context, msg *email.Message) error {
 	var err error
 
 	if s.cfg.ImplicitTLS {
-		// Dial with TLS from the start (SMTPS, port 465).
 		dialer := &net.Dialer{Timeout: s.cfg.DialTimeout}
 		conn, err2 := tls.DialWithDialer(dialer, "tcp", addr, tlsCfg)
 		if err2 != nil {
@@ -121,7 +99,6 @@ func (s *Sender) Send(ctx context.Context, msg *email.Message) error {
 		}
 		c, err = smtp.NewClient(conn, s.cfg.Host)
 	} else {
-		// Plain dial + STARTTLS upgrade.
 		c, err = smtp.Dial(addr)
 	}
 	if err != nil {
@@ -129,7 +106,6 @@ func (s *Sender) Send(ctx context.Context, msg *email.Message) error {
 	}
 	defer c.Close()
 
-	// Honour context cancellation.
 	done := make(chan struct{})
 	defer close(done)
 	go func() {
@@ -172,7 +148,7 @@ func (s *Sender) Send(ctx context.Context, msg *email.Message) error {
 		return fmt.Errorf("smtp: DATA: %w", err)
 	}
 
-	body, err := buildBody(from, msg)
+	body, err := smtpBuildBody(from, msg)
 	if err != nil {
 		wc.Close()
 		return err
@@ -190,10 +166,9 @@ func (s *Sender) Send(ctx context.Context, msg *email.Message) error {
 
 // ─── MIME message builder ─────────────────────────────────────────────────────
 
-func buildBody(from string, msg *email.Message) ([]byte, error) {
+func smtpBuildBody(from string, msg *EmailMessage) ([]byte, error) {
 	var buf bytes.Buffer
 
-	// Headers
 	buf.WriteString("From: " + mime.QEncoding.Encode("utf-8", from) + " <" + from + ">\r\n")
 	buf.WriteString("To: " + strings.Join(msg.To, ", ") + "\r\n")
 	if len(msg.CC) > 0 {
@@ -211,12 +186,10 @@ func buildBody(from string, msg *email.Message) ([]byte, error) {
 
 	switch {
 	case hasAttach:
-		// multipart/mixed wraps content + attachments
 		mw := multipart.NewWriter(&buf)
 		buf.WriteString("Content-Type: multipart/mixed; boundary=" + mw.Boundary() + "\r\n\r\n")
 
-		// body part (text / html / alternative)
-		bodyBytes, err := buildAlternative(msg)
+		bodyBytes, err := smtpBuildAlternative(msg)
 		if err != nil {
 			return nil, err
 		}
@@ -275,7 +248,7 @@ func buildBody(from string, msg *email.Message) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func buildAlternative(msg *email.Message) ([]byte, error) {
+func smtpBuildAlternative(msg *EmailMessage) ([]byte, error) {
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 
@@ -287,13 +260,13 @@ func buildAlternative(msg *email.Message) ([]byte, error) {
 	}
 	if msg.HTMLBody != "" {
 		hw, _ := mw.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/html; charset=utf-8"}, "Content-Transfer-Encoding": {"quoted-printable"}})
-		qw := quotedprintable.NewWriter(hw)
-		qw.Write([]byte(msg.HTMLBody))
-		qw.Close()
+		qwh := quotedprintable.NewWriter(hw)
+		qwh.Write([]byte(msg.HTMLBody))
+		qwh.Close()
 	}
 	mw.Close()
 	return buf.Bytes(), nil
 }
 
-// Compile-time assertion.
-var _ email.Sender = (*Sender)(nil)
+// Verify SmtpSender implements EmailSender at compile time.
+var _ EmailSender = (*SmtpSender)(nil)

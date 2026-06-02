@@ -1,31 +1,9 @@
-// Package rabbitmq provides a RabbitMQ-backed implementation of the
-// taskqueue.Broker interface using amqp091-go.
-//
-// # Required RabbitMQ plugin
-//
-// Delayed and retry messages rely on the rabbitmq_delayed_message_exchange
-// plugin. Disable with Config.UseDelayedExchange=false; in that mode scheduled
-// messages are delivered immediately (delay is not honoured).
-//
-// # Topology (declared on New)
-//
-//	tq.work          — direct exchange, durable. Routes tasks to queues.
-//	tq.delayed       — x-delayed-message exchange (plugin). Routes delayed tasks.
-//	tq.dead          — direct exchange, durable. Routes dead-lettered tasks.
-//	tq-{queue}       — durable queue. DLX=tq.dead, routing key={queue}.
-//	tq-{queue}-dead  — durable queue. Holds dead-lettered tasks.
-//
-// # Usage
-//
-//	broker, err := rabbitmq.New(rabbitmq.Config{
-//	    URL:                "amqp://guest:guest@localhost:5672/",
-//	    UseDelayedExchange: true,
-//	})
-//	defer broker.Close()
-//
-//	client := taskqueue.NewClient(broker)
-//	client.EnqueueTask(ctx, "email:welcome", payload)
-package rabbitmq
+//go:build rabbitmq
+// +build rabbitmq
+
+package taskqueue
+
+// This file provides the RabbitMQ broker, enabled with build tag "rabbitmq".
 
 import (
 	"context"
@@ -35,12 +13,10 @@ import (
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
-
-	"github.com/astra-go/astra/taskqueue"
 )
 
-// Config configures the RabbitMQ broker.
-type Config struct {
+// RabbitmqConfig configures the RabbitMQ broker.
+type RabbitmqConfig struct {
 	// URL is the AMQP connection URL. e.g. "amqp://guest:guest@localhost:5672/"
 	URL string
 
@@ -54,21 +30,20 @@ type Config struct {
 	UseDelayedExchange bool
 }
 
-func (c *Config) setDefaults() {
+func (c *RabbitmqConfig) setRabbitmqDefaults() {
 	if c.KeyPrefix == "" {
 		c.KeyPrefix = "tq"
 	}
 }
 
-// inflightEntry holds the acknowledgement handle for a message that has been
-// dequeued but not yet Ack'd or Nack'd.
-type inflightEntry struct {
+// rabbitmqInflightEntry holds the acknowledgement handle for a dequeued message.
+type rabbitmqInflightEntry struct {
 	deliveryTag uint64
 	ch          *amqp.Channel
 }
 
-// Broker is a RabbitMQ-backed taskqueue.Broker.
-type Broker struct {
+// RabbitmqBroker is a RabbitMQ-backed Broker.
+type RabbitmqBroker struct {
 	conn   *amqp.Connection
 	pubCh  *amqp.Channel // used for publishing; protected by pubMu
 	getCh  *amqp.Channel // used for basic.get; protected by getMu
@@ -77,23 +52,23 @@ type Broker struct {
 	prefix string
 	delay  bool
 
-	inflight sync.Map // taskID → inflightEntry
+	inflight sync.Map // taskID → rabbitmqInflightEntry
 	dedup    sync.Map // uniqueKey → time.Time (expiry)
 }
 
 // ─── Name helpers ─────────────────────────────────────────────────────────────
 
-func (b *Broker) workExchange() string    { return b.prefix + ".work" }
-func (b *Broker) delayedExchange() string { return b.prefix + ".delayed" }
-func (b *Broker) deadExchange() string    { return b.prefix + ".dead" }
-func (b *Broker) queueName(q string) string { return b.prefix + "-" + q }
-func (b *Broker) deadQueue(q string) string { return b.prefix + "-" + q + "-dead" }
+func (b *RabbitmqBroker) rmqWorkExchange() string    { return b.prefix + ".work" }
+func (b *RabbitmqBroker) rmqDelayedExchange() string { return b.prefix + ".delayed" }
+func (b *RabbitmqBroker) rmqDeadExchange() string    { return b.prefix + ".dead" }
+func (b *RabbitmqBroker) rmqQueueName(q string) string { return b.prefix + "-" + q }
+func (b *RabbitmqBroker) rmqDeadQueue(q string) string { return b.prefix + "-" + q + "-dead" }
 
 // ─── Constructor ──────────────────────────────────────────────────────────────
 
-// New connects to RabbitMQ, declares exchanges/queues, and returns a Broker.
-func New(cfg Config) (*Broker, error) {
-	cfg.setDefaults()
+// NewRabbitmqBroker connects to RabbitMQ, declares exchanges/queues, and returns a Broker.
+func NewRabbitmqBroker(cfg RabbitmqConfig) (*RabbitmqBroker, error) {
+	cfg.setRabbitmqDefaults()
 
 	conn, err := amqp.Dial(cfg.URL)
 	if err != nil {
@@ -113,7 +88,7 @@ func New(cfg Config) (*Broker, error) {
 		return nil, fmt.Errorf("taskqueue rabbitmq: open get channel: %w", err)
 	}
 
-	b := &Broker{
+	b := &RabbitmqBroker{
 		conn:   conn,
 		pubCh:  pubCh,
 		getCh:  getCh,
@@ -121,16 +96,16 @@ func New(cfg Config) (*Broker, error) {
 		delay:  cfg.UseDelayedExchange,
 	}
 
-	if err := b.declareTopology(); err != nil {
+	if err := b.rabbitmqDeclareTopology(); err != nil {
 		_ = conn.Close()
 		return nil, err
 	}
 	return b, nil
 }
 
-// NewFromConn creates a Broker from an existing *amqp.Connection.
-func NewFromConn(conn *amqp.Connection, cfg Config) (*Broker, error) {
-	cfg.setDefaults()
+// NewRabbitmqBrokerFromConn creates a Broker from an existing *amqp.Connection.
+func NewRabbitmqBrokerFromConn(conn *amqp.Connection, cfg RabbitmqConfig) (*RabbitmqBroker, error) {
+	cfg.setRabbitmqDefaults()
 
 	pubCh, err := conn.Channel()
 	if err != nil {
@@ -142,14 +117,14 @@ func NewFromConn(conn *amqp.Connection, cfg Config) (*Broker, error) {
 		return nil, fmt.Errorf("taskqueue rabbitmq: open get channel: %w", err)
 	}
 
-	b := &Broker{
+	b := &RabbitmqBroker{
 		conn:   conn,
 		pubCh:  pubCh,
 		getCh:  getCh,
 		prefix: cfg.KeyPrefix,
 		delay:  cfg.UseDelayedExchange,
 	}
-	if err := b.declareTopology(); err != nil {
+	if err := b.rabbitmqDeclareTopology(); err != nil {
 		_ = pubCh.Close()
 		_ = getCh.Close()
 		return nil, err
@@ -157,24 +132,23 @@ func NewFromConn(conn *amqp.Connection, cfg Config) (*Broker, error) {
 	return b, nil
 }
 
-func (b *Broker) declareTopology() error {
+func (b *RabbitmqBroker) rabbitmqDeclareTopology() error {
 	ch := b.pubCh
 
 	// Work exchange (direct).
-	if err := ch.ExchangeDeclare(b.workExchange(), "direct", true, false, false, false, nil); err != nil {
+	if err := ch.ExchangeDeclare(b.rmqWorkExchange(), "direct", true, false, false, false, nil); err != nil {
 		return fmt.Errorf("taskqueue rabbitmq: declare work exchange: %w", err)
 	}
 
 	// Dead exchange (direct).
-	if err := ch.ExchangeDeclare(b.deadExchange(), "direct", true, false, false, false, nil); err != nil {
+	if err := ch.ExchangeDeclare(b.rmqDeadExchange(), "direct", true, false, false, false, nil); err != nil {
 		return fmt.Errorf("taskqueue rabbitmq: declare dead exchange: %w", err)
 	}
 
 	// Delayed exchange (x-delayed-message plugin) — best-effort.
 	if b.delay {
 		args := amqp.Table{"x-delayed-type": "direct"}
-		if err := ch.ExchangeDeclare(b.delayedExchange(), "x-delayed-message", true, false, false, false, args); err != nil {
-			// Plugin not available — fall back to immediate delivery.
+		if err := ch.ExchangeDeclare(b.rmqDelayedExchange(), "x-delayed-message", true, false, false, false, args); err != nil {
 			b.delay = false
 		}
 	}
@@ -182,32 +156,28 @@ func (b *Broker) declareTopology() error {
 	return nil
 }
 
-// ensureQueue declares the work queue and its dead-letter queue on demand.
-// It is safe to call multiple times for the same queue name.
-func (b *Broker) ensureQueue(ch *amqp.Channel, queue string) error {
-	// Work queue — DLX points to dead exchange.
+// rmqEnsureQueue declares the work queue and its dead-letter queue on demand.
+func (b *RabbitmqBroker) rmqEnsureQueue(ch *amqp.Channel, queue string) error {
 	workArgs := amqp.Table{
-		"x-dead-letter-exchange":     b.deadExchange(),
+		"x-dead-letter-exchange":     b.rmqDeadExchange(),
 		"x-dead-letter-routing-key":  queue,
 	}
-	if _, err := ch.QueueDeclare(b.queueName(queue), true, false, false, false, workArgs); err != nil {
+	if _, err := ch.QueueDeclare(b.rmqQueueName(queue), true, false, false, false, workArgs); err != nil {
 		return fmt.Errorf("taskqueue rabbitmq: declare queue %q: %w", queue, err)
 	}
-	if err := ch.QueueBind(b.queueName(queue), queue, b.workExchange(), false, nil); err != nil {
+	if err := ch.QueueBind(b.rmqQueueName(queue), queue, b.rmqWorkExchange(), false, nil); err != nil {
 		return fmt.Errorf("taskqueue rabbitmq: bind queue %q: %w", queue, err)
 	}
 
-	// Dead queue.
-	if _, err := ch.QueueDeclare(b.deadQueue(queue), true, false, false, false, nil); err != nil {
+	if _, err := ch.QueueDeclare(b.rmqDeadQueue(queue), true, false, false, false, nil); err != nil {
 		return fmt.Errorf("taskqueue rabbitmq: declare dead queue %q: %w", queue, err)
 	}
-	if err := ch.QueueBind(b.deadQueue(queue), queue, b.deadExchange(), false, nil); err != nil {
+	if err := ch.QueueBind(b.rmqDeadQueue(queue), queue, b.rmqDeadExchange(), false, nil); err != nil {
 		return fmt.Errorf("taskqueue rabbitmq: bind dead queue %q: %w", queue, err)
 	}
 
-	// Bind delayed exchange to work queue (so delayed messages land in the work queue).
 	if b.delay {
-		if err := ch.QueueBind(b.queueName(queue), queue, b.delayedExchange(), false, nil); err != nil {
+		if err := ch.QueueBind(b.rmqQueueName(queue), queue, b.rmqDelayedExchange(), false, nil); err != nil {
 			return fmt.Errorf("taskqueue rabbitmq: bind delayed→work queue %q: %w", queue, err)
 		}
 	}
@@ -218,15 +188,14 @@ func (b *Broker) ensureQueue(ch *amqp.Channel, queue string) error {
 
 // Enqueue publishes the task to the appropriate exchange.
 // Returns ErrDuplicateTask when a unique key collision is detected.
-func (b *Broker) Enqueue(_ context.Context, task *taskqueue.Task) error {
+func (b *RabbitmqBroker) Enqueue(_ context.Context, task *Task) error {
 	now := time.Now()
 	task.UpdatedAt = now
 
-	// Deduplication check.
 	if task.UniqueKey != "" && task.UniqueFor > 0 {
 		expiry, loaded := b.dedup.Load(task.UniqueKey)
 		if loaded && expiry.(time.Time).After(now) {
-			return taskqueue.ErrDuplicateTask
+			return ErrDuplicateTask
 		}
 		b.dedup.Store(task.UniqueKey, now.Add(task.UniqueFor))
 	}
@@ -239,8 +208,7 @@ func (b *Broker) Enqueue(_ context.Context, task *taskqueue.Task) error {
 	b.pubMu.Lock()
 	defer b.pubMu.Unlock()
 
-	// Ensure queue topology exists.
-	if err := b.ensureQueue(b.pubCh, task.Queue); err != nil {
+	if err := b.rmqEnsureQueue(b.pubCh, task.Queue); err != nil {
 		return err
 	}
 
@@ -250,31 +218,28 @@ func (b *Broker) Enqueue(_ context.Context, task *taskqueue.Task) error {
 		Body:         data,
 	}
 
-	// Delayed delivery: use the delayed exchange with x-delay header (ms).
 	if task.ProcessAt.After(now) && b.delay {
 		delayMS := task.ProcessAt.Sub(now).Milliseconds()
 		msg.Headers = amqp.Table{"x-delay": delayMS}
-		task.State = taskqueue.StateScheduled
-		return b.pubCh.Publish(b.delayedExchange(), task.Queue, false, false, msg)
+		task.State = StateScheduled
+		return b.pubCh.Publish(b.rmqDelayedExchange(), task.Queue, false, false, msg)
 	}
 
-	task.State = taskqueue.StatePending
-	return b.pubCh.Publish(b.workExchange(), task.Queue, false, false, msg)
+	task.State = StatePending
+	return b.pubCh.Publish(b.rmqWorkExchange(), task.Queue, false, false, msg)
 }
 
 // Dequeue synchronously pulls the next available task from one of the queues.
-// Returns ErrNoTask when no message is available.
-func (b *Broker) Dequeue(_ context.Context, queues []string, _ time.Time) (*taskqueue.Task, error) {
+func (b *RabbitmqBroker) Dequeue(_ context.Context, queues []string, _ time.Time) (*Task, error) {
 	b.getMu.Lock()
 	defer b.getMu.Unlock()
 
 	for _, q := range queues {
-		// Ensure the queue exists before consuming.
-		if err := b.ensureQueue(b.getCh, q); err != nil {
+		if err := b.rmqEnsureQueue(b.getCh, q); err != nil {
 			return nil, err
 		}
 
-		msg, ok, err := b.getCh.Get(b.queueName(q), false /* no auto-ack */)
+		msg, ok, err := b.getCh.Get(b.rmqQueueName(q), false)
 		if err != nil {
 			return nil, fmt.Errorf("taskqueue rabbitmq: get from %q: %w", q, err)
 		}
@@ -282,28 +247,26 @@ func (b *Broker) Dequeue(_ context.Context, queues []string, _ time.Time) (*task
 			continue
 		}
 
-		var task taskqueue.Task
+		var task Task
 		if err := json.Unmarshal(msg.Body, &task); err != nil {
-			// Poison message — nack without requeue.
 			_ = b.getCh.Nack(msg.DeliveryTag, false, false)
 			return nil, fmt.Errorf("taskqueue rabbitmq: unmarshal task: %w", err)
 		}
 		if err := task.Validate(); err != nil {
-			// Invalid task fields — treat as poison, nack without requeue.
 			_ = b.getCh.Nack(msg.DeliveryTag, false, false)
 			return nil, fmt.Errorf("taskqueue rabbitmq: invalid task: %w", err)
 		}
 
-		task.State = taskqueue.StateActive
-		b.inflight.Store(task.ID, inflightEntry{deliveryTag: msg.DeliveryTag, ch: b.getCh})
+		task.State = StateActive
+		b.inflight.Store(task.ID, rabbitmqInflightEntry{deliveryTag: msg.DeliveryTag, ch: b.getCh})
 		return &task, nil
 	}
-	return nil, taskqueue.ErrNoTask
+	return nil, ErrNoTask
 }
 
 // Ack acknowledges successful task processing.
-func (b *Broker) Ack(_ context.Context, task *taskqueue.Task) error {
-	entry, ok := b.inflightLoad(task.ID)
+func (b *RabbitmqBroker) Ack(_ context.Context, task *Task) error {
+	entry, ok := b.rabbitmqInflightLoad(task.ID)
 	if !ok {
 		return fmt.Errorf("taskqueue rabbitmq: ack %q: not found in inflight map", task.ID)
 	}
@@ -315,20 +278,18 @@ func (b *Broker) Ack(_ context.Context, task *taskqueue.Task) error {
 	}
 	b.inflight.Delete(task.ID)
 
-	// Remove dedup lock on success.
 	if task.UniqueKey != "" {
 		b.dedup.Delete(task.UniqueKey)
 	}
 	return nil
 }
 
-// Nack records task failure. If retryAt is zero the task is dead-lettered;
-// otherwise it is re-published with a delay via the delayed exchange.
-func (b *Broker) Nack(_ context.Context, task *taskqueue.Task, lastErr string, retryAt time.Time) error {
+// Nack records task failure.
+func (b *RabbitmqBroker) Nack(_ context.Context, task *Task, lastErr string, retryAt time.Time) error {
 	task.LastError = lastErr
 	task.UpdatedAt = time.Now()
 
-	entry, ok := b.inflightLoad(task.ID)
+	entry, ok := b.rabbitmqInflightLoad(task.ID)
 	if !ok {
 		return fmt.Errorf("taskqueue rabbitmq: nack %q: not found in inflight map", task.ID)
 	}
@@ -343,19 +304,17 @@ func (b *Broker) Nack(_ context.Context, task *taskqueue.Task, lastErr string, r
 	defer b.pubMu.Unlock()
 
 	if retryAt.IsZero() {
-		// Dead-letter: publish to dead exchange, then ack original.
-		task.State = taskqueue.StateDead
+		task.State = StateDead
 		msg := amqp.Publishing{
 			DeliveryMode: amqp.Persistent,
 			ContentType:  "application/json",
 			Body:         data,
 		}
-		if pubErr := b.pubCh.Publish(b.deadExchange(), task.Queue, false, false, msg); pubErr != nil {
+		if pubErr := b.pubCh.Publish(b.rmqDeadExchange(), task.Queue, false, false, msg); pubErr != nil {
 			return fmt.Errorf("taskqueue rabbitmq: publish dead task: %w", pubErr)
 		}
 	} else {
-		// Retry: publish with delay via delayed exchange (or immediately if plugin disabled).
-		task.State = taskqueue.StateRetry
+		task.State = StateRetry
 		msg := amqp.Publishing{
 			DeliveryMode: amqp.Persistent,
 			ContentType:  "application/json",
@@ -367,43 +326,42 @@ func (b *Broker) Nack(_ context.Context, task *taskqueue.Task, lastErr string, r
 				delayMS = 0
 			}
 			msg.Headers = amqp.Table{"x-delay": delayMS}
-			if pubErr := b.pubCh.Publish(b.delayedExchange(), task.Queue, false, false, msg); pubErr != nil {
+			if pubErr := b.pubCh.Publish(b.rmqDelayedExchange(), task.Queue, false, false, msg); pubErr != nil {
 				return fmt.Errorf("taskqueue rabbitmq: publish retry task: %w", pubErr)
 			}
 		} else {
-			// No delay plugin — publish immediately to work exchange.
-			if pubErr := b.pubCh.Publish(b.workExchange(), task.Queue, false, false, msg); pubErr != nil {
+			if pubErr := b.pubCh.Publish(b.rmqWorkExchange(), task.Queue, false, false, msg); pubErr != nil {
 				return fmt.Errorf("taskqueue rabbitmq: publish retry task (no delay): %w", pubErr)
 			}
 		}
 	}
 
-	// Ack the original message so it doesn't go through RabbitMQ's own DLX.
 	b.getMu.Lock()
 	ackErr := entry.ch.Ack(entry.deliveryTag, false)
 	b.getMu.Unlock()
 	return ackErr
 }
 
-// Schedule is a no-op for RabbitMQ: delayed messages are handled natively by
-// the x-delayed-message exchange.
-func (b *Broker) Schedule(_ context.Context) error { return nil }
+// Schedule is a no-op for RabbitMQ.
+func (b *RabbitmqBroker) Schedule(_ context.Context) error { return nil }
 
-// ReapStale is a no-op for RabbitMQ: when a consumer connection drops,
-// RabbitMQ automatically re-queues unacknowledged messages.
-func (b *Broker) ReapStale(_ context.Context) error { return nil }
+// ReapStale is a no-op for RabbitMQ.
+func (b *RabbitmqBroker) ReapStale(_ context.Context) error { return nil }
 
 // Close closes the AMQP connection and all channels.
-func (b *Broker) Close() error {
+func (b *RabbitmqBroker) Close() error {
 	return b.conn.Close()
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-func (b *Broker) inflightLoad(taskID string) (inflightEntry, bool) {
+func (b *RabbitmqBroker) rabbitmqInflightLoad(taskID string) (rabbitmqInflightEntry, bool) {
 	v, ok := b.inflight.Load(taskID)
 	if !ok {
-		return inflightEntry{}, false
+		return rabbitmqInflightEntry{}, false
 	}
-	return v.(inflightEntry), true
+	return v.(rabbitmqInflightEntry), true
 }
+
+// Verify RabbitmqBroker implements Broker at compile time.
+var _ Broker = (*RabbitmqBroker)(nil)
