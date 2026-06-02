@@ -29,13 +29,7 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 )
 
-replace (
-	github.com/astra-go/astra => ..
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..
-	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
-	github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ../discovery
-	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil
-)
+replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..
 
 replace github.com/astra-go/astra/alert v0.0.0-00010101000000-000000000000 => ../alert
 
@@ -43,9 +37,13 @@ replace github.com/astra-go/astra/auth v0.0.0-00010101000000-000000000000 => ../
 
 replace github.com/astra-go/astra/benchmarks v0.0.0-00010101000000-000000000000 => ../benchmarks
 
+replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
+
 replace github.com/astra-go/astra/client v0.0.0-00010101000000-000000000000 => ../client
 
 replace github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000 => ../config
+
+replace github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ../discovery
 
 replace github.com/astra-go/astra/dtx/orm v0.0.0-00010101000000-000000000000 => ../dtx/orm
 
@@ -108,3 +106,5 @@ replace github.com/astra-go/astra/storage v0.0.0-00010101000000-000000000000 => 
 replace github.com/astra-go/astra/stream v0.0.0-00010101000000-000000000000 => ../stream
 
 replace github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 => ../taskqueue
+
+replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil

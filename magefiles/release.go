@@ -185,7 +185,13 @@ func checkNoIntraReplaces(root string) error {
 	return nil
 }
 
+// Auto-confirm for non-interactive use (CI/CD)
 func confirm(prompt string) bool {
+	// Check env var for auto-confirm
+	if os.Getenv("AUTO_CONFIRM") == "1" {
+		fmt.Printf("%s [y/N] y (auto-confirmed)\n", prompt)
+		return true
+	}
 	fmt.Printf("%s [y/N] ", prompt)
 	scanner := bufio.NewScanner(os.Stdin)
 	if scanner.Scan() {

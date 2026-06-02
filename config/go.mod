@@ -62,7 +62,6 @@ require (
 
 // Downgrade proto-public to v0.6.5 (go 1.25.0) because v0.8.0 requires go >= 1.25.8,
 // but the system only has go 1.25.1. The consul/api v1.28.3 module itself only needs go 1.19.
-replace github.com/hashicorp/consul/proto-public v0.8.0 => github.com/hashicorp/consul/proto-public v0.6.5
 
 replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..
 
