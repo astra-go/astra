@@ -3,8 +3,8 @@ module github.com/astra-go/astra/examples/quic
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra v0.1.0
+	github.com/astra-go/astra/quic v0.1.0
 )
 
 require (
@@ -29,7 +29,3 @@ require (
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..
-
-replace github.com/astra-go/astra/quic v0.0.0-00010101000000-000000000000 => ../../quic

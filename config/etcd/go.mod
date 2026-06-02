@@ -3,7 +3,7 @@ module github.com/astra-go/astra/config/etcd
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/config v0.1.0
 	go.etcd.io/etcd/client/v3 v3.6.10
 )
 
@@ -31,5 +31,3 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000 => ..

@@ -4,7 +4,7 @@ go 1.25.1
 
 require (
 	github.com/apolloconfig/agollo/v4 v4.4.0
-	github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/config v0.1.0
 )
 
 require (
@@ -30,5 +30,3 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000 => ..

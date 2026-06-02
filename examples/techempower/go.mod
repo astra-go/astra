@@ -4,7 +4,7 @@ module github.com/astra-go/astra/examples/techempower
 // Depends only on the core astra module (no ORM, no middleware extras).
 go 1.25.1
 
-require github.com/astra-go/astra v0.0.0-00010101000000-000000000000
+require github.com/astra-go/astra v0.1.0
 
 require (
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
@@ -32,5 +32,3 @@ require (
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..

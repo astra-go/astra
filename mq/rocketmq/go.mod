@@ -4,7 +4,7 @@ go 1.25.1
 
 require (
 	github.com/apache/rocketmq-clients/golang/v5 v5.1.3
-	github.com/astra-go/astra/mq v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/mq v0.1.0
 )
 
 require (
@@ -24,5 +24,3 @@ require (
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/astra-go/astra/mq v0.0.0-00010101000000-000000000000 => ..

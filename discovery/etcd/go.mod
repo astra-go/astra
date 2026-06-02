@@ -3,7 +3,7 @@ module github.com/astra-go/astra/discovery/etcd
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/discovery v0.1.0
 	go.etcd.io/etcd/client/v3 v3.6.10
 )
 
@@ -25,5 +25,3 @@ require (
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ..

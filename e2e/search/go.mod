@@ -3,7 +3,7 @@ module github.com/astra-go/astra/e2e/search
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/search v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/search v0.1.0
 	github.com/testcontainers/testcontainers-go/modules/elasticsearch v0.42.0
 )
 
@@ -65,5 +65,3 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/astra-go/astra/search v0.0.0-00010101000000-000000000000 => ../../search

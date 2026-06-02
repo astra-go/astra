@@ -5,8 +5,8 @@ go 1.25.1
 
 // Standalone testing utilities module.
 require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra v0.1.0
+	github.com/astra-go/astra/cache v0.1.0
 )
 
 require (
@@ -29,7 +29,3 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..
-
-replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache

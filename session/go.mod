@@ -5,7 +5,7 @@ go 1.25.1
 
 // Standalone session module — Redis-backed signed-cookie session store.
 require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra v0.1.0
 	github.com/google/uuid v1.6.0
 	github.com/redis/go-redis/v9 v9.19.0
 )
@@ -35,7 +35,6 @@ require (
 
 replace (
 	github.com/astra-go/astra => ..
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..
 	github.com/astra-go/astra/cache => ../cache
 	github.com/astra-go/astra/discovery => ../discovery
 	github.com/astra-go/astra/testutil => ../testutil

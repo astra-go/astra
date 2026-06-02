@@ -5,15 +5,15 @@ go 1.25.1
 // Unified observability facade for Astra.
 // Depends on the core module (middleware, log) and the otel sub-module (SDK).
 require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/otel v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra v0.1.0
+	github.com/astra-go/astra/middleware/observability v0.1.0
+	github.com/astra-go/astra/otel v0.1.0
+	github.com/astra-go/astra/testutil v0.1.0
 	github.com/prometheus/client_golang v1.23.2
 )
 
 require (
-	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 // indirect
+	github.com/astra-go/astra/cache v0.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -63,13 +63,3 @@ require (
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..
-
-replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
-
-replace github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000 => ../middleware/observability
-
-replace github.com/astra-go/astra/otel v0.0.0-00010101000000-000000000000 => ../otel
-
-replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil

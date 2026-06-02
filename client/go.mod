@@ -5,8 +5,8 @@ go 1.25.1
 
 // Standalone HTTP/gRPC service client module.
 require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra v0.1.0
+	github.com/astra-go/astra/discovery v0.1.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
@@ -14,12 +14,12 @@ require (
 )
 
 require (
-	github.com/astra-go/astra/loadbalance v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/loadbalance v0.1.0
+	github.com/astra-go/astra/testutil v0.1.0
 )
 
 require (
-	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 // indirect
+	github.com/astra-go/astra/cache v0.1.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.1 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
@@ -47,13 +47,8 @@ require (
 
 replace (
 	github.com/astra-go/astra => ..
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..
 	github.com/astra-go/astra/cache => ../cache
-	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
 	github.com/astra-go/astra/discovery => ../discovery
-	github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ../discovery
 	github.com/astra-go/astra/loadbalance => ../loadbalance
-	github.com/astra-go/astra/loadbalance v0.0.0-00010101000000-000000000000 => ../loadbalance
 	github.com/astra-go/astra/testutil => ../testutil
-	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil
 )

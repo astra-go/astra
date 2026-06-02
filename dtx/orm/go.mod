@@ -5,7 +5,7 @@ go 1.25.1
 // Standalone Saga GORM-persistence module.
 // Provides a dtx.StateStore and dtx.Recovery backed by a relational database.
 require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra v0.1.0
 	gorm.io/gorm v1.30.0
 )
 
@@ -28,5 +28,3 @@ require (
 	modernc.org/memory v1.8.0 // indirect
 	modernc.org/sqlite v1.33.1 // indirect
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..

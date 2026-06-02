@@ -3,8 +3,8 @@ module github.com/astra-go/astra/middleware/observability
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra v0.1.0
+	github.com/astra-go/astra/testutil v0.1.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	go.opentelemetry.io/otel v1.42.0
@@ -52,7 +52,3 @@ require (
 	golang.org/x/tools v0.42.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..
-
-replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../../testutil

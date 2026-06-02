@@ -3,7 +3,7 @@ module github.com/astra-go/astra/discovery/k8s
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/discovery v0.1.0
 	k8s.io/api v0.32.3
 	k8s.io/apimachinery v0.32.3
 	k8s.io/client-go v0.32.3
@@ -48,5 +48,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-replace github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ..

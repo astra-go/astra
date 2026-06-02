@@ -2,7 +2,7 @@ module example/wasm
 
 go 1.22.0
 
-require github.com/astra-go/astra v0.0.0-00010101000000-000000000000
+require github.com/astra-go/astra v0.1.0
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -50,5 +50,3 @@ require (
 	modernc.org/strutil v1.2.1 // indirect
 	modernc.org/token v1.1.0 // indirect
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..

@@ -3,7 +3,7 @@ module github.com/astra-go/astra/mq/nats
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/mq v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/mq v0.1.0
 	github.com/nats-io/nats.go v1.52.0
 )
 
@@ -14,5 +14,3 @@ require (
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 )
-
-replace github.com/astra-go/astra/mq v0.0.0-00010101000000-000000000000 => ..

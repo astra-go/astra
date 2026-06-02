@@ -3,8 +3,8 @@ module github.com/astra-go/astra/middleware/security
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra v0.1.0
+	github.com/astra-go/astra/testutil v0.1.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/redis/go-redis/v9 v9.19.0
 )
@@ -37,7 +37,3 @@ require (
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..
-
-replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../../testutil

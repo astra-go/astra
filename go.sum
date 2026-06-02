@@ -1,3 +1,11 @@
+github.com/astra-go/astra/cache v0.1.0 h1:ncypuVld8S73xOpv64KkJCB98QzD8+o/Hm3u4kMv2JM=
+github.com/astra-go/astra/cache v0.1.0/go.mod h1:qJmoU3Ap8kzhYKC6RSo71sTAzt9ft5XMxR03yx2fjDk=
+github.com/astra-go/astra/middleware/observability v0.1.0 h1:ZrUV4bSFc5tSaw0ylcLq2c8gMsQuFLiu7Dx2H9EGedA=
+github.com/astra-go/astra/middleware/observability v0.1.0/go.mod h1:qq0x9lZPPnsmy6mkzaenw+sGVGePt0FjSj85XgUn22Y=
+github.com/astra-go/astra/middleware/security v0.1.0 h1:zkMG9aH3gLCnIz5S73CEpaG9eF+QqK/1jFEXR5zeL2w=
+github.com/astra-go/astra/middleware/security v0.1.0/go.mod h1:y5Kgw0H0axMuPolnDPItl/AGKa1igmOJ291JQrXrlu0=
+github.com/astra-go/astra/testutil v0.1.0 h1:F2lGKDK5YHW/Tx0ybn+Vqnj6fI6aknca2RdL6czTw9M=
+github.com/astra-go/astra/testutil v0.1.0/go.mod h1:uRdq/wX6OT9n01kdJcy8ZJBuSf154pPKNfbR+dI698o=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/bsm/ginkgo/v2 v2.12.0 h1:Ny8MWAHyOepLGlLKYmXG4IEkioBysk6GpaRTLC8zwWs=

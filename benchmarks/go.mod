@@ -7,7 +7,7 @@ module github.com/astra-go/astra/benchmarks
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra v0.1.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/gofiber/fiber/v2 v2.52.5
 	github.com/golang-jwt/jwt/v5 v5.3.0
@@ -75,5 +75,3 @@ replace (
 	// Resolve gin's ambiguous ugorji import: old v1.1.4 shadows the dedicated codec module.
 	github.com/ugorji/go v1.1.4 => github.com/ugorji/go/codec v1.2.12
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..

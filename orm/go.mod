@@ -5,7 +5,7 @@ go 1.25.1
 
 // Standalone ORM module — GORM with MySQL, PostgreSQL, ClickHouse, and SQLite drivers.
 require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra v0.1.0
 	github.com/glebarez/sqlite v1.11.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/driver/postgres v1.5.9
@@ -61,13 +61,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..
-
-replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil
-
-replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
-
-replace github.com/astra-go/astra/middleware/observability v0.0.0-00010101000000-000000000000 => ../middleware/observability
-
-replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ../middleware/security

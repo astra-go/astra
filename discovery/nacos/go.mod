@@ -3,7 +3,7 @@ module github.com/astra-go/astra/discovery/nacos
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/discovery v0.1.0
 	github.com/nacos-group/nacos-sdk-go/v2 v2.3.5
 )
 
@@ -40,5 +40,3 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )
-
-replace github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ..

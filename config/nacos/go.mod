@@ -3,7 +3,7 @@ module github.com/astra-go/astra/config/nacos
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/config v0.1.0
 	github.com/nacos-group/nacos-sdk-go/v2 v2.3.5
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -67,5 +67,3 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )
-
-replace github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000 => ..

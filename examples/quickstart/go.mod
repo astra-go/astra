@@ -3,10 +3,6 @@ module github.com/astra-go/astra/examples/quickstart
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra v0.1.0
+	github.com/astra-go/astra/middleware/security v0.1.0
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..
-
-replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ../../middleware/security
