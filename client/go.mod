@@ -45,18 +45,7 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-replace (
-	github.com/astra-go/astra => ..
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..
-	github.com/astra-go/astra/cache => ../cache
-	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
-	github.com/astra-go/astra/discovery => ../discovery
-	github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ../discovery
-	github.com/astra-go/astra/loadbalance => ../loadbalance
-	github.com/astra-go/astra/loadbalance v0.0.0-00010101000000-000000000000 => ../loadbalance
-	github.com/astra-go/astra/testutil => ../testutil
-	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil
-)
+replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..
 
 replace github.com/astra-go/astra/alert v0.0.0-00010101000000-000000000000 => ../alert
 
@@ -64,7 +53,11 @@ replace github.com/astra-go/astra/auth v0.0.0-00010101000000-000000000000 => ../
 
 replace github.com/astra-go/astra/benchmarks v0.0.0-00010101000000-000000000000 => ../benchmarks
 
+replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
+
 replace github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000 => ../config
+
+replace github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ../discovery
 
 replace github.com/astra-go/astra/dtx/orm v0.0.0-00010101000000-000000000000 => ../dtx/orm
 
@@ -89,6 +82,8 @@ replace github.com/astra-go/astra/examples/techempower v0.0.0-00010101000000-000
 replace github.com/astra-go/astra/examples/websocket v0.0.0-00010101000000-000000000000 => ../examples/websocket
 
 replace github.com/astra-go/astra/grpc v0.0.0-00010101000000-000000000000 => ../grpc
+
+replace github.com/astra-go/astra/loadbalance v0.0.0-00010101000000-000000000000 => ../loadbalance
 
 replace github.com/astra-go/astra/lock v0.0.0-00010101000000-000000000000 => ../lock
 
@@ -127,3 +122,5 @@ replace github.com/astra-go/astra/storage v0.0.0-00010101000000-000000000000 => 
 replace github.com/astra-go/astra/stream v0.0.0-00010101000000-000000000000 => ../stream
 
 replace github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 => ../taskqueue
+
+replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil

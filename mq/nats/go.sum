@@ -1,3 +1,5 @@
+github.com/astra-go/astra/mq v0.1.0 h1:IhXsm1LB92yxPM0iYW4xo1ImrIqAZRidqIMKOVWOJhY=
+github.com/astra-go/astra/mq v0.1.0/go.mod h1:/T3oYTVKdy/uJS43ZkVYlYS2oLDyFLvOtgiTv9lKYVE=
 github.com/klauspost/compress v1.18.5 h1:/h1gH5Ce+VWNLSWqPzOVn6XBO+vJbCNGvjoaGBFW2IE=
 github.com/klauspost/compress v1.18.5/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
 github.com/nats-io/nats.go v1.52.0 h1:n3avV4VBsCgsdwh71TppsTwtv+QdPs7ntSKM8qJLGsc=

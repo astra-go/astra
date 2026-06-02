@@ -69,13 +69,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace (
-	// Pin sonic to the already-extracted v1.11.6 (the bytedance mod dir is root-owned).
-	github.com/bytedance/sonic => github.com/bytedance/sonic v1.11.6
-	// Resolve gin's ambiguous ugorji import: old v1.1.4 shadows the dedicated codec module.
-	github.com/ugorji/go v1.1.4 => github.com/ugorji/go/codec v1.2.12
-)
-
 replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..
 
 replace github.com/astra-go/astra/alert v0.0.0-00010101000000-000000000000 => ../alert
