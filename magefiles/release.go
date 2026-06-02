@@ -141,8 +141,6 @@ func Release() error {
 
 func checkNoIntraReplaces(root string) error {
 	found := false
-	entries, _ := filepath.Glob(filepath.Join(root, "**/go.mod"))
-	// filepath.Glob doesn't recurse; use a manual walk instead.
 	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			if d != nil && d.IsDir() && (d.Name() == ".git" || d.Name() == "vendor") {
@@ -157,14 +155,30 @@ func checkNoIntraReplaces(root string) error {
 		if err != nil {
 			return nil
 		}
-		if strings.Contains(string(data), "astra-go/astra") && strings.Contains(string(data), "=>") {
-			rel, _ := filepath.Rel(root, path)
-			fmt.Fprintf(os.Stderr, "✗ intra-workspace replace found: %s\n", rel)
-			found = true
+		scanner := bufio.NewScanner(strings.NewReader(string(data)))
+		inReplaceBlock := false
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if strings.HasPrefix(line, "replace (") {
+				inReplaceBlock = true
+				continue
+			}
+			if inReplaceBlock && strings.HasPrefix(line, ")") {
+				inReplaceBlock = false
+				continue
+			}
+			if strings.HasPrefix(line, "replace ") || inReplaceBlock {
+				// 只检查 intra-workspace replace（=> 后面是 ../）
+				if strings.Contains(line, "=>") && strings.Contains(line, "../") {
+					rel, _ := filepath.Rel(root, path)
+					fmt.Fprintf(os.Stderr, "✗ intra-workspace replace found: %s\n", rel)
+					found = true
+					break
+				}
+			}
 		}
 		return nil
 	})
-	_ = entries // suppress unused warning
 	if found {
 		return fmt.Errorf("run 'bash scripts/drop-intra-replaces.sh' to clean up before releasing")
 	}
