@@ -68,7 +68,7 @@ func Release() error {
 	// 4. Build tag list.
 	fmt.Println()
 	fmt.Println("── 计算 tag 列表 ──")
-	mods, err := listModules(root, true)
+	mods, err := listModules(root, false) // false = include examples
 	if err != nil {
 		return err
 	}
@@ -168,12 +168,14 @@ func checkNoIntraReplaces(root string) error {
 				continue
 			}
 			if strings.HasPrefix(line, "replace ") || inReplaceBlock {
-				// 只检查 intra-workspace replace（=> 后面是 ../）
-				if strings.Contains(line, "=>") && strings.Contains(line, "../") {
-					rel, _ := filepath.Rel(root, path)
-					fmt.Fprintf(os.Stderr, "✗ intra-workspace replace found: %s\n", rel)
-					found = true
-					break
+				if idx := strings.Index(line, "=>"); idx != -1 {
+					target := strings.TrimSpace(line[idx+2:])
+					if strings.HasPrefix(target, ".") {
+						rel, _ := filepath.Rel(root, path)
+						fmt.Fprintf(os.Stderr, "✗ intra-workspace replace found: %s\n", rel)
+						found = true
+						break
+					}
 				}
 			}
 		}

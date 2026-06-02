@@ -50,43 +50,4 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+replace github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ./..

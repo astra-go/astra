@@ -22,30 +22,11 @@ import (
 
 	"github.com/astra-go/astra"
 	"github.com/astra-go/astra/middleware"
-	"github.com/gin-gonic/gin"
 	"github.com/gofiber/fiber/v2"
 	fibercors "github.com/gofiber/fiber/v2/middleware/cors"
 	fiberrecover "github.com/gofiber/fiber/v2/middleware/recover"
 	echov4 "github.com/labstack/echo/v4"
 )
-
-func init() { gin.SetMode(gin.ReleaseMode) }
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-func ginCORS() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Next()
-	}
-}
-
-func ginRequestID() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("X-Request-ID", "bench")
-		c.Next()
-	}
-}
 
 func echoRequestID() echov4.MiddlewareFunc {
 	return func(next echov4.HandlerFunc) echov4.HandlerFunc {
@@ -74,19 +55,6 @@ func BenchmarkVs_Astra_Baseline(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()
 		app.ServeHTTP(w, req)
-		suiteSink = w.Code
-	}
-}
-
-func BenchmarkVs_Gin_Baseline(b *testing.B) {
-	r := gin.New()
-	r.GET("/ping", func(c *gin.Context) { c.Status(http.StatusNoContent) })
-	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
 		suiteSink = w.Code
 	}
 }
@@ -131,19 +99,6 @@ func BenchmarkVs_Astra_StaticJSON(b *testing.B) {
 	}
 }
 
-func BenchmarkVs_Gin_StaticJSON(b *testing.B) {
-	r := gin.New()
-	r.GET("/api/health", func(c *gin.Context) { c.JSON(http.StatusOK, fixtureUser) })
-	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-		suiteSink = w.Body.Len()
-	}
-}
-
 func BenchmarkVs_Echo_StaticJSON(b *testing.B) {
 	e := echov4.New()
 	e.GET("/api/health", func(c echov4.Context) error { return c.JSON(http.StatusOK, fixtureUser) })
@@ -180,19 +135,6 @@ func BenchmarkVs_Astra_ParamJSON(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()
 		app.ServeHTTP(w, req)
-		suiteSink = w.Body.Len()
-	}
-}
-
-func BenchmarkVs_Gin_ParamJSON(b *testing.B) {
-	r := gin.New()
-	r.GET("/users/:id", func(c *gin.Context) { c.JSON(http.StatusOK, fixtureUser) })
-	req := httptest.NewRequest(http.MethodGet, "/users/42", nil)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
 		suiteSink = w.Body.Len()
 	}
 }
@@ -248,27 +190,6 @@ func BenchmarkVs_Astra_PostBind(b *testing.B) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		app.ServeHTTP(w, req)
-		suiteSink = w.Code
-	}
-}
-
-func BenchmarkVs_Gin_PostBind(b *testing.B) {
-	r := gin.New()
-	r.POST("/users", func(c *gin.Context) {
-		var req vsCreateReq
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.Status(http.StatusBadRequest)
-			return
-		}
-		c.JSON(http.StatusCreated, fixtureUser)
-	})
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(vsPostBody))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
 		suiteSink = w.Code
 	}
 }
@@ -330,20 +251,6 @@ func BenchmarkVs_Astra_Mw3JSON(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()
 		app.ServeHTTP(w, req)
-		suiteSink = w.Body.Len()
-	}
-}
-
-func BenchmarkVs_Gin_Mw3JSON(b *testing.B) {
-	r := gin.New()
-	r.Use(gin.Recovery(), ginCORS(), ginRequestID())
-	r.GET("/users/:id", func(c *gin.Context) { c.JSON(http.StatusOK, fixtureUser) })
-	req := httptest.NewRequest(http.MethodGet, "/users/1", nil)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
 		suiteSink = w.Body.Len()
 	}
 }

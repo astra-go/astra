@@ -15,43 +15,4 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+replace github.com/astra-go/astra/mq v0.0.0-00010101000000-000000000000 => ./..

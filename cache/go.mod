@@ -2,8 +2,6 @@ module github.com/astra-go/astra/cache
 
 go 1.25.1
 
-// Standalone cache module — Redis, Memcached, and in-memory LRU backends.
-// Upgrade go-redis or gomemcache without touching GORM, MQ, or the router.
 require (
 	github.com/bradfitz/gomemcache v0.0.0-20250403215159-8d39553ac7cf
 	github.com/redis/go-redis/v9 v9.20.0
@@ -27,49 +25,11 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
+	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/crypto v0.52.0 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./..

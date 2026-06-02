@@ -1,0 +1,7 @@
+{
+  "go.buildTags": "mage",
+  "go.vetFlags": ["-tags=mage"],
+  "gopls": {
+    "build.buildFlags": ["-tags=mage"]
+  }
+}
