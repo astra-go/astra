@@ -1,6 +1,6 @@
 //go:build redis
 
-package middleware
+package security
 
 import (
 	"context"
