@@ -1,3 +1,5 @@
+//go:build !astra_debug
+
 package astra_test
 
 import (

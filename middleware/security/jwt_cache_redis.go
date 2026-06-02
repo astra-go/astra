@@ -64,18 +64,6 @@ const (
 	jwtCacheKeyPrefix = "astra:jwt:"
 )
 
-// JWTCacheBackend is the interface that both the in-memory jwtCache and
-// RedisJWTCache satisfy. Pass an implementation to JWTConfig.CacheBackend
-// to plug in a custom or shared cache.
-//
-// Get returns (claims, true) on a hit, (nil, false) on a miss or error.
-// Set stores claims with a TTL derived from expireAt (Unix seconds).
-// Implementations must be safe for concurrent use.
-type JWTCacheBackend interface {
-	Get(ctx context.Context, sig string) (*Claims, bool)
-	Set(ctx context.Context, sig string, claims *Claims, expireAt int64)
-}
-
 // RedisJWTCache is a Redis-backed JWT token cache.
 //
 // It satisfies the same get/set interface as the in-memory jwtCache, but stores
