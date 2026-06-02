@@ -87,7 +87,8 @@
       "Bash(go doc *)",
       "Bash(go clean *)",
       "Bash(govulncheck ./...)",
-      "Bash(claude plugin *)"
+      "Bash(go list *)",
+      "Bash(make check-arch *)"
     ]
   }
 }
