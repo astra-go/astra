@@ -31,9 +31,10 @@ check-test-deps: ## Detect test-only packages declared as production deps
 	$(MAGE) checkTestDeps
 
 .PHONY: check-arch
-check-arch: ## Architecture fitness checks (core deps + circular deps)
+check-arch: ## Architecture fitness checks (core deps + circular deps + module count)
 	$(MAGE) checkCoreDeps
 	$(MAGE) checkCircularDeps
+	$(MAGE) checkModuleCount
 
 .PHONY: check-arch-test
 check-arch-test: ## Run architecture fitness function unit tests
