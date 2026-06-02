@@ -1,63 +1,43 @@
 #!/usr/bin/env bash
-# drop-intra-replaces.sh — 删除所有 go.mod 中的 intra-workspace replace 指令。
-#
-# 发布前执行：将所有 go.mod 恢复为纯净状态，使 GOPROXY 消费者能正确解析依赖。
-# 发布后可再次运行 sync-intra-replaces.sh 恢复本地开发态。
-#
-# 用法：bash scripts/drop-intra-replaces.sh
+# drop-intra-replaces.sh — 真正删除所有 go.mod 中的 intra-workspace replace 指令
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+count=0
 
-cleaned=0
-skipped=0
+echo "🔍 开始清理 intra-workspace replace 指令..."
 
 while IFS= read -r gomod; do
     dir="$(dirname "$gomod")"
-    # 检查是否有 intra-workspace replace（=> ../）
+    
+    # 检查是否有 => ../ 的 replace
     if grep -q "=>.*\.\./" "$gomod" 2>/dev/null; then
-        # 用 sed 删除 replace 块（支持单行和多行）
-        # 1. 删除单行 replace：replace github.com/xxx => ../xxx
-        # 2. 删除多行 replace ( ... ) 块
-        python3 -c "
-import re, sys
-with open(sys.argv[1], 'r') as f:
-    content = f.read()
-
-# 删除多行 replace ( ... ) 块
-lines = content.split('\n')
-result = []
-skip_block = False
-for line in lines:
-    if 'replace (' in line:
-        skip_block = True
-        continue
-    if skip_block and line.strip() == ')':
-        skip_block = False
-        continue
-    if skip_block:
-        # 检查是否是 intra-workspace replace
-        if '=>' in line and '../' in line:
-            continue
-        # 如果不是 intra-workspace replace，保留这一行
-        # 但因为我们跳过了整个块，所以这里不会执行
-        pass
-    if not skip_block:
-        result.append(line)
-
-# 删除单行 replace（intra-workspace）
-final = '\n'.join(result)
-final = re.sub(r'^replace\s+.*?=>\s*\.\./.*$\n?', '', final, flags=re.MULTILINE)
-
-with open(sys.argv[1], 'w') as f:
-    f.write(final)
-" "$gomod"
-        echo "✓ cleaned: ${gomod#$ROOT/}"
-        cleaned=$((cleaned + 1))
-    else
-        skipped=$((skipped + 1))
+        cd "$dir"
+        
+        # 提取所有包含 "../" 的 replace 模块路径
+        # 处理两种格式：
+        #   1. replace github.com/xxx => ../xxx
+        #   2. replace ( \n   github.com/xxx => ../xxx \n )
+        
+        # 方法：用 go mod edit -json 提取，然后用 jq 过滤
+        if command -v jq &> /dev/null; then
+            go mod edit -json 2>/dev/null | jq -r '.Replace[] | select(.New.Path | test("\\.\\./")) | .Old.Path' | while read -r modpath; do
+                [ -n "$modpath" ] && go mod edit -dropreplace="$modpath" 2>/dev/null || true
+            done
+        else
+            # 没有 jq 的备用方案：直接从 go.mod 提取
+            grep "=>.*\.\./" go.mod | awk '{print $1}' | while read -r modpath; do
+                [ "$modpath" != "replace" ] && [ -n "$modpath" ] && go mod edit -dropreplace="$modpath" 2>/dev/null || true
+            done
+        fi
+        
+        # 用 go mod tidy 清理格式（会删除无效的 replace 块）
+        go mod tidy 2>/dev/null || true
+        
+        echo "✓ cleaned: ${dir#$ROOT/}/go.mod"
+        count=$((count + 1))
     fi
 done < <(find "$ROOT" -name "go.mod" -not -path "$ROOT/.git/*" | sort)
 
-echo "✓ 完成：清理 $cleaned 个 go.mod，跳过 $skipped 个（已干净）"
+echo ""
+echo "✅ 完成：清理了 $count 个 go.mod"

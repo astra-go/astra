@@ -34,13 +34,9 @@ require (
 )
 
 replace (
-	github.com/astra-go/astra => ..
 	github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ..
-	github.com/astra-go/astra/cache => ../cache
 	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
-	github.com/astra-go/astra/discovery => ../discovery
 	github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ../discovery
-	github.com/astra-go/astra/testutil => ../testutil
 	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil
 )
 
