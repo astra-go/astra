@@ -1,17 +1,16 @@
-// Package kafka provides a Kafka implementation of mq.Producer and mq.Consumer
-// using the franz-go high-performance Kafka client.
+// Kafka implementation of Producer and Consumer using the franz-go high-performance Kafka client.
 //
 // # Producer
 //
-//	p, err := kafka.NewProducer(kafka.ProducerConfig{
+//	p, err := mq.NewKafkaProducer(mq.KafkaProducerConfig{
 //	    Brokers: []string{"localhost:9092"},
 //	})
 //	defer p.Close()
-//	p.Publish(ctx, &mq.Message{Topic: "events", Key: []byte("key"), Payload: body})
+//	p.Publish(ctx, &Message{Topic: "events", Key: []byte("key"), Payload: body})
 //
 // # Consumer
 //
-//	c, err := kafka.NewConsumer(kafka.ConsumerConfig{
+//	c, err := mq.NewKafkaConsumer(mq.KafkaConsumerConfig{
 //	    Brokers: []string{"localhost:9092"},
 //	    Group:   "my-service",
 //	})
@@ -22,7 +21,7 @@
 // PublishBatch maps all messages in a single ProduceSync call for maximum
 // throughput. Each message is added as a separate record; ordering is
 // preserved within a topic-partition.
-package kafka
+package mq
 
 import (
 	"context"
@@ -30,14 +29,12 @@ import (
 	"log/slog"
 
 	"github.com/twmb/franz-go/pkg/kgo"
-
-	"github.com/astra-go/astra/mq"
 )
 
 // ─── Producer ─────────────────────────────────────────────────────────────────
 
-// ProducerConfig configures a Kafka producer.
-type ProducerConfig struct {
+// KafkaProducerConfig configures a Kafka producer.
+type KafkaProducerConfig struct {
 	// Brokers is a list of bootstrap broker addresses.
 	Brokers []string
 
@@ -48,13 +45,13 @@ type ProducerConfig struct {
 	ExtraOptions []kgo.Opt
 }
 
-// Producer publishes records to Kafka.
-type Producer struct {
+// KafkaProducer publishes records to Kafka.
+type KafkaProducer struct {
 	client *kgo.Client
 }
 
-// NewProducer creates a Kafka producer.
-func NewProducer(cfg ProducerConfig) (*Producer, error) {
+// NewKafkaProducer creates a Kafka producer.
+func NewKafkaProducer(cfg KafkaProducerConfig) (*KafkaProducer, error) {
 	if len(cfg.Brokers) == 0 {
 		return nil, fmt.Errorf("kafka producer: at least one broker is required")
 	}
@@ -70,18 +67,18 @@ func NewProducer(cfg ProducerConfig) (*Producer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("kafka producer: create client: %w", err)
 	}
-	return &Producer{client: client}, nil
+	return &KafkaProducer{client: client}, nil
 }
 
 // Publish sends a single record synchronously.
-func (p *Producer) Publish(ctx context.Context, msg *mq.Message) error {
+func (p *KafkaProducer) Publish(ctx context.Context, msg *Message) error {
 	record := msgToRecord(msg)
 	results := p.client.ProduceSync(ctx, record)
 	return results.FirstErr()
 }
 
 // PublishBatch sends multiple records in a single ProduceSync call.
-func (p *Producer) PublishBatch(ctx context.Context, msgs []*mq.Message) error {
+func (p *KafkaProducer) PublishBatch(ctx context.Context, msgs []*Message) error {
 	records := make([]*kgo.Record, len(msgs))
 	for i, m := range msgs {
 		records[i] = msgToRecord(m)
@@ -90,12 +87,12 @@ func (p *Producer) PublishBatch(ctx context.Context, msgs []*mq.Message) error {
 }
 
 // Close flushes pending records and closes the client.
-func (p *Producer) Close() error {
+func (p *KafkaProducer) Close() error {
 	p.client.Close()
 	return nil
 }
 
-func msgToRecord(msg *mq.Message) *kgo.Record {
+func msgToRecord(msg *Message) *kgo.Record {
 	r := &kgo.Record{
 		Topic: msg.Topic,
 		Value: msg.Payload,
@@ -109,8 +106,8 @@ func msgToRecord(msg *mq.Message) *kgo.Record {
 
 // ─── Consumer ─────────────────────────────────────────────────────────────────
 
-// ConsumerConfig configures a Kafka consumer.
-type ConsumerConfig struct {
+// KafkaConsumerConfig configures a Kafka consumer.
+type KafkaConsumerConfig struct {
 	// Brokers is a list of bootstrap broker addresses.
 	Brokers []string
 
@@ -130,23 +127,23 @@ type ConsumerConfig struct {
 	ExtraOptions []kgo.Opt
 }
 
-// Consumer subscribes to Kafka topics within a consumer group.
-type Consumer struct {
-	cfg    ConsumerConfig
+// KafkaConsumer subscribes to Kafka topics within a consumer group.
+type KafkaConsumer struct {
+	cfg    KafkaConsumerConfig
 	client *kgo.Client
 }
 
-// NewConsumer creates a Kafka consumer client (not yet connected to any topic).
-func NewConsumer(cfg ConsumerConfig) (*Consumer, error) {
+// NewKafkaConsumer creates a Kafka consumer client (not yet connected to any topic).
+func NewKafkaConsumer(cfg KafkaConsumerConfig) (*KafkaConsumer, error) {
 	if len(cfg.Brokers) == 0 {
 		return nil, fmt.Errorf("kafka consumer: at least one broker is required")
 	}
-	return &Consumer{cfg: cfg}, nil
+	return &KafkaConsumer{cfg: cfg}, nil
 }
 
 // Subscribe starts consuming from topics and calls handler for each record.
 // It blocks until ctx is cancelled.
-func (c *Consumer) Subscribe(ctx context.Context, topics []string, group string, handler mq.Handler) error {
+func (c *KafkaConsumer) Subscribe(ctx context.Context, topics []string, group string, handler Handler) error {
 	if group == "" {
 		group = c.cfg.Group
 	}
@@ -219,19 +216,19 @@ func (c *Consumer) Subscribe(ctx context.Context, topics []string, group string,
 }
 
 // Close closes the underlying Kafka client.
-func (c *Consumer) Close() error {
+func (c *KafkaConsumer) Close() error {
 	if c.client != nil {
 		c.client.Close()
 	}
 	return nil
 }
 
-func recordToMsg(r *kgo.Record) *mq.Message {
+func recordToMsg(r *kgo.Record) *Message {
 	headers := make(map[string]string, len(r.Headers))
 	for _, h := range r.Headers {
 		headers[h.Key] = string(h.Value)
 	}
-	return &mq.Message{
+	return &Message{
 		Topic:   r.Topic,
 		Key:     r.Key,
 		Payload: r.Value,

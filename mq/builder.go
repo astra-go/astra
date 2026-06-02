@@ -100,58 +100,116 @@ func NewConsumer(typ string, opts ConsumerOptions) (Consumer, error) {
 }
 
 // ─── Placeholder implementations (to be filled in Phase 2) ─────────────────────
-// These functions will import from the sub-modules (mq/kafka, mq/rabbitmq, etc.)
-// and convert ProducerOptions/ConsumerOptions to the specific config structs.
+// These functions convert ProducerOptions/ConsumerOptions to the specific config structs.
 
-func newKafkaProducerFromOptions(_ ProducerOptions) (Producer, error) {
-	// TODO: import "github.com/astra-go/astra/mq/kafka"
-	// return kafka.NewProducer(kafka.ProducerConfig{
-	//     Brokers: opts.Brokers,
-	//     MaxMessageBytes: opts.MaxMessageBytes,
-	// })
-	return nil, fmt.Errorf("kafka producer: not yet implemented in unified API (use github.com/astra-go/astra/mq/kafka directly for now)")
+func newKafkaProducerFromOptions(opts ProducerOptions) (Producer, error) {
+	return NewKafkaProducer(KafkaProducerConfig{
+		Brokers:         opts.Brokers,
+		MaxMessageBytes: opts.MaxMessageBytes,
+	})
 }
 
-func newKafkaConsumerFromOptions(_ ConsumerOptions) (Consumer, error) {
-	return nil, fmt.Errorf("kafka consumer: not yet implemented in unified API")
+func newKafkaConsumerFromOptions(opts ConsumerOptions) (Consumer, error) {
+	return NewKafkaConsumer(KafkaConsumerConfig{
+		Brokers:        opts.Brokers,
+		Group:          opts.Group,
+		MaxPollRecords: opts.MaxPollRecords,
+	})
 }
 
-func newRabbitMQProducerFromOptions(_ ProducerOptions) (Producer, error) {
-	return nil, fmt.Errorf("rabbitmq producer: not yet implemented in unified API (use github.com/astra-go/astra/mq/rabbitmq directly for now)")
+func newRabbitMQProducerFromOptions(opts ProducerOptions) (Producer, error) {
+	return NewRabbitMQProducer(RabbitMQConfig{
+		URL: opts.URL,
+	})
 }
 
-func newRabbitMQConsumerFromOptions(_ ConsumerOptions) (Consumer, error) {
-	return nil, fmt.Errorf("rabbitmq consumer: not yet implemented in unified API")
+func newRabbitMQConsumerFromOptions(opts ConsumerOptions) (Consumer, error) {
+	return NewRabbitMQConsumer(RabbitMQConsumerConfig{
+		URL: opts.URL,
+	})
 }
 
-func newNATSProducerFromOptions(_ ProducerOptions) (Producer, error) {
-	return nil, fmt.Errorf("nats producer: not yet implemented in unified API")
+func newNATSProducerFromOptions(opts ProducerOptions) (Producer, error) {
+	url := "nats://localhost:4222"
+	if len(opts.Brokers) > 0 {
+		url = opts.Brokers[0]
+	}
+	return NewNATSProducer(NATSConfig{
+		URL: url,
+	})
 }
 
-func newNATSConsumerFromOptions(_ ConsumerOptions) (Consumer, error) {
-	return nil, fmt.Errorf("nats consumer: not yet implemented in unified API")
+func newNATSConsumerFromOptions(opts ConsumerOptions) (Consumer, error) {
+	url := "nats://localhost:4222"
+	if len(opts.Brokers) > 0 {
+		url = opts.Brokers[0]
+	}
+	return NewNATSConsumer(NATSConsumerConfig{
+		NATSConfig: NATSConfig{URL: url},
+	})
 }
 
-func newMQTTProducerFromOptions(_ ProducerOptions) (Producer, error) {
-	return nil, fmt.Errorf("mqtt producer: not yet implemented in unified API")
+func newMQTTProducerFromOptions(opts ProducerOptions) (Producer, error) {
+	broker := "tcp://localhost:1883"
+	if len(opts.Brokers) > 0 {
+		broker = opts.Brokers[0]
+	}
+	return NewMQTTProducer(MQTTConfig{
+		Broker:   broker,
+		ClientID: "astra-producer",
+	})
 }
 
-func newMQTTConsumerFromOptions(_ ConsumerOptions) (Consumer, error) {
-	return nil, fmt.Errorf("mqtt consumer: not yet implemented in unified API")
+func newMQTTConsumerFromOptions(opts ConsumerOptions) (Consumer, error) {
+	broker := "tcp://localhost:1883"
+	if len(opts.Brokers) > 0 {
+		broker = opts.Brokers[0]
+	}
+	return NewMQTTConsumer(MQTTConfig{
+		Broker:   broker,
+		ClientID: "astra-consumer",
+	})
 }
 
-func newPulsarProducerFromOptions(_ ProducerOptions) (Producer, error) {
-	return nil, fmt.Errorf("pulsar producer: not yet implemented in unified API")
+func newPulsarProducerFromOptions(opts ProducerOptions) (Producer, error) {
+	url := "pulsar://localhost:6650"
+	if len(opts.Brokers) > 0 {
+		url = opts.Brokers[0]
+	}
+	return NewPulsarProducer(PulsarConfig{
+		URL: url,
+	})
 }
 
-func newPulsarConsumerFromOptions(_ ConsumerOptions) (Consumer, error) {
-	return nil, fmt.Errorf("pulsar consumer: not yet implemented in unified API")
+func newPulsarConsumerFromOptions(opts ConsumerOptions) (Consumer, error) {
+	url := "pulsar://localhost:6650"
+	if len(opts.Brokers) > 0 {
+		url = opts.Brokers[0]
+	}
+	return NewPulsarConsumer(PulsarConsumerConfig{
+		PulsarConfig: PulsarConfig{URL: url},
+		Subscription: opts.Subscription,
+	})
 }
 
-func newRocketMQProducerFromOptions(_ ProducerOptions) (Producer, error) {
-	return nil, fmt.Errorf("rocketmq producer: not yet implemented in unified API")
+func newRocketMQProducerFromOptions(opts ProducerOptions) (Producer, error) {
+	endpoint := "localhost:8081"
+	if len(opts.Brokers) > 0 {
+		endpoint = opts.Brokers[0]
+	}
+	return NewRocketMQProducer(RocketMQConfig{
+		Endpoint: endpoint,
+		Topic:    opts.Topic,
+	})
 }
 
-func newRocketMQConsumerFromOptions(_ ConsumerOptions) (Consumer, error) {
-	return nil, fmt.Errorf("rocketmq consumer: not yet implemented in unified API")
+func newRocketMQConsumerFromOptions(opts ConsumerOptions) (Consumer, error) {
+	endpoint := "localhost:8081"
+	if len(opts.Brokers) > 0 {
+		endpoint = opts.Brokers[0]
+	}
+	return NewRocketMQConsumer(RocketMQConfig{
+		Endpoint:      endpoint,
+		ConsumerGroup: opts.Group,
+	})
 }

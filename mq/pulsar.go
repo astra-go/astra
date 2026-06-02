@@ -9,7 +9,7 @@
 //
 //	p, err := pulsar.NewProducer(pulsar.Config{URL: "pulsar://localhost:6650"})
 //	defer p.Close()
-//	p.Publish(ctx, &mq.Message{Topic: "persistent://public/default/orders", Payload: body})
+//	p.Publish(ctx, &Message{Topic: "persistent://public/default/orders", Payload: body})
 //
 // # Consumer (Shared subscription)
 //
@@ -27,7 +27,7 @@
 //	    AuthToken: os.Getenv("PULSAR_TOKEN"),
 //	    TLSCertFile: "/etc/pulsar/certs/ca.cert.pem",
 //	})
-package pulsar
+package mq
 
 import (
 	"context"
@@ -36,12 +36,10 @@ import (
 	"time"
 
 	gopulsar "github.com/apache/pulsar-client-go/pulsar"
-
-	"github.com/astra-go/astra/mq"
 )
 
 // Config configures a Pulsar client connection.
-type Config struct {
+type PulsarConfig struct {
 	// URL is the Pulsar broker URL.
 	// Default: "pulsar://localhost:6650"
 	URL string
@@ -57,7 +55,7 @@ type Config struct {
 	OperationTimeout time.Duration
 }
 
-func (c *Config) clientOptions() gopulsar.ClientOptions {
+func (c *PulsarConfig) clientOptions() gopulsar.ClientOptions {
 	url := c.URL
 	if url == "" {
 		url = "pulsar://localhost:6650"
@@ -84,19 +82,19 @@ func (c *Config) clientOptions() gopulsar.ClientOptions {
 // ─── Producer ─────────────────────────────────────────────────────────────────
 
 // Producer publishes messages to Apache Pulsar.
-type Producer struct {
-	client   gopulsar.Client
+type PulsarProducer struct {
+	client    gopulsar.Client
 	producers map[string]gopulsar.Producer // topic → producer (lazy init)
-	cfg      Config
+	cfg       PulsarConfig
 }
 
 // NewProducer creates a Pulsar Producer.
-func NewProducer(cfg Config) (*Producer, error) {
+func NewPulsarProducer(cfg PulsarConfig) (*PulsarProducer, error) {
 	client, err := gopulsar.NewClient(cfg.clientOptions())
 	if err != nil {
 		return nil, fmt.Errorf("pulsar: new client: %w", err)
 	}
-	return &Producer{
+	return &PulsarProducer{
 		client:    client,
 		producers: make(map[string]gopulsar.Producer),
 		cfg:       cfg,
@@ -104,7 +102,7 @@ func NewProducer(cfg Config) (*Producer, error) {
 }
 
 // Publish sends a message to the given topic.
-func (p *Producer) Publish(ctx context.Context, msg *mq.Message) error {
+func (p *PulsarProducer) Publish(ctx context.Context, msg *Message) error {
 	prod, err := p.getProducer(msg.Topic)
 	if err != nil {
 		return err
@@ -129,7 +127,7 @@ func (p *Producer) Publish(ctx context.Context, msg *mq.Message) error {
 }
 
 // PublishBatch sends multiple messages.
-func (p *Producer) PublishBatch(ctx context.Context, msgs []*mq.Message) error {
+func (p *PulsarProducer) PublishBatch(ctx context.Context, msgs []*Message) error {
 	for _, msg := range msgs {
 		if err := p.Publish(ctx, msg); err != nil {
 			return err
@@ -139,7 +137,7 @@ func (p *Producer) PublishBatch(ctx context.Context, msgs []*mq.Message) error {
 }
 
 // Close closes all producers and the client connection.
-func (p *Producer) Close() error {
+func (p *PulsarProducer) Close() error {
 	for _, prod := range p.producers {
 		prod.Close()
 	}
@@ -147,7 +145,7 @@ func (p *Producer) Close() error {
 	return nil
 }
 
-func (p *Producer) getProducer(topic string) (gopulsar.Producer, error) {
+func (p *PulsarProducer) getProducer(topic string) (gopulsar.Producer, error) {
 	if prod, ok := p.producers[topic]; ok {
 		return prod, nil
 	}
@@ -162,13 +160,13 @@ func (p *Producer) getProducer(topic string) (gopulsar.Producer, error) {
 }
 
 // Compile-time assertion.
-var _ mq.Producer = (*Producer)(nil)
+var _ Producer = (*PulsarProducer)(nil)
 
 // ─── Consumer ─────────────────────────────────────────────────────────────────
 
 // ConsumerConfig configures a Pulsar consumer.
-type ConsumerConfig struct {
-	Config
+type PulsarConsumerConfig struct {
+	PulsarConfig
 
 	// Subscription is the Pulsar subscription name. Required.
 	Subscription string
@@ -183,23 +181,23 @@ type ConsumerConfig struct {
 }
 
 // Consumer subscribes to Pulsar topics.
-type Consumer struct {
+type PulsarConsumer struct {
 	client gopulsar.Client
-	cfg    ConsumerConfig
+	cfg    PulsarConsumerConfig
 }
 
 // NewConsumer creates a Pulsar Consumer.
-func NewConsumer(cfg ConsumerConfig) (*Consumer, error) {
-	client, err := gopulsar.NewClient(cfg.Config.clientOptions())
+func NewPulsarConsumer(cfg PulsarConsumerConfig) (*PulsarConsumer, error) {
+	client, err := gopulsar.NewClient(cfg.PulsarConfig.clientOptions())
 	if err != nil {
 		return nil, fmt.Errorf("pulsar: new client: %w", err)
 	}
-	return &Consumer{client: client, cfg: cfg}, nil
+	return &PulsarConsumer{client: client, cfg: cfg}, nil
 }
 
 // Subscribe starts consuming messages from the given topics.
 // Blocks until ctx is cancelled.
-func (c *Consumer) Subscribe(ctx context.Context, topics []string, group string, handler mq.Handler) error {
+func (c *PulsarConsumer) Subscribe(ctx context.Context, topics []string, group string, handler Handler) error {
 	if len(topics) == 0 {
 		return fmt.Errorf("pulsar: at least one topic required")
 	}
@@ -217,10 +215,10 @@ func (c *Consumer) Subscribe(ctx context.Context, topics []string, group string,
 	}
 
 	consumer, err := c.client.Subscribe(gopulsar.ConsumerOptions{
-		Topics:              topics,
-		SubscriptionName:    sub,
-		Type:                c.cfg.SubscriptionType,
-		ReceiverQueueSize:   maxPending,
+		Topics:            topics,
+		SubscriptionName:  sub,
+		Type:              c.cfg.SubscriptionType,
+		ReceiverQueueSize: maxPending,
 	})
 	if err != nil {
 		return fmt.Errorf("pulsar: subscribe: %w", err)
@@ -237,7 +235,7 @@ func (c *Consumer) Subscribe(ctx context.Context, topics []string, group string,
 			continue
 		}
 
-		msg := &mq.Message{
+		msg := &Message{
 			Topic:   pMsg.Topic(),
 			Payload: pMsg.Payload(),
 		}
@@ -258,10 +256,10 @@ func (c *Consumer) Subscribe(ctx context.Context, topics []string, group string,
 }
 
 // Close releases the client connection.
-func (c *Consumer) Close() error {
+func (c *PulsarConsumer) Close() error {
 	c.client.Close()
 	return nil
 }
 
 // Compile-time assertion.
-var _ mq.Consumer = (*Consumer)(nil)
+var _ Consumer = (*PulsarConsumer)(nil)

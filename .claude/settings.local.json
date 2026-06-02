@@ -88,7 +88,13 @@
       "Bash(go clean *)",
       "Bash(govulncheck ./...)",
       "Bash(go list *)",
-      "Bash(make check-arch *)"
+      "Bash(make check-arch *)",
+      "Bash(go run *)",
+      "Bash(chmod +x migrate-mq-v2.sh)",
+      "Bash(./migrate-mq-v2.sh)",
+      "Bash(go fmt *)",
+      "Bash(cat)",
+      "Read(//tmp/**)"
     ]
   }
 }
