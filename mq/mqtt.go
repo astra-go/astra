@@ -32,14 +32,14 @@
 // # Usage
 //
 //	p, _ := mqtt.NewProducer(mqtt.Config{Broker: "tcp://localhost:1883", ClientID: "producer-1"})
-//	p.Publish(ctx, &mq.Message{Topic: "sensors/temperature", Payload: []byte("22.5")})
+//	p.Publish(ctx, &Message{Topic: "sensors/temperature", Payload: []byte("22.5")})
 //
 //	c, _ := mqtt.NewConsumer(mqtt.Config{Broker: "tcp://localhost:1883", ClientID: "consumer-1"})
-//	c.Subscribe(ctx, []string{"sensors/#"}, "", func(ctx context.Context, msg *mq.Message) error {
+//	c.Subscribe(ctx, []string{"sensors/#"}, "", func(ctx context.Context, msg *Message) error {
 //	    fmt.Printf("topic=%s payload=%s\n", msg.Topic, msg.Payload)
 //	    return nil
 //	})
-package mqtt
+package mq
 
 import (
 	"context"
@@ -50,12 +50,10 @@ import (
 	"time"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
-
-	"github.com/astra-go/astra/mq"
 )
 
 // Config configures an MQTT producer or consumer.
-type Config struct {
+type MQTTConfig struct {
 	// Broker is the MQTT broker URL.
 	// Protocols: tcp://, ssl://, ws://, wss://
 	// e.g. "tcp://localhost:1883" or "ssl://emqx.example.com:8883"
@@ -92,7 +90,7 @@ type Config struct {
 	WillRetain  bool
 }
 
-func (c *Config) setDefaults() {
+func (c *MQTTConfig) setDefaults() {
 	if c.QoS == 0 && c.QoS != 1 {
 		c.QoS = 1
 	}
@@ -104,7 +102,7 @@ func (c *Config) setDefaults() {
 	}
 }
 
-func buildOptions(cfg Config) *paho.ClientOptions {
+func buildOptions(cfg MQTTConfig) *paho.ClientOptions {
 	opts := paho.NewClientOptions().
 		AddBroker(cfg.Broker).
 		SetClientID(cfg.ClientID).
@@ -141,25 +139,25 @@ func connect(opts *paho.ClientOptions) (paho.Client, error) {
 // ─── Producer ─────────────────────────────────────────────────────────────────
 
 // Producer publishes MQTT messages.
-type Producer struct {
-	cfg    Config
+type MQTTProducer struct {
+	cfg    MQTTConfig
 	client paho.Client
 }
 
 // NewProducer creates and connects an MQTT producer.
-func NewProducer(cfg Config) (*Producer, error) {
+func NewMQTTProducer(cfg MQTTConfig) (*MQTTProducer, error) {
 	cfg.setDefaults()
 	opts := buildOptions(cfg)
 	client, err := connect(opts)
 	if err != nil {
 		return nil, err
 	}
-	return &Producer{cfg: cfg, client: client}, nil
+	return &MQTTProducer{cfg: cfg, client: client}, nil
 }
 
 // Publish publishes a message to the MQTT broker.
 // The msg.Topic field is the MQTT topic.
-func (p *Producer) Publish(ctx context.Context, msg *mq.Message) error {
+func (p *MQTTProducer) Publish(ctx context.Context, msg *Message) error {
 	retained := false
 	if msg.Meta != nil {
 		if v, ok := msg.Meta["retained"].(bool); ok {
@@ -176,7 +174,7 @@ func (p *Producer) Publish(ctx context.Context, msg *mq.Message) error {
 }
 
 // PublishBatch publishes multiple MQTT messages sequentially.
-func (p *Producer) PublishBatch(ctx context.Context, msgs []*mq.Message) error {
+func (p *MQTTProducer) PublishBatch(ctx context.Context, msgs []*Message) error {
 	for _, m := range msgs {
 		if err := p.Publish(ctx, m); err != nil {
 			return err
@@ -186,7 +184,7 @@ func (p *Producer) PublishBatch(ctx context.Context, msgs []*mq.Message) error {
 }
 
 // Close disconnects the MQTT client.
-func (p *Producer) Close() error {
+func (p *MQTTProducer) Close() error {
 	p.client.Disconnect(500)
 	return nil
 }
@@ -195,16 +193,16 @@ func (p *Producer) Close() error {
 
 // Consumer subscribes to MQTT topics and processes messages via a handler.
 // It reconnects automatically via the paho client's built-in auto-reconnect.
-type Consumer struct {
-	cfg    Config
+type MQTTConsumer struct {
+	cfg    MQTTConfig
 	client paho.Client
 	mu     sync.Mutex
 }
 
 // NewConsumer creates and connects an MQTT consumer.
-func NewConsumer(cfg Config) (*Consumer, error) {
+func NewMQTTConsumer(cfg MQTTConfig) (*MQTTConsumer, error) {
 	cfg.setDefaults()
-	c := &Consumer{cfg: cfg}
+	c := &MQTTConsumer{cfg: cfg}
 	opts := buildOptions(cfg)
 	opts.SetOnConnectHandler(c.onConnect)
 	client, err := connect(opts)
@@ -215,7 +213,7 @@ func NewConsumer(cfg Config) (*Consumer, error) {
 	return c, nil
 }
 
-func (c *Consumer) onConnect(client paho.Client) {
+func (c *MQTTConsumer) onConnect(client paho.Client) {
 	slog.Info("mqtt consumer: connected", slog.String("broker", c.cfg.Broker))
 }
 
@@ -223,7 +221,7 @@ func (c *Consumer) onConnect(client paho.Client) {
 // for each received message. It blocks until ctx is cancelled.
 //
 // The group parameter is unused for MQTT (groups are not a native MQTT concept).
-func (c *Consumer) Subscribe(ctx context.Context, topics []string, _ string, handler mq.Handler) error {
+func (c *MQTTConsumer) Subscribe(ctx context.Context, topics []string, _ string, handler Handler) error {
 	if len(topics) == 0 {
 		return fmt.Errorf("mqtt consumer: at least one topic filter is required")
 	}
@@ -235,12 +233,12 @@ func (c *Consumer) Subscribe(ctx context.Context, topics []string, _ string, han
 	}
 
 	token := c.client.SubscribeMultiple(filters, func(_ paho.Client, msg paho.Message) {
-		m := &mq.Message{
+		m := &Message{
 			Topic:   msg.Topic(),
 			Payload: msg.Payload(),
 			Meta: map[string]any{
-				"qos":       msg.Qos(),
-				"retained":  msg.Retained(),
+				"qos":        msg.Qos(),
+				"retained":   msg.Retained(),
 				"message_id": msg.MessageID(),
 			},
 		}
@@ -268,7 +266,7 @@ func (c *Consumer) Subscribe(ctx context.Context, topics []string, _ string, han
 }
 
 // Close disconnects the MQTT client.
-func (c *Consumer) Close() error {
+func (c *MQTTConsumer) Close() error {
 	c.client.Disconnect(500)
 	return nil
 }

@@ -121,4 +121,131 @@ go test -race ./...
 
 # API 兼容性检查
 bash scripts/apicheck.sh --check
+
+# 架构适应度检查（Architecture Fitness Function）
+make check-arch
 ```
+
+---
+
+## 架构约束
+
+### 核心依赖边界（ADR-001）
+
+**原则**: 核心模块 `github.com/astra-go/astra` **禁止**直接依赖重型基础设施包。
+
+**背景**: 保持框架核心轻量化，允许用户按需选择具体实现（GORM vs sqlx、Redis vs Memcached 等）。
+
+**禁止的依赖类别**:
+
+| 类别 | 禁止包示例 | 应使用 |
+|------|-----------|--------|
+| **ORM 库** | `gorm.io/gorm`<br>`gorm.io/driver/*` | `github.com/astra-go/astra/orm`<br>或 `contract.Repository[T]` 接口 |
+| **缓存客户端** | `github.com/redis/go-redis`<br>`github.com/bradfitz/gomemcache` | `github.com/astra-go/astra/cache` |
+| **消息队列** | `github.com/segmentio/kafka-go`<br>`github.com/rabbitmq/amqp091-go`<br>`github.com/nats-io/nats.go` | `github.com/astra-go/astra/mq` |
+| **数据库驱动** | `github.com/lib/pq`<br>`github.com/go-sql-driver/mysql` | `github.com/astra-go/astra/orm` |
+| **NoSQL** | `go.mongodb.org/mongo-driver`<br>`github.com/elastic/go-elasticsearch` | `github.com/astra-go/astra/mongodb`<br>`github.com/astra-go/astra/search` |
+| **可观测性** | `go.opentelemetry.io/otel/**`<br>`github.com/prometheus/client_golang` | `github.com/astra-go/astra/otel`<br>`github.com/astra-go/astra/observability` |
+| **服务发现** | `github.com/hashicorp/consul/api`<br>`go.etcd.io/etcd/client/v3` | `github.com/astra-go/astra/discovery`<br>`github.com/astra-go/astra/config` |
+| **JWT 库** | `github.com/golang-jwt/jwt/**` | `github.com/astra-go/astra/auth` |
+
+**例外情况**: 
+- `go.opentelemetry.io/otel/trace/noop` - noop tracer 允许（零依赖）
+- 标准库和 `golang.org/x/*` 官方扩展包
+- 轻量工具库（如 `github.com/goccy/go-json`, `github.com/go-playground/validator`）
+
+**自动检查**: 
+
+CI 会自动检测核心模块的依赖边界违规：
+
+```bash
+# 本地运行架构检查
+make check-arch
+
+# 输出示例（违规时）：
+# ❌ Architecture violation detected (1 issues):
+#
+# 1. Core module depends on: gorm.io/gorm
+#    Reason: ORM libraries must be in orm/ sub-module (ADR-001)
+#    Fix: Use contract.Repository[T] interface or import github.com/astra-go/astra/orm
+#    Documentation: docs/adr/ADR-001-core-dependency-boundary.md
+```
+
+**违规修复示例**:
+
+```go
+// ❌ 错误：核心模块直接依赖 GORM
+package astra
+
+import "gorm.io/gorm"
+
+func (app *App) ConnectDB() *gorm.DB {
+    return gorm.Open(...)
+}
+
+// ✅ 正确：通过接口解耦
+package astra
+
+type Repository[T any] interface {
+    FindByID(id string) (T, error)
+    Save(entity T) error
+}
+
+func (app *App) UseRepository[T any](repo Repository[T]) {
+    // 用户自行决定使用 GORM、sqlx 或其他实现
+}
+```
+
+**详细文档**: 
+- [ADR-001: 核心依赖边界](./adr/ADR-001-core-dependency-boundary.md)
+- [架构适应度函数实现](./analysis-p0-1-architecture-fitness-function.md)
+
+---
+
+### 循环依赖检测
+
+**原则**: 子模块间不允许循环依赖。
+
+**检测方法**: `make check-arch` 会自动执行 `CheckCircularDeps()` 检测。
+
+**常见问题**:
+- `cache/` 依赖 `orm/`，同时 `orm/` 又依赖 `cache/` → ❌ 循环
+- 解决方案：提取公共接口到 `contract/` 包，或反转依赖方向
+
+---
+
+### 子模块数量上限（ADR-005）
+
+**原则**: 子模块总数（不含 examples/e2e/tools）不超过 **40 个**。
+
+**背景**: 控制模块数量可以：
+- 降低版本发布复杂度（减少 Git tag 数量）
+- 缩短 CI 全量测试时间
+- 降低新贡献者的认知负担
+
+**检测方法**: `make check-arch` 会自动执行 `CheckModuleCount()` 检测。
+
+**当前状态**:
+```bash
+$ make check-arch
+🔍 Checking sub-module count limit (ADR-005)...
+✅ Module count check passed (34/40 modules)
+```
+
+**合并策略**:
+当模块数量接近上限时，优先合并同类功能模块：
+- **MQ 模块**: `mq/{kafka,rabbitmq,nats,mqtt,pulsar,rocketmq}` → `mq/`
+- **Config 模块**: `config/{nacos,etcd,apollo}` → `config/`
+- **Discovery 模块**: `discovery/{consul,etcd,k8s,nacos}` → `discovery/`
+
+**新增模块时**:
+1. 确认没有现有模块可以扩展
+2. 评估是否会导致超过上限
+3. 如果接近上限，需要先合并低价值模块
+4. 在 PR 中说明新增模块的必要性
+
+**详细文档**: 
+- [ADR-005: 子模块数量上限策略](./adr/ADR-005-module-count-limit.md)
+- [ADR-005 需求分析报告](./analysis-adr-005-module-count-limit.md)
+
+---

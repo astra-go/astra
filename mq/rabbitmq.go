@@ -8,7 +8,7 @@
 // Topic field as the routing key.
 //
 // The Consumer declares a durable queue, binds it to the exchange with a
-// routing key, and processes deliveries via the mq.Handler callback.
+// routing key, and processes deliveries via the Handler callback.
 //
 // # Auto-reconnect
 //
@@ -24,7 +24,7 @@
 //	    ExchangeType: "topic",
 //	})
 //	defer p.Close()
-//	p.Publish(ctx, &mq.Message{Topic: "user.created", Payload: body})
+//	p.Publish(ctx, &Message{Topic: "user.created", Payload: body})
 //
 //	c, err := rabbitmq.NewConsumer(rabbitmq.ConsumerConfig{
 //	    URL:        "amqp://guest:guest@localhost:5672/",
@@ -33,10 +33,10 @@
 //	    RoutingKey: "user.*",
 //	    Prefetch:   10,
 //	})
-//	c.Subscribe(ctx, nil, "", func(ctx context.Context, msg *mq.Message) error {
+//	c.Subscribe(ctx, nil, "", func(ctx context.Context, msg *Message) error {
 //	    return handleMessage(msg)
 //	})
-package rabbitmq
+package mq
 
 import (
 	"context"
@@ -46,14 +46,12 @@ import (
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
-
-	"github.com/astra-go/astra/mq"
 )
 
 // ─── Producer ─────────────────────────────────────────────────────────────────
 
 // Config configures a RabbitMQ producer.
-type Config struct {
+type RabbitMQConfig struct {
 	// URL is the AMQP connection string.
 	// e.g. "amqp://guest:guest@localhost:5672/"
 	URL string
@@ -74,7 +72,7 @@ type Config struct {
 	RetryDelay time.Duration
 }
 
-func (c *Config) setDefaults() {
+func (c *RabbitMQConfig) setDefaults() {
 	if c.Exchange == "" {
 		c.Exchange = "astra"
 	}
@@ -87,24 +85,24 @@ func (c *Config) setDefaults() {
 }
 
 // Producer publishes messages to a RabbitMQ exchange.
-type Producer struct {
-	cfg  Config
+type RabbitMQProducer struct {
+	cfg  RabbitMQConfig
 	mu   sync.Mutex
 	conn *amqp.Connection
 	ch   *amqp.Channel
 }
 
 // NewProducer creates and connects a RabbitMQ producer.
-func NewProducer(cfg Config) (*Producer, error) {
+func NewRabbitMQProducer(cfg RabbitMQConfig) (*RabbitMQProducer, error) {
 	cfg.setDefaults()
-	p := &Producer{cfg: cfg}
+	p := &RabbitMQProducer{cfg: cfg}
 	if err := p.connect(); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
-func (p *Producer) connect() error {
+func (p *RabbitMQProducer) connect() error {
 	conn, err := amqp.Dial(p.cfg.URL)
 	if err != nil {
 		return fmt.Errorf("rabbitmq producer: dial %s: %w", p.cfg.URL, err)
@@ -135,7 +133,7 @@ func (p *Producer) connect() error {
 
 // Publish sends a message to the configured exchange.
 // The message's Topic field is used as the routing key.
-func (p *Producer) Publish(ctx context.Context, msg *mq.Message) error {
+func (p *RabbitMQProducer) Publish(ctx context.Context, msg *Message) error {
 	headers := make(amqp.Table, len(msg.Headers))
 	for k, v := range msg.Headers {
 		headers[k] = v
@@ -169,7 +167,7 @@ func (p *Producer) Publish(ctx context.Context, msg *mq.Message) error {
 }
 
 // PublishBatch publishes multiple messages sequentially.
-func (p *Producer) PublishBatch(ctx context.Context, msgs []*mq.Message) error {
+func (p *RabbitMQProducer) PublishBatch(ctx context.Context, msgs []*Message) error {
 	for _, m := range msgs {
 		if err := p.Publish(ctx, m); err != nil {
 			return err
@@ -179,7 +177,7 @@ func (p *Producer) PublishBatch(ctx context.Context, msgs []*mq.Message) error {
 }
 
 // Close closes the channel and connection.
-func (p *Producer) Close() error {
+func (p *RabbitMQProducer) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.ch != nil {
@@ -194,7 +192,7 @@ func (p *Producer) Close() error {
 // ─── Consumer ─────────────────────────────────────────────────────────────────
 
 // ConsumerConfig configures a RabbitMQ consumer.
-type ConsumerConfig struct {
+type RabbitMQConsumerConfig struct {
 	// URL is the AMQP connection string.
 	URL string
 
@@ -223,7 +221,7 @@ type ConsumerConfig struct {
 	RetryDelay time.Duration
 }
 
-func (c *ConsumerConfig) setDefaults() {
+func (c *RabbitMQConsumerConfig) setDefaults() {
 	if c.ExchangeType == "" {
 		c.ExchangeType = "direct"
 	}
@@ -236,20 +234,20 @@ func (c *ConsumerConfig) setDefaults() {
 }
 
 // Consumer subscribes to a RabbitMQ queue and processes deliveries.
-type Consumer struct {
-	cfg ConsumerConfig
+type RabbitMQConsumer struct {
+	cfg RabbitMQConsumerConfig
 }
 
 // NewConsumer creates a RabbitMQ consumer. The connection is established
 // lazily inside Subscribe.
-func NewConsumer(cfg ConsumerConfig) (*Consumer, error) {
+func NewRabbitMQConsumer(cfg RabbitMQConsumerConfig) (*RabbitMQConsumer, error) {
 	cfg.setDefaults()
-	return &Consumer{cfg: cfg}, nil
+	return &RabbitMQConsumer{cfg: cfg}, nil
 }
 
 // Subscribe connects to RabbitMQ, declares the queue, and processes messages
 // until ctx is cancelled. It reconnects automatically on connection errors.
-func (c *Consumer) Subscribe(ctx context.Context, _ []string, _ string, handler mq.Handler) error {
+func (c *RabbitMQConsumer) Subscribe(ctx context.Context, _ []string, _ string, handler Handler) error {
 	delay := c.cfg.RetryDelay
 	for {
 		if ctx.Err() != nil {
@@ -276,7 +274,7 @@ func (c *Consumer) Subscribe(ctx context.Context, _ []string, _ string, handler 
 	}
 }
 
-func (c *Consumer) consume(ctx context.Context, handler mq.Handler) error {
+func (c *RabbitMQConsumer) consume(ctx context.Context, handler Handler) error {
 	conn, err := amqp.Dial(c.cfg.URL)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
@@ -346,16 +344,16 @@ func (c *Consumer) consume(ctx context.Context, handler mq.Handler) error {
 }
 
 // Close is a no-op; the connection is per-Subscribe call.
-func (c *Consumer) Close() error { return nil }
+func (c *RabbitMQConsumer) Close() error { return nil }
 
-func deliveryToMessage(d amqp.Delivery, queue string) *mq.Message {
+func deliveryToMessage(d amqp.Delivery, queue string) *Message {
 	headers := make(map[string]string, len(d.Headers))
 	for k, v := range d.Headers {
 		if s, ok := v.(string); ok {
 			headers[k] = s
 		}
 	}
-	return &mq.Message{
+	return &Message{
 		Topic:   d.RoutingKey,
 		Key:     []byte(d.MessageId),
 		Payload: d.Body,
@@ -368,4 +366,3 @@ func deliveryToMessage(d amqp.Delivery, queue string) *mq.Message {
 		},
 	}
 }
-

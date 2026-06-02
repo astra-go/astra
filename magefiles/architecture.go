@@ -302,3 +302,43 @@ func formatCycles(cycles [][]string) string {
 	}
 	return sb.String()
 }
+
+// CheckModuleCount checks if the number of sub-modules exceeds the limit.
+// Returns nil if within limit, error otherwise.
+// See: docs/adr/ADR-005-module-count-limit.md
+func CheckModuleCount() error {
+	fmt.Println("🔍 Checking sub-module count limit (ADR-005)...")
+
+	// Get repository root
+	root, err := repoRoot()
+	if err != nil {
+		return fmt.Errorf("failed to find repo root: %w", err)
+	}
+
+	// List all modules excluding examples/e2e
+	modules, err := listModules(root, true)
+	if err != nil {
+		return fmt.Errorf("failed to list modules: %w", err)
+	}
+
+	// Maximum allowed modules (ADR-005)
+	const maxModules = 40
+
+	if len(modules) > maxModules {
+		return fmt.Errorf(
+			"\n❌ Module count limit exceeded: %d > %d\n"+
+				"   Current modules: %d\n"+
+				"   Maximum allowed: %d\n"+
+				"   Over limit by: %d modules\n\n"+
+				"   Action required:\n"+
+				"   1. Review docs/adr/ADR-005-module-count-limit.md for merge strategy\n"+
+				"   2. Consider merging similar modules (e.g., mq/*, config/*, discovery/*)\n"+
+				"   3. Evaluate low-value modules for consolidation\n\n"+
+				"   Documentation: docs/adr/ADR-005-module-count-limit.md\n",
+			len(modules), maxModules, len(modules), maxModules, len(modules)-maxModules,
+		)
+	}
+
+	fmt.Printf("✅ Module count check passed (%d/%d modules)\n", len(modules), maxModules)
+	return nil
+}

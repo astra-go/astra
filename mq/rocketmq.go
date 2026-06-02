@@ -9,7 +9,7 @@
 //	    AccessKey: "ak", SecretKey: "sk",
 //	})
 //	defer p.Close()
-//	p.Publish(ctx, &mq.Message{Topic: "orders", Payload: body})
+//	p.Publish(ctx, &Message{Topic: "orders", Payload: body})
 //
 // # Consumer
 //
@@ -24,7 +24,7 @@
 //
 // TLS is disabled by default (development convenience).
 // Set EnableSSL = true in the Config to enable TLS.
-package rocketmq
+package mq
 
 import (
 	"context"
@@ -34,12 +34,10 @@ import (
 
 	rmq "github.com/apache/rocketmq-clients/golang/v5"
 	"github.com/apache/rocketmq-clients/golang/v5/credentials"
-
-	"github.com/astra-go/astra/mq"
 )
 
 // Config configures a RocketMQ producer or consumer.
-type Config struct {
+type RocketMQConfig struct {
 	// Endpoint is the name-server / proxy address, e.g. "localhost:8081".
 	Endpoint string
 
@@ -72,7 +70,7 @@ type Config struct {
 	InvisibleDuration time.Duration
 }
 
-func (c *Config) setDefaults() {
+func (c *RocketMQConfig) setDefaults() {
 	if c.MaxAttempts == 0 {
 		c.MaxAttempts = 3
 	}
@@ -84,7 +82,7 @@ func (c *Config) setDefaults() {
 	}
 }
 
-func (c *Config) rmqConfig() *rmq.Config {
+func (c *RocketMQConfig) rmqConfig() *rmq.Config {
 	cred := &credentials.SessionCredentials{
 		AccessKey:    c.AccessKey,
 		AccessSecret: c.SecretKey,
@@ -100,13 +98,13 @@ func (c *Config) rmqConfig() *rmq.Config {
 // ─── Producer ─────────────────────────────────────────────────────────────────
 
 // Producer publishes messages to a RocketMQ topic.
-type Producer struct {
-	cfg  Config
+type RocketMQProducer struct {
+	cfg  RocketMQConfig
 	prod rmq.Producer
 }
 
 // NewProducer creates and starts a RocketMQ producer.
-func NewProducer(cfg Config) (*Producer, error) {
+func NewRocketMQProducer(cfg RocketMQConfig) (*RocketMQProducer, error) {
 	cfg.setDefaults()
 
 	rmq.EnableSsl = cfg.EnableSSL
@@ -122,11 +120,11 @@ func NewProducer(cfg Config) (*Producer, error) {
 	if err := prod.Start(); err != nil {
 		return nil, fmt.Errorf("rocketmq producer: start: %w", err)
 	}
-	return &Producer{cfg: cfg, prod: prod}, nil
+	return &RocketMQProducer{cfg: cfg, prod: prod}, nil
 }
 
 // Publish sends a single message synchronously.
-func (p *Producer) Publish(ctx context.Context, msg *mq.Message) error {
+func (p *RocketMQProducer) Publish(ctx context.Context, msg *Message) error {
 	rmqMsg := toRMQMessage(msg)
 	receipts, err := p.prod.Send(ctx, rmqMsg)
 	if err != nil {
@@ -140,7 +138,7 @@ func (p *Producer) Publish(ctx context.Context, msg *mq.Message) error {
 }
 
 // PublishBatch sends multiple messages sequentially.
-func (p *Producer) PublishBatch(ctx context.Context, msgs []*mq.Message) error {
+func (p *RocketMQProducer) PublishBatch(ctx context.Context, msgs []*Message) error {
 	for _, m := range msgs {
 		if err := p.Publish(ctx, m); err != nil {
 			return err
@@ -150,32 +148,32 @@ func (p *Producer) PublishBatch(ctx context.Context, msgs []*mq.Message) error {
 }
 
 // Close stops the underlying RocketMQ producer gracefully.
-func (p *Producer) Close() error {
+func (p *RocketMQProducer) Close() error {
 	return p.prod.GracefulStop()
 }
 
 // ─── Consumer ─────────────────────────────────────────────────────────────────
 
 // Consumer receives messages from RocketMQ topics using the SimpleConsumer API.
-type Consumer struct {
-	cfg ConsumerConfig
+type RocketMQConsumer struct {
+	cfg RocketMQConsumerConfig
 }
 
 // ConsumerConfig configures a RocketMQ consumer.
-type ConsumerConfig = Config
+type RocketMQConsumerConfig = RocketMQConfig
 
 // NewConsumer creates a RocketMQ consumer. The connection is established lazily
 // inside Subscribe.
-func NewConsumer(cfg ConsumerConfig) (*Consumer, error) {
+func NewRocketMQConsumer(cfg RocketMQConsumerConfig) (*RocketMQConsumer, error) {
 	cfg.setDefaults()
-	return &Consumer{cfg: cfg}, nil
+	return &RocketMQConsumer{cfg: cfg}, nil
 }
 
 // Subscribe starts consuming from topics and calls handler for each message.
 // It blocks until ctx is cancelled.
 //
 // The group parameter overrides cfg.ConsumerGroup when non-empty.
-func (c *Consumer) Subscribe(ctx context.Context, topics []string, group string, handler mq.Handler) error {
+func (c *RocketMQConsumer) Subscribe(ctx context.Context, topics []string, group string, handler Handler) error {
 	if len(topics) == 0 {
 		return fmt.Errorf("rocketmq consumer: at least one topic is required")
 	}
@@ -246,11 +244,11 @@ func (c *Consumer) Subscribe(ctx context.Context, topics []string, group string,
 }
 
 // Close is a no-op; the consumer is started and stopped inside Subscribe.
-func (c *Consumer) Close() error { return nil }
+func (c *RocketMQConsumer) Close() error { return nil }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-func toRMQMessage(msg *mq.Message) *rmq.Message {
+func toRMQMessage(msg *Message) *rmq.Message {
 	m := &rmq.Message{
 		Topic: msg.Topic,
 		Body:  msg.Payload,
@@ -264,12 +262,12 @@ func toRMQMessage(msg *mq.Message) *rmq.Message {
 	return m
 }
 
-func fromMessageView(view *rmq.MessageView) *mq.Message {
+func fromMessageView(view *rmq.MessageView) *Message {
 	headers := make(map[string]string)
 	for k, v := range view.GetProperties() {
 		headers[k] = v
 	}
-	return &mq.Message{
+	return &Message{
 		Topic:   view.GetTopic(),
 		Key:     []byte(view.GetMessageId()),
 		Payload: view.GetBody(),
