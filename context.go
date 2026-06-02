@@ -226,6 +226,8 @@ func (c *Ctx) Clone() *Ctx {
 		params:   c.params,
 		isClone:  true,
 	}
+	// Reset debug fields so the clone can be owned by a new goroutine.
+	clone.debugReset()
 	nop := &nopResponseWriter{header: make(http.Header)}
 	clone.rw = responseWriter{}
 	clone.writer = nop

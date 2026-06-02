@@ -22,6 +22,7 @@ use (
 	./cache
 	./client
 	./config
+	./config/vault
 	./discovery
 	./dtx/orm
 	./dtx/redis
@@ -67,6 +68,8 @@ replace (
 	github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./
 	github.com/astra-go/astra/alert v0.0.0-00010101000000-000000000000 => ./alert
 	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ./cache
+	github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000 => ./config
+	github.com/astra-go/astra/config/vault v0.0.0-00010101000000-000000000000 => ./config/vault
 	github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ./discovery
 	github.com/astra-go/astra/dtx/orm v0.0.0-00010101000000-000000000000 => ./dtx/orm
 	github.com/astra-go/astra/dtx/redis v0.0.0-00010101000000-000000000000 => ./dtx/redis

@@ -1,6 +1,6 @@
-//go:build redis
+// Package security - JWT cache multilevel tests with fake L2
 
-package middleware
+package security
 
 import (
 	"context"
@@ -97,7 +97,7 @@ func (m *testMultiLevel) Set(ctx context.Context, sig string, claims *Claims, ex
 }
 
 func (m *testMultiLevel) Delete(ctx context.Context, sig string) {
-	m.l1.delete(sig)
+	m.l1.Delete(ctx, sig)
 	m.l2.Delete(ctx, sig) //nolint:errcheck
 }
 
@@ -245,6 +245,7 @@ func TestMultiLevel_ExpiredL1_FallsBackToL2(t *testing.T) {
 
 // TestJWTCache_Delete verifies the new delete method on jwtCache.
 func TestJWTCache_Delete(t *testing.T) {
+	ctx := context.Background()
 	c := newJWTCache(64)
 	claims := newTestClaims("frank", 3600)
 	now := time.Now().Unix()
@@ -254,7 +255,7 @@ func TestJWTCache_Delete(t *testing.T) {
 		t.Fatal("expected entry before delete")
 	}
 
-	c.delete("sigX")
+	c.Delete(ctx, "sigX")
 	if _, ok := c.get("sigX", now); ok {
 		t.Error("expected entry to be gone after delete")
 	}

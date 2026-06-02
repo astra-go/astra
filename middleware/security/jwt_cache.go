@@ -1,6 +1,7 @@
 package security
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,19 @@ type jwtCacheShard struct {
 
 type jwtCache struct {
 	shards [jwtCacheShards]jwtCacheShard
+}
+
+// ensure jwtCache satisfies JWTCacheBackend
+var _ JWTCacheBackend = (*jwtCache)(nil)
+
+func (c *jwtCache) Get(_ context.Context, sig string) (*Claims, bool) {
+	now := time.Now().Unix()
+	return c.get(sig, now)
+}
+
+func (c *jwtCache) Set(_ context.Context, sig string, claims *Claims, expireAt int64) {
+	now := time.Now().Unix()
+	c.set(sig, claims, expireAt, now)
 }
 
 func newJWTCache(maxTotal int) *jwtCache {
@@ -81,11 +95,12 @@ func (c *jwtCache) set(sig string, claims *Claims, expireAt, now int64) {
 	sh.mu.Unlock()
 }
 
-func (c *jwtCache) delete(sig string) {
+func (c *jwtCache) Delete(_ context.Context, sig string) error {
 	sh := c.shardFor(sig)
 	sh.mu.Lock()
 	delete(sh.entries, sig)
 	sh.mu.Unlock()
+	return nil
 }
 
 // evictJWTCacheShard removes all expired entries; if still over half capacity,
