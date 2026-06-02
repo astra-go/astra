@@ -85,6 +85,7 @@ const DefaultJWTLeeway = 30 * time.Second
 type JWTCacheBackend interface {
 	Get(ctx context.Context, sig string) (*Claims, bool)
 	Set(ctx context.Context, sig string, claims *Claims, expireAt int64)
+	Delete(ctx context.Context, sig string) error
 }
 
 // StrictJWTLeeway disables clock-skew tolerance entirely. Pass it as

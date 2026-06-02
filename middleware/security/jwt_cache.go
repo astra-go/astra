@@ -95,11 +95,12 @@ func (c *jwtCache) set(sig string, claims *Claims, expireAt, now int64) {
 	sh.mu.Unlock()
 }
 
-func (c *jwtCache) delete(sig string) {
+func (c *jwtCache) Delete(_ context.Context, sig string) error {
 	sh := c.shardFor(sig)
 	sh.mu.Lock()
 	delete(sh.entries, sig)
 	sh.mu.Unlock()
+	return nil
 }
 
 // evictJWTCacheShard removes all expired entries; if still over half capacity,
