@@ -1,6 +1,7 @@
 package security
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
@@ -72,7 +73,20 @@ func (s SecretString) Plain() string { return s.val }
 // IsZero reports whether the secret is empty.
 func (s SecretString) IsZero() bool { return s.val == "" }
 
-const DefaultJWTLeeway = 5 * time.Second
+const DefaultJWTLeeway = 30 * time.Second
+
+// JWTCacheBackend is the interface that both the in-memory jwtCache and
+// RedisJWTCache satisfy. Pass an implementation to JWTConfig.CacheBackend
+// to plug in a custom or shared cache.
+//
+// Get returns (claims, true) on a hit, (nil, false) on a miss or error.
+// Set stores claims with a TTL derived from expireAt (Unix seconds).
+// Implementations must be safe for concurrent use.
+type JWTCacheBackend interface {
+	Get(ctx context.Context, sig string) (*Claims, bool)
+	Set(ctx context.Context, sig string, claims *Claims, expireAt int64)
+	Delete(ctx context.Context, sig string) error
+}
 
 // StrictJWTLeeway disables clock-skew tolerance entirely. Pass it as
 // JWTConfig.Leeway when tokens are short-lived or single-use and any
@@ -84,12 +98,22 @@ const DefaultJWTLeeway = 5 * time.Second
 //	})
 const StrictJWTLeeway = -1 * time.Nanosecond
 
-
 // MinJWTKeyLength is the minimum acceptable byte-length for HMAC-SHA JWT secrets.
 // HS256 produces 32-byte (256-bit) signatures; an equally strong key is required.
 // Shorter keys severely weaken the MAC and are trivially brute-forced.
 // Reject any HMACKey secret with len(secret) < MinJWTKeyLength.
 const MinJWTKeyLength = 32
+
+// MinRSABits is the minimum RSA key size (in bits) accepted by RSAPublicKey.
+// 1024-bit RSA is broken; 2048 bits is the current baseline (NIST SP 800-57).
+// Let's Encrypt, AWS, and most CAs require at least 2048 bits.
+const MinRSABits = 2048
+
+// MinECBits is the minimum ECDSA curve order (in bits) accepted by ECPublicKey.
+// P-256 (256 bits) is the baseline; P-224 (224 bits) is weak and actively
+// discouraged by NIST and major platforms.
+const MinECBits = 256
+
 // ClaimsKey is the context key under which the JWT middleware stores the parsed
 // *Claims. Handlers retrieve claims via GetClaims(c) or c.Get(ClaimsKey).
 //
@@ -160,6 +184,18 @@ type JWTConfig struct {
 	//   > 30s              — avoid: effectively extends token lifetime by the leeway value.
 	Leeway time.Duration
 
+	// CacheBackend allows plugging in a custom JWT cache backend (e.g. Redis, multilevel).
+	// When set, it takes priority over CacheSize; the internal L1 cache is not used.
+	//
+	// Example — two-level L1 (memory) + L2 (Redis) cache:
+	//
+	//	cache := middleware.NewMultiLevelJWTCache(1024, redisCache)
+	//	app.Use(middleware.JWTWithConfig(middleware.JWTConfig{
+	//	    Secret:       secret,
+	//	    CacheBackend: cache,
+	//	}))
+	CacheBackend JWTCacheBackend
+
 	// CacheSize is the maximum number of validated tokens to cache across all 16 shards.
 	// A cached token's claims are returned directly on subsequent requests without
 	// re-verifying the signature, trading cryptographic safety for throughput.
@@ -171,6 +207,7 @@ type JWTConfig struct {
 	//     to pass validation until it expires. Do not use caching with revocation.
 	//
 	// Recommended values: 512–2048. 0 (default) disables caching.
+	// Ignored when CacheBackend is set.
 	CacheSize int
 
 	// RevokeStore, when set, is checked on every request after signature
@@ -276,9 +313,12 @@ func JWTWithConfig(cfg JWTConfig) astra.HandlerFunc {
 	// Pre-built parser reused for every request — saves one *jwt.Parser alloc per call.
 	parser := jwt.NewParser(jwt.WithExpirationRequired(), jwt.WithLeeway(leeway))
 
-	var cache *jwtCache
-	if cfg.CacheSize > 0 {
-		cache = newJWTCache(cfg.CacheSize)
+	// Resolve cache backend: explicit CacheBackend > in-memory L1 (CacheSize) > nil
+	var cacheBackend JWTCacheBackend
+	if cfg.CacheBackend != nil {
+		cacheBackend = cfg.CacheBackend
+	} else if cfg.CacheSize > 0 {
+		cacheBackend = newJWTCache(cfg.CacheSize)
 	}
 
 	return func(c *astra.Ctx) error {
@@ -299,13 +339,19 @@ func JWTWithConfig(cfg JWTConfig) astra.HandlerFunc {
 		var claims *Claims
 		var pooled bool // true when we allocated from claimsPool and must return it
 
-		if cache != nil {
+		if cacheBackend != nil {
 			sig := tokenSignature(raw)
-			now := time.Now().Unix()
-			if cached, ok := cache.get(sig, now); ok {
+			ctx := c.Request().Context()
+			if cached, ok := cacheBackend.Get(ctx, sig); ok {
 				// Revocation check must happen even for cached tokens.
 				if cfg.RevokeStore != nil && cfg.RevokeStore.IsRevoked(sig) {
-					cache.delete(sig)
+					// Best-effort delete from cache backend
+					type deleter interface {
+						Delete(context.Context, string) error
+					}
+					if d, ok := cacheBackend.(deleter); ok {
+						_ = d.Delete(ctx, sig)
+					}
 					err := astra.NewHTTPError(http.StatusUnauthorized, "token has been revoked")
 					if cfg.ErrorHandler != nil {
 						return cfg.ErrorHandler(c, err)
@@ -332,8 +378,7 @@ func JWTWithConfig(cfg JWTConfig) astra.HandlerFunc {
 					return he
 				}
 				if claims.RegisteredClaims.ExpiresAt != nil {
-					cache.set(sig, claims, claims.RegisteredClaims.ExpiresAt.Unix(), now)
-					// cache owns the Claims pointer — do not return to pool
+					cacheBackend.Set(ctx, sig, claims, claims.RegisteredClaims.ExpiresAt.Unix())
 				} else {
 					pooled = true
 				}
@@ -398,9 +443,10 @@ func HMACKey(secret string) func(*jwt.Token) (any, error) {
 
 // JWTFromEnv reads the JWT HMAC secret from the named environment variable.
 // It panics if the variable is unset or its value is shorter than MinJWTKeyLength.
-// Typical usage: middleware.JWTWithConfig(middleware.JWTConfig{
-//     Secret: middleware.JWTFromEnv("JWT_SECRET"),
-// })
+//
+//	Typical usage: middleware.JWTWithConfig(middleware.JWTConfig{
+//	    Secret: middleware.JWTFromEnv("JWT_SECRET"),
+//	})
 func JWTFromEnv(envVar string) SecretString {
 	v := os.Getenv(envVar)
 	if v == "" {
@@ -416,14 +462,21 @@ func JWTFromEnv(envVar string) SecretString {
 // pemBytes must be a PEM-encoded PKIX public key or certificate.
 func RSAPublicKey(pemBytes []byte) func(*jwt.Token) (any, error) {
 	key, err := parseRSAPublicKey(pemBytes)
-	return func(t *jwt.Token) (any, error) {
-		if err != nil {
-			return nil, err
+	if err != nil {
+		return func(*jwt.Token) (any, error) { return nil, err }
+	}
+	// Enforce minimum key size to reject weak RSA keys (NIST SP 800-57)
+	if key.N.BitLen() < MinRSABits {
+		return func(*jwt.Token) (any, error) {
+			return nil, fmt.Errorf("jwt: RSA key size must be at least %d bits (got %d)", MinRSABits, key.N.BitLen())
 		}
+	}
+	pub := key
+	return func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
-		return key, nil
+		return pub, nil
 	}
 }
 
@@ -431,14 +484,22 @@ func RSAPublicKey(pemBytes []byte) func(*jwt.Token) (any, error) {
 // pemBytes must be a PEM-encoded PKIX public key.
 func ECPublicKey(pemBytes []byte) func(*jwt.Token) (any, error) {
 	key, err := parseECPublicKey(pemBytes)
-	return func(t *jwt.Token) (any, error) {
-		if err != nil {
-			return nil, err
+	if err != nil {
+		return func(*jwt.Token) (any, error) { return nil, err }
+	}
+	// Enforce minimum curve order to reject weak EC curves (P-224, P-192, ...)
+	curveBits := key.Curve.Params().BitSize
+	if curveBits < MinECBits {
+		return func(*jwt.Token) (any, error) {
+			return nil, fmt.Errorf("jwt: EC key curve must be at least %d bits (got %d)", MinECBits, curveBits)
 		}
+	}
+	ecKey := key
+	return func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodECDSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
-		return key, nil
+		return ecKey, nil
 	}
 }
 
@@ -602,6 +663,7 @@ func mapClaimsToRegisteredPooled(mc jwt.MapClaims) jwt.RegisteredClaims {
 	}
 	return reg
 }
+
 // Pre-declared sentinel errors returned by humanizeJWTError.
 // Package-level allocation eliminates the errors.New call (and its string alloc)
 // on every failed validation, replacing it with a pointer comparison + return.
@@ -649,6 +711,10 @@ func parseRSAPublicKey(pemBytes []byte) (*rsa.PublicKey, error) {
 	if !ok {
 		return nil, errors.New("jwt: PEM key is not an RSA public key")
 	}
+	// Reject weak RSA keys (< MinRSABits)
+	if rsaKey.Size()*8 < MinRSABits {
+		return nil, fmt.Errorf("jwt: RSA key size %d bits is too weak (minimum %d bits)", rsaKey.Size()*8, MinRSABits)
+	}
 	return rsaKey, nil
 }
 
@@ -664,6 +730,11 @@ func parseECPublicKey(pemBytes []byte) (*ecdsa.PublicKey, error) {
 	ecKey, ok := pub.(*ecdsa.PublicKey)
 	if !ok {
 		return nil, errors.New("jwt: PEM key is not an EC public key")
+	}
+	// Reject weak EC keys (< MinECBits)
+	ecBits := ecKey.Curve.Params().BitSize
+	if ecBits < MinECBits {
+		return nil, fmt.Errorf("jwt: EC curve %s (%d bits) is too weak (minimum %d bits)", ecKey.Curve.Params().Name, ecBits, MinECBits)
 	}
 	return ecKey, nil
 }

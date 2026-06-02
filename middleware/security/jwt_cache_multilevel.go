@@ -24,7 +24,7 @@ import (
 // Fail-open: L2 errors are non-fatal; the cache falls through to JWT parsing.
 type MultiLevelJWTCache struct {
 	l1     *jwtCache
-	l2     *RedisJWTCache
+	l2     JWTCacheBackend
 	hits   atomic.Int64 // L1 hits
 	l2hits atomic.Int64 // L2 hits (promoted to L1)
 	misses atomic.Int64 // full misses
@@ -41,7 +41,7 @@ type MultiLevelJWTCache struct {
 //	    Secret:       "my-secret",
 //	    CacheBackend: cache,
 //	}))
-func NewMultiLevelJWTCache(l1MaxSize int, l2 *RedisJWTCache) *MultiLevelJWTCache {
+func NewMultiLevelJWTCache(l1MaxSize int, l2 JWTCacheBackend) *MultiLevelJWTCache {
 	if l2 == nil {
 		panic("jwt_cache_multilevel: l2 must not be nil")
 	}

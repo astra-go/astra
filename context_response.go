@@ -15,11 +15,13 @@ package astra
 
 import (
 	"bytes"
+	"context"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -304,12 +306,19 @@ func (c *Ctx) EarlyHints(targets []string, opts map[string]string) error {
 	if c.writer.Written() {
 		return nil
 	}
+	var sb strings.Builder
 	for _, t := range targets {
-		link := "<" + t + ">; rel=preload"
+		sb.Reset()
+		sb.WriteString("<")
+		sb.WriteString(t)
+		sb.WriteString(">; rel=preload")
 		for k, v := range opts {
-			link += "; " + k + "=" + v
+			sb.WriteString("; ")
+			sb.WriteString(k)
+			sb.WriteString("=")
+			sb.WriteString(v)
 		}
-		c.writer.Header().Add("Link", link)
+		c.writer.Header().Add("Link", sb.String())
 	}
 	c.writer.WriteHeader(http.StatusEarlyHints)
 	return nil
@@ -324,8 +333,65 @@ func (c *Ctx) Flush() error {
 	return nil
 }
 
-// Done returns the done channel of the request's context.
-// It is closed when the request context is cancelled or times out.
-func (c *Ctx) Done() <-chan struct{} {
-	return c.req.Context().Done()
+// Stream writes a streaming response by reading from r and writing directly to the wire.
+//
+// Unlike JSON or Blob, Stream does NOT buffer the entire payload in memory.
+// The data is copied from r to the ResponseWriter using io.Copy, making it
+// suitable for large files, S3 objects, or any io.Reader source.
+//
+// Content-Length is NOT set (chunked transfer encoding on HTTP/1.1).
+// To set Content-Length, pass an *os.File or an io.ReadSeeker and call
+// c.writer.Header()["Content-Length"] = ... before calling Stream.
+//
+// The copy loop respects the request context: if c.req.Context() is cancelled
+// (client disconnect, timeout), the copy stops early.
+func (c *Ctx) Stream(code int, contentType string, r io.Reader) error {
+	c.debugCheckConcurrency()
+	h := c.writer.Header()
+	if contentType != "" {
+		h["Content-Type"] = []string{contentType}
+	}
+	c.writer.WriteHeader(code)
+
+	// Use a context-aware copy if the request context supports cancellation.
+	w := c.writer
+	if cc, ok := w.(writeFlusher); ok {
+		// Best-effort: flush after each write to keep streaming responsive.
+		defer cc.Flush()
+	}
+
+	// Stop early if the client disconnects.
+	ctx := c.req.Context()
+	done := ctx.Done()
+	if done == nil {
+		_, err := io.Copy(w, r)
+		return err
+	}
+
+	// Wrapped reader that checks context cancellation.
+	n := &contextReader{r: r, ctx: ctx}
+	_, err := io.Copy(w, n)
+	return err
+}
+
+// writeFlusher is a minimal interface combining Write and Flush,
+// satisfied by *bufio.Writer, http.ResponseWriter (when Flusher), etc.
+type writeFlusher interface {
+	io.Writer
+	http.Flusher
+}
+
+// contextReader wraps an io.Reader with request-context cancellation.
+type contextReader struct {
+	r   io.Reader
+	ctx context.Context
+}
+
+func (cr *contextReader) Read(p []byte) (int, error) {
+	select {
+	case <-cr.ctx.Done():
+		return 0, cr.ctx.Err()
+	default:
+	}
+	return cr.r.Read(p)
 }
