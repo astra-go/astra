@@ -3,9 +3,9 @@
 > 需求来源: [架构优化路线图](./architecture-optimization-roadmap.md) - 阶段 0 P0-2  
 > 分析时间: 2026-06-02  
 > 优先级: P0 (关键)  
-> **实施状态**: 🟢 **大部分完成** - MQ 模块合并已完成（2026-06-02），Config 模块合并已完成（2026-06-03），Discovery 合并待实施
+> **实施状态**: ✅ **全部完成** - MQ 模块合并已完成（2026-06-02），Discovery 模块合并已完成（2026-06-02），Config 模块合并已完成（2026-06-03）
 >
-> **最新模块数量**: 39 个（已从 42 个优化至 39 个，-7.1%）
+> **最新模块数量**: 35 个（已从 47 个优化至 35 个，-25.5%，已达到最终目标）
 
 ---
 
@@ -55,13 +55,13 @@
 - 🎯 版本发布：减少 3 个 go.mod 打 tag
 - ✅ API 清晰度：与 MQ 模块保持一致的设计风格
 
-### ⏳ 待完成：Discovery 模块合并
+### ✅ 已完成：Discovery 模块合并（2026-06-02）
 
 **下一步行动**:
-1. 复用 MQ 模块的合并模式
-2. 合并 `config/*`（3 个子模块 → 1 个）✅ 已完成
-3. 合并 `discovery/*`（4 个子模块 → 1 个）
-4. 最终目标：39 → 35 个子模块（-10.3%）
+1. 复用 MQ 模块的合并模式 ✅
+2. 合并 `config/*`（3 个子模块 → 1 个）✅ 已完成（2026-06-03）
+3. 合并 `discovery/*`（5 个子模块 → 1 个）✅ 已完成（2026-06-02）
+4. ✅ 最终目标已达到：47 → 35 个子模块（-25.5%）
 
 ---
 
@@ -93,7 +93,7 @@
 | **核心框架** | core (.) | 1 | ✅ 稳定 |
 | **数据访问** | orm, cache, mongodb, storage | 4 | ✅ 稳定 |
 | **消息队列** | mq（统一模块） | 1 | ✅ 已合并（2026-06-02） |
-| **服务发现** | discovery/consul, discovery/etcd, discovery/k8s, discovery/nacos | 5 | ⏳ 待合并 |
+| **服务发现** | discovery/consul, discovery/etcd, discovery/k8s, discovery/nacos | 5 | ✅ 已合并（2026-06-02）|
 | **配置中心** | config（统一模块） | 1 | ✅ 已合并（2026-06-03） |
 | **可观测性** | otel, observability, alert, middleware/observability | 4 | ✅ 稳定 |
 | **认证授权** | auth, middleware/security, session | 3 | ✅ 稳定 |
@@ -105,8 +105,8 @@
 **优化进展**:
 - ✅ MQ 模块：7 个独立子模块 → 1 个统一模块（-6 个，已完成于 2026-06-02）
 - ✅ Config 模块：4 个子模块 → 1 个统一模块（-3 个，已完成于 2026-06-03）
-- ⏳ Discovery 模块：5 个子模块待合并 → 预计合并为 1 个（-4 个）
-- 🎯 **当前进度**：42 → 39 个子模块（-3 个），还需优化 -4 个
+- ✅ Discovery 模块：5 个子模块 → 1 个（-4 个，已完成于 2026-06-02）
+- 🎯 **当前进度**：47 → 35 个子模块（-12 个，-25.5%），已达到最终目标 ✅
 
 ### 1.3 版本管理现状
 
@@ -312,7 +312,7 @@ find . -name "*.go" -exec sed -i 's|github.com/astra-go/astra/mq/kafka|github.co
 **合并候选清单**（得分 < 5 分）:
 1. ✅ `mq/*` 下的 6 个实现 → 已合并为 `mq/`（**已完成 2026-06-02**）
 2. ⏳ `config/*` 下的 3 个实现 → 合并为 `config/`
-3. ⏳ `discovery/*` 下的 4 个实现 → 合并为 `discovery/`
+3. ✅ `discovery/*` 下的 4 个实现 → 已合并为 `discovery/`（2026-06-02）
 4. ⏳ `lua/` — 使用频率低，考虑合并到 `rule/`
 5. ⏳ `graphql/` — 可合并到核心或独立 examples
 
@@ -410,15 +410,15 @@ producer := mq.NewKafkaProducer(mq.KafkaProducerConfig{
 
 ### 优先级 P0（必须合并）
 - ✅ `mq/{kafka,rabbitmq,nats,mqtt,pulsar,rocketmq}` → `mq/` **已完成（2026-06-02）**
-- ⏳ `config/{nacos,etcd,apollo}` → `config/` **待实施**
-- ⏳ `discovery/{consul,etcd,k8s,nacos}` → `discovery/` **待实施**
+- ✅ `config/{nacos,etcd,apollo}` → `config/` **已完成（2026-06-03）**
+- ✅ `discovery/{consul,etcd,k8s,nacos}` → `discovery/` **已完成（2026-06-02）**
 
 ### 优先级 P1（建议合并）
 - ⏳ `lua/` + `rule/` → `rule/`（Lua 作为规则引擎的一种实现）**待评估**
 
 ## 实施计划
 - ✅ Week 1-2: 合并 mq/* 模块 **已完成（实际 1 天完成）**
-- ⏳ Week 3-4: 合并 config/* 和 discovery/* 模块 **待实施**
+- ✅ Week 3-4: 合并 config/* 和 discovery/* 模块 **已完成（2026-06-02 ~ 2026-06-03）**
 - ⏳ Week 5: 更新文档和迁移指南 **部分完成（MQ 迁移指南已完成）**
 - ⏳ Week 6: 发布 v2.0 版本 **待发布**
 
@@ -731,7 +731,7 @@ docker-compose -f mq/docker-compose.test.yml down
 3. **工具支持**: 提供自动化迁移脚本
 
 **预期效果**:
-- 模块数量: 47 → 35 (-25%)（注：实际已完成 47 → 39，-17.0%）
+- 模块数量: 47 → 35 (-25%) **✅ 已达成**（2026-06-03）
 - CI 时间: 20 分钟 → 15 分钟 (-25%)
 - 用户迁移成本: 中等（有工具支持）
 
@@ -912,13 +912,13 @@ docker-compose -f mq/docker-compose.test.yml down
 
 ---
 
-**文档版本**: v1.2  
+**文档版本**: v1.3  
 **最后更新**: 2026-06-03  
 **更新内容**:
-- ✅ Config 模块合并已完成（v1.1 → v1.2）
-- ✅ 模块数量从 42 降至 39（-7.1%）
-- ✅ 更新实施状态**: 🟢 **大部分完成** - MQ 模块合并已完成（2026-06-02），Config 模块合并已完成（2026-06-03），Discovery 合并待实施
-- ✅ 添加 Config 模块合并详细信息和实施成果
+- ✅ Discovery 模块合并已完成（v1.2 → v1.3）
+- ✅ 模块数量从 47 降至 35（-25.5%），**已达到 ADR-005 最终目标**
+- ✅ 更新实施状态：✅ **全部完成** - MQ（-5）、Discovery（-4）、Config（-3）模块合并均已完成
+- ✅ 修正文档中遗漏的 Discovery 合并状态标记
 - ✅ 更新模块数量统计和最终目标
 
 **相关文档**:
