@@ -1,34 +1,9 @@
-// Package tencent provides a Tencent Cloud SMS backend for the
-// github.com/astra-go/astra/notify/sms package.
-//
-// It calls the Tencent Cloud SMS API v3 (sms.tencentcloudapi.com) directly
-// over HTTPS using standard library net/http — no Tencent SDK dependency.
-//
-// # Authentication
-//
-// Uses TC3-HMAC-SHA256 signing (the current Tencent Cloud API v3 standard).
-//
-// # Usage
-//
-//	import (
-//	    "github.com/astra-go/astra/notify/sms"
-//	    smstencent "github.com/astra-go/astra/notify/sms/tencent"
-//	)
-//
-//	sender := smstencent.New(smstencent.Config{
-//	    SecretID:   os.Getenv("TC_SECRET_ID"),
-//	    SecretKey:  os.Getenv("TC_SECRET_KEY"),
-//	    AppID:      "1400123456",
-//	    SignName:   "MyApp",
-//	    TemplateID: "1234567",
-//	    Region:     "ap-guangzhou",  // optional, defaults to ap-guangzhou
-//	})
-//
-//	err := sender.Send(ctx, &sms.Message{
-//	    To:     "+8613800138000",
-//	    Params: map[string]string{"1": "998877"},  // positional: "1", "2", ...
-//	})
-package tencent
+//go:build sms
+// +build sms
+
+package notify
+
+// This file provides the Tencent Cloud SMS sender, enabled with build tag "sms".
 
 import (
 	"bytes"
@@ -43,19 +18,17 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/astra-go/astra/notify/sms"
 )
 
 const (
-	tcEndpoint = "https://sms.tencentcloudapi.com"
-	tcService  = "sms"
-	tcVersion  = "2021-01-11"
-	tcAction   = "SendSms"
+	tcSMSEndpoint = "https://sms.tencentcloudapi.com"
+	tcSMSService  = "sms"
+	tcSMSVersion  = "2021-01-11"
+	tcSMSAction   = "SendSms"
 )
 
-// Config holds Tencent Cloud SMS credentials and defaults.
-type Config struct {
+// SmsTencentConfig holds Tencent Cloud SMS credentials and defaults.
+type SmsTencentConfig struct {
 	// SecretID and SecretKey are the Tencent Cloud API credentials. Required.
 	SecretID  string
 	SecretKey string
@@ -76,14 +49,14 @@ type Config struct {
 	HTTPTimeout time.Duration
 }
 
-// Sender implements sms.Sender using the Tencent Cloud SMS API v3.
-type Sender struct {
-	cfg    Config
+// SmsTencentSender implements SmsSender using the Tencent Cloud SMS API v3.
+type SmsTencentSender struct {
+	cfg    SmsTencentConfig
 	client *http.Client
 }
 
-// New creates a Tencent Cloud SMS Sender.
-func New(cfg Config) *Sender {
+// NewSmsTencentSender creates a Tencent Cloud SMS Sender.
+func NewSmsTencentSender(cfg SmsTencentConfig) *SmsTencentSender {
 	if cfg.Region == "" {
 		cfg.Region = "ap-guangzhou"
 	}
@@ -91,11 +64,11 @@ func New(cfg Config) *Sender {
 	if timeout == 0 {
 		timeout = 10 * time.Second
 	}
-	return &Sender{cfg: cfg, client: &http.Client{Timeout: timeout}}
+	return &SmsTencentSender{cfg: cfg, client: &http.Client{Timeout: timeout}}
 }
 
 // Send delivers an SMS via the Tencent Cloud SMS API.
-func (s *Sender) Send(ctx context.Context, msg *sms.Message) error {
+func (s *SmsTencentSender) Send(ctx context.Context, msg *SmsMessage) error {
 	signName := msg.SignName
 	if signName == "" {
 		signName = s.cfg.SignName
@@ -105,7 +78,6 @@ func (s *Sender) Send(ctx context.Context, msg *sms.Message) error {
 		templateID = s.cfg.TemplateID
 	}
 
-	// Build positional template params (sorted by key).
 	var templateParamSet []string
 	if len(msg.Params) > 0 {
 		keys := make([]string, 0, len(msg.Params))
@@ -128,7 +100,7 @@ func (s *Sender) Send(ctx context.Context, msg *sms.Message) error {
 
 	body, _ := json.Marshal(payload)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tcEndpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tcSMSEndpoint, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("sms/tencent: build request: %w", err)
 	}
@@ -137,13 +109,12 @@ func (s *Sender) Send(ctx context.Context, msg *sms.Message) error {
 	ts := fmt.Sprintf("%d", now.Unix())
 	date := now.Format("2006-01-02")
 
-	// TC3-HMAC-SHA256 signing.
-	authHeader := tc3Sign(s.cfg.SecretID, s.cfg.SecretKey, ts, date, body)
+	authHeader := smsTencentTC3Sign(s.cfg.SecretID, s.cfg.SecretKey, ts, date, body)
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Authorization", authHeader)
-	req.Header.Set("X-TC-Action", tcAction)
-	req.Header.Set("X-TC-Version", tcVersion)
+	req.Header.Set("X-TC-Action", tcSMSAction)
+	req.Header.Set("X-TC-Version", tcSMSVersion)
 	req.Header.Set("X-TC-Timestamp", ts)
 	req.Header.Set("X-TC-Region", s.cfg.Region)
 
@@ -181,14 +152,11 @@ func (s *Sender) Send(ctx context.Context, msg *sms.Message) error {
 	return nil
 }
 
-// Compile-time assertion.
-var _ sms.Sender = (*Sender)(nil)
+// Verify SmsTencentSender implements SmsSender at compile time.
+var _ SmsSender = (*SmsTencentSender)(nil)
 
-// ─── TC3-HMAC-SHA256 signing ──────────────────────────────────────────────────
-
-func tc3Sign(secretID, secretKey, timestamp, date string, payload []byte) string {
-	// Canonical request.
-	bodyHash := sha256Hex(payload)
+func smsTencentTC3Sign(secretID, secretKey, timestamp, date string, payload []byte) string {
+	bodyHash := smsTencentSHA256Hex(payload)
 	canonicalReq := strings.Join([]string{
 		"POST",
 		"/",
@@ -198,19 +166,16 @@ func tc3Sign(secretID, secretKey, timestamp, date string, payload []byte) string
 		bodyHash,
 	}, "\n")
 
-	// String to sign.
-	credScope := date + "/" + tcService + "/tc3_request"
+	credScope := date + "/" + tcSMSService + "/tc3_request"
 	strToSign := strings.Join([]string{
 		"TC3-HMAC-SHA256",
 		timestamp,
 		credScope,
-		sha256Hex([]byte(canonicalReq)),
+		smsTencentSHA256Hex([]byte(canonicalReq)),
 	}, "\n")
 
-	// Derive signing key.
-	signingKey := tc3DeriveKey(secretKey, date)
+	signingKey := smsTencentTC3DeriveKey(secretKey, date)
 
-	// Final signature.
 	mac := hmac.New(sha256.New, signingKey)
 	mac.Write([]byte(strToSign))
 	sig := hex.EncodeToString(mac.Sum(nil))
@@ -219,19 +184,19 @@ func tc3Sign(secretID, secretKey, timestamp, date string, payload []byte) string
 		secretID, credScope, sig)
 }
 
-func tc3DeriveKey(secretKey, date string) []byte {
+func smsTencentTC3DeriveKey(secretKey, date string) []byte {
 	h := func(key, data []byte) []byte {
 		mac := hmac.New(sha256.New, key)
 		mac.Write(data)
 		return mac.Sum(nil)
 	}
 	secretDate := h([]byte("TC3"+secretKey), []byte(date))
-	secretService := h(secretDate, []byte(tcService))
+	secretService := h(secretDate, []byte(tcSMSService))
 	secretSigning := h(secretService, []byte("tc3_request"))
 	return secretSigning
 }
 
-func sha256Hex(b []byte) string {
+func smsTencentSHA256Hex(b []byte) string {
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
 }

@@ -1,16 +1,15 @@
 // Package runner provides a unified interface for task scheduling across
 // multiple backends. Pick a backend based on your infrastructure:
 //
-//	runner/cron      — in-process cron (wraps robfig/cron/v3 via astra/cron)
-//	runner/gocron    — in-process cron with optional distributed locking (go-co-op/gocron/v2)
-//	runner/taskqueue — distributed, persistent task queue (any Astra Broker)
-//	runner/dagu      — DAG-based workflow orchestrator (Dagu REST API + HTTP callbacks)
+//	//go:build cron    — in-process cron (wraps robfig/cron/v3 via astra/cron)
+//	//go:build gocron  — in-process cron with optional distributed locking (go-co-op/gocron/v2)
+//	//go:build tqrunner — distributed, persistent task queue (any Astra Broker)
+//	//go:build dagu    — DAG-based workflow orchestrator (Dagu REST API + HTTP callbacks)
 //
 // # Quick start (cron backend)
 //
-//	import cronrunner "github.com/astra-go/astra/runner/cron"
-//
-//	r := cronrunner.New()
+//	// Build with: go build -tags cron
+//	r := runner.NewCronRunner()
 //	r.Add("cleanup", "0 2 * * *", func(ctx context.Context) error {
 //	    return cleanupExpiredSessions(ctx)
 //	})
@@ -24,14 +23,17 @@
 //
 // All backends implement Runner, so switching is a one-line change:
 //
-//	// in-process cron
-//	var r runner.Runner = cronrunner.New()
+//	// in-process cron (build with -tags cron)
+//	var r runner.Runner = runner.NewCronRunner()
 //
-//	// distributed task queue (persistent, retryable, horizontally scalable)
-//	var r runner.Runner = tqrunner.New(redisBroker, taskqueue.ServerConfig{})
+//	// distributed task queue (build with -tags tqrunner)
+//	var r runner.Runner = runner.NewTaskqueueRunner(broker, taskqueue.ServerConfig{})
 //
-//	// Dagu-managed DAGs with full web UI and history
-//	var r runner.Runner, _ = dagurunner.New(dagurunner.Config{...})
+//	// Dagu-managed DAGs (build with -tags dagu)
+//	var r runner.Runner, _ = runner.NewDaguRunner(runner.DaguConfig{...})
+//
+//	// gocron (build with -tags gocron)
+//	var r runner.Runner, _ = runner.NewGocronRunner()
 //
 // # Cron expression format
 //

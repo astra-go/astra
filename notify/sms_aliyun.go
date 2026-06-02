@@ -1,33 +1,9 @@
-// Package aliyun provides an Aliyun (Alibaba Cloud) SMS backend for the
-// github.com/astra-go/astra/notify/sms package.
-//
-// It calls the Aliyun SMS OpenAPI (dysmsapi.aliyuncs.com) directly over HTTPS
-// using standard library net/http — no Aliyun SDK dependency is required.
-//
-// # Authentication
-//
-// Requests are signed with HMAC-SHA1 using Signature Version 1.0 (query-string
-// signing), which is the scheme used by all classic Aliyun APIs.
-//
-// # Usage
-//
-//	import (
-//	    "github.com/astra-go/astra/notify/sms"
-//	    smsaliyun "github.com/astra-go/astra/notify/sms/aliyun"
-//	)
-//
-//	sender := smsaliyun.New(smsaliyun.Config{
-//	    AccessKeyID:     os.Getenv("ALIYUN_AK_ID"),
-//	    AccessKeySecret: os.Getenv("ALIYUN_AK_SECRET"),
-//	    SignName:        "MyApp",
-//	    TemplateCode:    "SMS_123456789",
-//	})
-//
-//	err := sender.Send(ctx, &sms.Message{
-//	    To:     "+8613800138000",
-//	    Params: map[string]string{"code": "998877"},
-//	})
-package aliyun
+//go:build sms
+// +build sms
+
+package notify
+
+// This file provides the Aliyun SMS sender, enabled with build tag "sms".
 
 import (
 	"context"
@@ -44,14 +20,12 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/astra-go/astra/notify/sms"
 )
 
 const aliyunSMSEndpoint = "https://dysmsapi.aliyuncs.com/"
 
-// Config holds Aliyun SMS service credentials.
-type Config struct {
+// SmsAliyunConfig holds Aliyun SMS service credentials.
+type SmsAliyunConfig struct {
 	// AccessKeyID is the Aliyun RAM AccessKey ID. Required.
 	AccessKeyID string
 
@@ -59,34 +33,32 @@ type Config struct {
 	AccessKeySecret string
 
 	// SignName is the SMS signature name registered in the Aliyun console.
-	// Used as default; can be overridden per message.
 	SignName string
 
 	// TemplateCode is the SMS template code registered in the Aliyun console.
-	// Used as default; can be overridden per message.
 	TemplateCode string
 
 	// HTTPTimeout sets the HTTP client timeout. Default: 10 seconds.
 	HTTPTimeout time.Duration
 }
 
-// Sender implements sms.Sender using the Aliyun SMS API.
-type Sender struct {
-	cfg    Config
+// SmsAliyunSender implements SmsSender using the Aliyun SMS API.
+type SmsAliyunSender struct {
+	cfg    SmsAliyunConfig
 	client *http.Client
 }
 
-// New creates an Aliyun SMS Sender.
-func New(cfg Config) *Sender {
+// NewSmsAliyunSender creates an Aliyun SMS Sender.
+func NewSmsAliyunSender(cfg SmsAliyunConfig) *SmsAliyunSender {
 	timeout := cfg.HTTPTimeout
 	if timeout == 0 {
 		timeout = 10 * time.Second
 	}
-	return &Sender{cfg: cfg, client: &http.Client{Timeout: timeout}}
+	return &SmsAliyunSender{cfg: cfg, client: &http.Client{Timeout: timeout}}
 }
 
 // Send delivers an SMS via the Aliyun SMS API.
-func (s *Sender) Send(ctx context.Context, msg *sms.Message) error {
+func (s *SmsAliyunSender) Send(ctx context.Context, msg *SmsMessage) error {
 	signName := msg.SignName
 	if signName == "" {
 		signName = s.cfg.SignName
@@ -102,7 +74,6 @@ func (s *Sender) Send(ctx context.Context, msg *sms.Message) error {
 		templateParam = string(b)
 	}
 
-	// Build common Aliyun API query parameters.
 	params := map[string]string{
 		"Action":           "SendSms",
 		"Version":          "2017-05-25",
@@ -110,7 +81,7 @@ func (s *Sender) Send(ctx context.Context, msg *sms.Message) error {
 		"AccessKeyId":      s.cfg.AccessKeyID,
 		"SignatureMethod":  "HMAC-SHA1",
 		"SignatureVersion": "1.0",
-		"SignatureNonce":   randomNonce(),
+		"SignatureNonce":   aliyunRandomNonce(),
 		"Timestamp":        time.Now().UTC().Format("2006-01-02T15:04:05Z"),
 		"PhoneNumbers":     msg.To,
 		"SignName":         signName,
@@ -118,10 +89,8 @@ func (s *Sender) Send(ctx context.Context, msg *sms.Message) error {
 		"TemplateParam":    templateParam,
 	}
 
-	// Sign the request.
 	params["Signature"] = aliyunSign(s.cfg.AccessKeySecret, "GET", params)
 
-	// Build the URL.
 	q := url.Values{}
 	for k, v := range params {
 		q.Set(k, v)
@@ -154,37 +123,30 @@ func (s *Sender) Send(ctx context.Context, msg *sms.Message) error {
 	return nil
 }
 
-// Compile-time assertion.
-var _ sms.Sender = (*Sender)(nil)
+// Verify SmsAliyunSender implements SmsSender at compile time.
+var _ SmsSender = (*SmsAliyunSender)(nil)
 
-// ─── signing helpers ──────────────────────────────────────────────────────────
-
-// aliyunSign computes the HMAC-SHA1 query-string signature required by Aliyun APIs.
 func aliyunSign(secret, method string, params map[string]string) string {
-	// 1. Sort parameters by key.
 	keys := make([]string, 0, len(params))
 	for k := range params {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
-	// 2. Percent-encode and join as key=value pairs.
 	parts := make([]string, 0, len(keys))
 	for _, k := range keys {
 		parts = append(parts, url.QueryEscape(k)+"="+url.QueryEscape(params[k]))
 	}
 	canonicalQuery := strings.Join(parts, "&")
 
-	// 3. Build the string-to-sign.
 	stringToSign := method + "&" + url.QueryEscape("/") + "&" + url.QueryEscape(canonicalQuery)
 
-	// 4. HMAC-SHA1 with secret+"&".
 	mac := hmac.New(sha1.New, []byte(secret+"&")) //nolint:gosec
 	mac.Write([]byte(stringToSign))
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
-func randomNonce() string {
+func aliyunRandomNonce() string {
 	n, _ := rand.Int(rand.Reader, big.NewInt(1<<62))
 	return fmt.Sprintf("%d", n)
 }

@@ -1,24 +1,22 @@
 // Package taskqueue provides a distributed task queue for Astra applications.
 //
-// Five persistent backends are supported — choose based on your infrastructure:
+// Five persistent backends are supported — choose based on your infrastructure.
+// Each backend is enabled with a build tag:
 //
-//	taskqueue/redis    — Redis-backed (recommended; low-latency, Lua-atomic ops)
-//	taskqueue/mongo    — MongoDB-backed (for teams already operating MongoDB)
-//	taskqueue/rabbitmq — RabbitMQ-backed (AMQP; requires x-delayed-message plugin
-//	                     for accurate delayed/retry delivery)
-//	taskqueue/kafka    — Kafka-backed (franz-go; retry via separate topic,
-//	                     promoted by the periodic Schedule goroutine)
-//	taskqueue/rocketmq — RocketMQ 5.x-backed (gRPC; native delay + invisible
-//	                     duration for retry, no extra infrastructure needed)
+//	//go:build redis     — Redis-backed (recommended; low-latency, Lua-atomic ops)
+//	//go:build mongo     — MongoDB-backed (for teams already operating MongoDB)
+//	//go:build rabbitmq  — RabbitMQ-backed (AMQP; requires x-delayed-message plugin)
+//	//go:build kafka     — Kafka-backed (franz-go; retry via separate topic)
+//	//go:build rocketmq  — RocketMQ 5.x-backed (gRPC; native delay + invisible duration)
 //
 // # Quick start (Redis)
 //
+//	// Build with: go build -tags redis
 //	import (
 //	    "github.com/astra-go/astra/taskqueue"
-//	    tqredis "github.com/astra-go/astra/taskqueue/redis"
 //	)
 //
-//	broker, _ := tqredis.New(tqredis.Config{Addr: "localhost:6379"})
+//	broker, _ := taskqueue.NewRedisBroker(taskqueue.RedisConfig{Addr: "localhost:6379"})
 //	client  := taskqueue.NewClient(broker)
 //	defer client.Close()
 //
