@@ -710,6 +710,10 @@ func parseRSAPublicKey(pemBytes []byte) (*rsa.PublicKey, error) {
 	if !ok {
 		return nil, errors.New("jwt: PEM key is not an RSA public key")
 	}
+	// Reject weak RSA keys (< MinRSABits)
+	if rsaKey.Size()*8 < MinRSABits {
+		return nil, fmt.Errorf("jwt: RSA key size %d bits is too weak (minimum %d bits)", rsaKey.Size()*8, MinRSABits)
+	}
 	return rsaKey, nil
 }
 
@@ -725,6 +729,11 @@ func parseECPublicKey(pemBytes []byte) (*ecdsa.PublicKey, error) {
 	ecKey, ok := pub.(*ecdsa.PublicKey)
 	if !ok {
 		return nil, errors.New("jwt: PEM key is not an EC public key")
+	}
+	// Reject weak EC keys (< MinECBits)
+	ecBits := ecKey.Curve.Params().BitSize
+	if ecBits < MinECBits {
+		return nil, fmt.Errorf("jwt: EC curve %s (%d bits) is too weak (minimum %d bits)", ecKey.Curve.Params().Name, ecBits, MinECBits)
 	}
 	return ecKey, nil
 }
