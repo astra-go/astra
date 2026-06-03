@@ -8,8 +8,8 @@ import (
 
 	"github.com/astra-go/astra/examples/showcase/internal/domain"
 	"github.com/astra-go/astra/examples/showcase/internal/grpc"
+	pb "github.com/astra-go/astra/examples/showcase/internal/pb/inventorypb"
 	"github.com/astra-go/astra/examples/showcase/internal/repository"
-	pb "github.com/astra-go/astra/examples/showcase/internal/pb"
 )
 
 // TestGRPC_GetStock_Postgres verifies the gRPC GetStock RPC method.

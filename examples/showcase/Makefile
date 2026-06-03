@@ -36,19 +36,19 @@ tidy:
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 build:
-	go build -o bin/api     ./cmd/api
+	go build -tags redis -o bin/api     ./cmd/api
 	go build -o bin/grpc    ./cmd/grpc
-	go build -o bin/worker  ./cmd/worker
+	go build -tags redis -o bin/worker  ./cmd/worker
 
 # ── Run (requires: make dev) ──────────────────────────────────────────────────
 run-api:
-	go run ./cmd/api
+	go run -tags redis ./cmd/api
 
 run-grpc:
 	go run ./cmd/grpc
 
 run-worker:
-	go run ./cmd/worker
+	go run -tags redis ./cmd/worker
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 test:

@@ -1,6 +1,7 @@
 // cmd/api is the HTTP + gRPC dual-stack entry point for the Showcase application.
 // Wires: ORM + TxMiddleware, Redis Cache, TaskQueue, JWT, Casbin RBAC,
-//        OAuth2 (Google + GitHub), OTel tracing, and Canary middleware.
+//
+//	OAuth2 (Google + GitHub), OTel tracing, and Canary middleware.
 package main
 
 import (
@@ -11,6 +12,7 @@ import (
 
 	"github.com/astra-go/astra"
 	"github.com/astra-go/astra/auth/rbac"
+	cacheredis "github.com/astra-go/astra/cache/redis"
 	"github.com/astra-go/astra/examples/showcase/internal/db"
 	"github.com/astra-go/astra/examples/showcase/internal/domain"
 	"github.com/astra-go/astra/examples/showcase/internal/handler"
@@ -21,8 +23,6 @@ import (
 	astraorm "github.com/astra-go/astra/orm"
 	astraotel "github.com/astra-go/astra/otel"
 	"github.com/astra-go/astra/taskqueue"
-	tqredis "github.com/astra-go/astra/taskqueue/redis"
-	cacheredis "github.com/astra-go/astra/cache/redis"
 	"github.com/casbin/casbin/v2"
 	"github.com/joho/godotenv"
 )
@@ -75,7 +75,12 @@ func main() {
 	defer redisCache.Close()
 
 	// ── TaskQueue client ──────────────────────────────────────────────────────
-	tqBroker, err := tqredis.New(tqredis.Config{
+	// tqBroker, err := taskqueue.NewRedisBroker(taskqueue.RedisConfig{
+	// 	Addr:     getenv("REDIS_ADDR", "localhost:6379"),
+	// 	Password: getenv("REDIS_PASSWORD", ""),
+	// })
+
+	tqBroker, err := taskqueue.NewRedisBroker(taskqueue.RedisConfig{
 		Addr:     getenv("REDIS_ADDR", "localhost:6379"),
 		Password: getenv("REDIS_PASSWORD", ""),
 	})
@@ -121,13 +126,9 @@ func main() {
 	app := astra.New(astra.WithShutdownTimeout(15))
 	app.Use(
 		middleware.RequestID(),
-		// Tracing must run before Logger so trace_id is in context when Logger fires.
-		// Skip /health to avoid polluting traces with probe noise.
-		middleware.Tracing(middleware.WithTracingSkipPaths("/health")),
 		middleware.LoggerWithConfig(middleware.LoggerConfig{
-			Format:          "json",
-			WithTraceContext: true, // appends trace_id + span_id to every log line
-			SkipPaths:       []string{"/health"},
+			Format:    "json",
+			SkipPaths: []string{"/health"},
 		}),
 		middleware.Recovery(),
 		middleware.CORSPermissive(),
@@ -137,7 +138,7 @@ func main() {
 	// Rule 1: explicit opt-in via header  X-Canary: true
 	// Rule 2: 10 % of users by user_id hash (user_id % 10 == 0)
 	// Rule 3: cookie-based opt-in         canary=1
-	canaryMW := middleware.Canary([]middleware.CanaryRule{
+	canaryMW := security.Canary([]security.CanaryRule{
 		{Header: "X-Canary", HeaderRE: "^true$", Version: "v2"},
 		{Cookie: "canary", CookieRE: "^1$", Version: "v2"},
 		{UserIDKey: "user_id", Modulo: 10, Remainder: 0, Version: "v2"},

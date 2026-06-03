@@ -59,7 +59,7 @@ func main() {
 
 	// ── HTTP app ──────────────────────────────────────────────────────────────
 	app := astra.New(astra.WithShutdownTimeout(15))
-	app.Use(middleware.RequestID(), middleware.Tracing(), middleware.Logger(), middleware.Recovery())
+	app.Use(middleware.RequestID(), middleware.Logger(), middleware.Recovery())
 	app.GET("/health", handler.HealthHandler)
 
 	// ── Dual-stack server ─────────────────────────────────────────────────────

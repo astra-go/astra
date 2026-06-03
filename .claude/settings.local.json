@@ -110,7 +110,15 @@
       "Bash(./astractl doctor *)",
       "Bash(chmod +x *)",
       "Bash(./scripts/dev.sh help *)",
-      "Bash(/tmp/test-dev-env.sh)"
+      "Bash(/tmp/test-dev-env.sh)",
+      "Bash(gh pr *)",
+      "Bash(gh auth *)",
+      "Bash(make build *)",
+      "Bash(gopls check *)",
+      "Bash(REDIS_ADDR=test:6379 timeout 2s ./bin/worker)",
+      "Bash(REDIS_ADDR=test:6379 gtimeout 2s ./bin/worker)",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(GOFLAGS=\"-tags=redis\" gopls check *)"
     ]
   }
 }

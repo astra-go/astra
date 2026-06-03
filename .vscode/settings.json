@@ -1,7 +1,11 @@
 {
-  "go.buildTags": "mage",
-  "go.vetFlags": ["-tags=mage"],
+  "go.buildTags": "mage,redis",
+  "go.vetFlags": ["-tags=mage,redis"],
   "gopls": {
-    "build.buildFlags": ["-tags=mage"]
+    "build.buildFlags": ["-tags=mage,redis"],
+    "build.directoryFilters": ["-**/node_modules", "-**/vendor"],
+    "build.env": {
+      "GOFLAGS": "-tags=mage,redis"
+    }
   }
 }

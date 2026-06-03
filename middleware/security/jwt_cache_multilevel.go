@@ -91,7 +91,7 @@ func (m *MultiLevelJWTCache) Set(ctx context.Context, sig string, claims *Claims
 // Delete removes the entry from both L1 and L2. Use this after revoking a token.
 // L2 deletion errors are returned; L1 deletion is always synchronous and infallible.
 func (m *MultiLevelJWTCache) Delete(ctx context.Context, sig string) error {
-	m.l1.delete(sig)
+	m.l1.Delete(ctx, sig)
 	return m.l2.Delete(ctx, sig)
 }
 
