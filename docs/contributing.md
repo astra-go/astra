@@ -17,6 +17,33 @@ go vet ./...
 staticcheck ./...
 ```
 
+### Build Tags
+
+部分模块使用 build tags 控制后端编译，减少二进制体积和依赖。不指定 tag 时只编译默认后端。
+
+| 模块 | 可用 Build Tags | 说明 |
+|------|----------------|------|
+| `mq` | `kafka`, `rabbitmq`, `nats`, `mqtt`, `pulsar`, `rocketmq` | 消息队列后端 |
+| `discovery` | `consul`, `etcd`, `k8s`, `nacos` | 服务发现后端 |
+| `config` | `nacos`, `etcd`, `apollo` | 配置中心后端 |
+| `runner` | `cron`, `dagu`, `gocron`, `tqrunner` | 任务运行后端 |
+| `taskqueue` | `kafka`, `mongo`, `rabbitmq`, `redis`, `rocketmq` | 任务队列后端 |
+| `notify` | `email`, `push`, `sms` | 通知通道后端 |
+
+```bash
+# 仅编译特定后端
+go build -tags=kafka,rabbitmq ./mq/...
+go test -tags=cron ./runner/...
+
+# 编译所有后端
+go build -tags=alltags ./...
+
+# 测试所有后端
+go test -tags=alltags ./...
+```
+
+> **提示**: 使用 `-tags=alltags` 可一次性编译所有后端实现，适合 CI 全量测试。本地开发建议只指定需要的后端以加快编译速度。
+
 ## 提交规范
 
 提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/)：

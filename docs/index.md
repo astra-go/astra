@@ -10,8 +10,8 @@ Astra 是面向 Go 开发者的高性能、全功能 Web 框架，汇聚 Gin、E
 | **认证** | JWT · API Key · RBAC · OAuth2/OIDC |
 | **可观测** | OpenTelemetry traces + metrics + logs · Prometheus |
 | **数据层** | GORM · Redis · MongoDB · ClickHouse · Elasticsearch |
-| **消息队列** | NATS · Kafka · RabbitMQ · Redis Streams · SQS · Pulsar |
-| **微服务** | gRPC 双栈 · 服务发现 · 负载均衡 · 熔断 · Saga 事务 |
+| **消息队列** | 统一模块 · NATS · Kafka · RabbitMQ · Redis Streams · SQS · Pulsar（已合并为单一 `mq/` 模块） |
+| **微服务** | gRPC 双栈 · 服务发现（已合并为统一 `discovery/` 模块）· 负载均衡 · 熔断 · Saga 事务 |
 | **基础设施** | 配置中心 · 分布式锁 · Session · 对象存储 · 告警引擎 |
 
 ## 快速开始
@@ -42,7 +42,8 @@ func main() {
 
 | 版本 | 状态 | Go 要求 | 维护至 |
 |------|------|---------|--------|
-| **v1.0** (latest) | :white_check_mark: 积极维护 | ≥ 1.22 | 2027-04 |
+| **v2.0** (latest) | :white_check_mark: 积极维护 | ≥ 1.22 | 2028-06 |
+| **v1.0** | :wrench: 安全修复 | ≥ 1.22 | 2027-04 |
 | v0.10 | :wrench: 安全修复 | ≥ 1.22 | 2026-10 |
 | v0.9  | :wrench: 安全修复 | ≥ 1.21 | 2026-08 |
 | ≤ v0.8 | :x: 不再维护 | — | — |
