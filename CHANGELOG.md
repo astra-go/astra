@@ -12,7 +12,29 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [2.0.0] — 2026-06-03
+
+### Changed
+- **模块结构重组（Breaking Change）**: go.work 核心模块数 47 → 30（-36.2%），达到并超越 ADR-005 目标
+  - `mq/*` 7 个子模块合并为统一 `mq/` 模块（build tags + 统一 `Broker` 接口）
+  - `discovery/*` 5 个子模块合并为统一 `discovery/` 模块（build tags + 统一 `Registry` 接口）
+  - `config/*` 4 个子模块合并为统一 `config/` 模块（统一 `ConfigClient` 接口）
+  - `lua/` 合并入 `rule/lua/`（build tag: `lua`）
+  - `runner/*` 4 个子包扁平化为 `runner/`（build tags: `cron`, `dagu`, `gocron`, `tqrunner`）
+  - `taskqueue/*` 5 个子包扁平化为 `taskqueue/`（build tags: `kafka`, `mongo`, `rabbitmq`, `redis`, `rocketmq`）
+  - `notify/*` 3 个子包扁平化为 `notify/`（build tags: `email`, `push`, `sms`）
+- **删除的兼容层**: `config/nacos/`, `config/etcd/`, `config/apollo/` 兼容包已移除
+
+### Added
+- `scripts/migrate-config.sh` — Config 模块迁移脚本
+- `docs/config/migration-guide.md` — Config 模块迁移指南
+- `runner/README.md`, `taskqueue/README.md`, `notify/README.md` — 模块文档
+- `discovery/README.md` — Discovery 模块文档
+
+### Migration Guide
+- 参见 `docs/migration-guide-mq-v2.md`（MQ 迁移）
+- 参见 `docs/config/migration-guide.md`（Config 迁移）
+- `lua/` 用户: 修改 import 为 `github.com/astra-go/astra/rule/lua`，编译时加 `-tags=lua`
 
 ### Changed
 - **模块结构重组（Breaking Change）**: go.work 模块数 47 → 35（-25.5%），达到 ADR-005 目标
