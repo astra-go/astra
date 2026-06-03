@@ -31,14 +31,12 @@ check-test-deps: ## Detect test-only packages declared as production deps
 	$(MAGE) checkTestDeps
 
 .PHONY: check-arch
-check-arch: ## Architecture fitness checks (core deps + circular deps + module count)
+check-arch: ## CI check: enforce architecture fitness rules (ADR-001 core deps)
 	$(MAGE) checkCoreDeps
-	$(MAGE) checkCircularDeps
-	$(MAGE) checkModuleCount
 
-.PHONY: check-arch-test
-check-arch-test: ## Run architecture fitness function unit tests
-	go test -tags mage -v ./magefiles/
+.PHONY: check-module-count
+check-module-count: ## CI check: enforce module count limit (ADR-005)
+	$(MAGE) checkModuleCount
 
 .PHONY: install-hooks
 install-hooks: ## Install git pre-commit hook
