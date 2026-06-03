@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // Status values for a check result.
@@ -25,15 +26,36 @@ type Check struct {
 }
 
 // Run performs all diagnostic checks in dir and returns the results.
+// Checks are executed in parallel for better performance.
 func Run(dir string) []Check {
-	return []Check{
-		checkGoModule(dir),
-		checkProjectLayout(dir),
-		checkDIReady(dir),
-		checkProtoFiles(dir),
-		checkOpenAPIFiles(dir),
-		checkWritable(dir),
+	checks := []func(string) Check{
+		checkGoModule,
+		checkGoVersion,
+		checkProjectLayout,
+		checkDIReady,
+		checkProtoFiles,
+		checkOpenAPIFiles,
+		checkWritable,
+		checkMageInstalled,
+		checkCircularDeps,
+		checkCoreDeps,
+		checkModuleCount,
+		checkGitClean,
 	}
+
+	results := make([]Check, len(checks))
+	var wg sync.WaitGroup
+
+	for i, checkFn := range checks {
+		wg.Add(1)
+		go func(idx int, fn func(string) Check) {
+			defer wg.Done()
+			results[idx] = fn(dir)
+		}(i, checkFn)
+	}
+
+	wg.Wait()
+	return results
 }
 
 // Print renders check results to stdout in the standard doctor format.

@@ -39,6 +39,7 @@ import (
 	"github.com/astra-go/astra/cmd/astractl/internal/cli"
 	"github.com/astra-go/astra/cmd/astractl/internal/doctor"
 	"github.com/astra-go/astra/cmd/astractl/internal/fsutil"
+	"github.com/astra-go/astra/cmd/astractl/internal/graph"
 	gencontainer "github.com/astra-go/astra/cmd/astractl/internal/gen/container"
 	gencrud "github.com/astra-go/astra/cmd/astractl/internal/gen/crud"
 	generrors "github.com/astra-go/astra/cmd/astractl/internal/gen/errors"
@@ -80,6 +81,8 @@ func main() {
 		err = cmdTidy(args[1:])
 	case "doctor":
 		err = cmdDoctor(args[1:])
+	case "graph":
+		err = cmdGraph(args[1:])
 	case "version", "-v", "--version":
 		fmt.Printf("astractl version %s\n", version)
 	case "help", "-h", "--help":
@@ -450,6 +453,117 @@ func cmdDoctor(args []string) error {
 	return nil
 }
 
+// ─── graph ────────────────────────────────────────────────────────────────────
+
+func cmdGraph(args []string) error {
+	fs := flag.NewFlagSet("graph", flag.ContinueOnError)
+	format := fs.String("format", "svg", "output format: dot|svg|png")
+	output := fs.String("output", "", "output file path (default: deps-graph.<format>)")
+	noStdlib := fs.Bool("no-stdlib", true, "exclude standard library packages")
+	filter := fs.String("filter", "", "only include packages with this prefix")
+	noCache := fs.Bool("no-cache", false, "skip cache and force re-parsing")
+	if err := fs.Parse(args); err != nil {
+		return &cli.CLIError{
+			Msg:  "invalid flags: " + err.Error(),
+			Hint: "run 'astractl graph --help' to see all available flags",
+		}
+	}
+
+	// Determine project root
+	root, err := repoRoot()
+	if err != nil {
+		return &cli.CLIError{
+			Msg:  "cannot determine repo root: " + err.Error(),
+			Hint: "run astractl graph from inside the repository",
+		}
+	}
+
+	// Validate format
+	var renderFormat graph.RenderFormat
+	switch *format {
+	case "dot":
+		renderFormat = graph.FormatDOT
+	case "svg":
+		renderFormat = graph.FormatSVG
+	case "png":
+		renderFormat = graph.FormatPNG
+	default:
+		return &cli.CLIError{
+			Msg:     fmt.Sprintf("invalid format: %q", *format),
+			Hint:    "--format must be 'dot', 'svg', or 'png'",
+			Example: "astractl graph --format svg",
+		}
+	}
+
+	// Determine output path
+	outputPath := *output
+	if outputPath == "" {
+		outputPath = fmt.Sprintf("deps-graph.%s", *format)
+	}
+
+	// Initialize cache manager
+	cacheDir := filepath.Join(root, ".astractl")
+	cacheMgr := graph.NewCacheManager(cacheDir)
+
+	var depGraph *graph.Graph
+
+	// Try loading from cache
+	if !*noCache {
+		goModPath := filepath.Join(root, "go.mod")
+		cached, err := cacheMgr.Load(goModPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to load cache: %v\n", err)
+		} else if cached != nil {
+			fmt.Println("Using cached dependency graph...")
+			depGraph = cached
+		}
+	}
+
+	// Parse if cache miss or disabled
+	if depGraph == nil {
+		fmt.Println("Analyzing dependencies (this may take 30-60 seconds)...")
+		parser := graph.NewParser(30 * time.Second)
+		parsed, err := parser.Parse(root)
+		if err != nil {
+			return &cli.CLIError{
+				Msg:  "failed to parse dependencies: " + err.Error(),
+				Hint: "ensure 'go list' works in your project",
+			}
+		}
+		depGraph = parsed
+
+		// Save to cache
+		goModPath := filepath.Join(root, "go.mod")
+		if err := cacheMgr.Save(depGraph, goModPath); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to save cache: %v\n", err)
+		} else {
+			fmt.Printf("Dependency graph cached to %s\n", cacheMgr.GetCachePath())
+		}
+	}
+
+	// Render graph
+	renderer := graph.NewRenderer()
+	opts := graph.RenderOptions{
+		Format:        renderFormat,
+		OutputPath:    outputPath,
+		IncludeStdlib: !*noStdlib,
+		FilterPrefix:  *filter,
+	}
+
+	if err := renderer.Render(depGraph, opts); err != nil {
+		return &cli.CLIError{
+			Msg:  "failed to render graph: " + err.Error(),
+			Hint: "ensure Graphviz is installed for svg/png output",
+		}
+	}
+
+	fmt.Printf("\n✓ Dependency graph generated: %s\n", outputPath)
+	fmt.Printf("  Total packages: %d\n", len(depGraph.Nodes))
+	fmt.Printf("  Total edges: %d\n", len(depGraph.Edges))
+
+	return nil
+}
+
 // ─── tidy ─────────────────────────────────────────────────────────────────────
 
 // modDir pairs a human-readable module path with its absolute directory.
@@ -780,6 +894,13 @@ Commands:
   doctor                          Diagnose project setup for gen command prerequisites
     --dir DIR                     Directory to inspect (default: current directory)
 
+  graph                           Generate dependency graph visualization
+    --format dot|svg|png          Output format (default: svg)
+    --output FILE                 Output file path (default: deps-graph.<format>)
+    --no-stdlib                   Exclude standard library packages (default: true)
+    --filter PREFIX               Only include packages with this prefix
+    --no-cache                    Skip cache and force re-parsing
+
   version                         Print version information
   help                            Show this help message
 
@@ -794,6 +915,8 @@ Examples:
   astractl gen openapi api/openapi.yaml --dir ./internal/handler
   astractl gen schema --dir ./internal/handler --out api/openapi.json --title "My API" --version 1.0.0
   astractl doctor
+  astractl graph --format svg --filter github.com/astra-go/astra
+  astractl graph --format png --output ./docs/deps.png
   astractl migrate create "add users table"
 
   Global flags (before the subcommand):

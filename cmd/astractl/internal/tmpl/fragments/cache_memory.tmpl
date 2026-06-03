@@ -1,0 +1,8 @@
+{{if and .HasCache (eq .CacheBackend "memory")}}
+	// Initialize In-Memory Cache
+	cache := cache.NewMemory(&cache.MemoryConfig{
+		Size:           100,  // maximum number of items
+		Expiration:     5 * time.Minute,
+		CleanupInterval: 10 * time.Minute,
+	})
+{{end}}

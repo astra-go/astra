@@ -1,0 +1,11 @@
+# Recommended service versions for docker-compose.yml generation
+# Updated quarterly with Astra framework releases
+# Last updated: 2026-06-03
+
+services:
+  postgres: "16-alpine"
+  mysql: "8.0"
+  redis: "7-alpine"
+  kafka: "confluentinc/cp-kafka:7.5.0"
+  rabbitmq: "3.12-management-alpine"
+  nats: "2.10-alpine"

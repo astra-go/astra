@@ -1,0 +1,9 @@
+{{if and .HasCache (eq .CacheBackend "redis")}}
+	// Initialize Redis Cache
+	cache := cache.NewRedis(&cache.RedisConfig{
+		Addr:     "localhost:6379",
+		Password: "",  // no password set
+		DB:       0,    // use default DB
+	})
+	defer cache.Close()
+{{end}}
