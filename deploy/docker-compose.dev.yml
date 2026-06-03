@@ -1,0 +1,387 @@
+# Astra Development Environment
+# Usage:
+#   Minimal: docker-compose -f docker-compose.dev.yml up -d postgres redis
+#   Full:    docker-compose -f docker-compose.dev.yml up -d
+#   Stop:    docker-compose -f docker-compose.dev.yml down
+#   Reset:   docker-compose -f docker-compose.dev.yml down -v
+
+version: '3.8'
+
+services:
+  # ══════════════════════════════════════════════════════════════════════════
+  # Core Services (Minimal Setup)
+  # ══════════════════════════════════════════════════════════════════════════
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: astra-postgres
+    environment:
+      POSTGRES_USER: astra_dev
+      POSTGRES_PASSWORD: dev123
+      POSTGRES_DB: astra_dev
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=en_US.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astra_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - astra-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: astra-redis
+    command: redis-server --appendonly yes --requirepass dev123
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - astra-net
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Optional Services (Full Setup)
+  # ══════════════════════════════════════════════════════════════════════════
+
+  mysql:
+    image: mysql:8.0
+    container_name: astra-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: dev123
+      MYSQL_DATABASE: astra_dev
+      MYSQL_USER: astra_dev
+      MYSQL_PASSWORD: dev123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init/mysql:/docker-entrypoint-initdb.d:ro
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pdev123"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - astra-net
+    profiles:
+      - full
+
+  mongodb:
+    image: mongo:7
+    container_name: astra-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: astra_dev
+      MONGO_INITDB_ROOT_PASSWORD: dev123
+      MONGO_INITDB_DATABASE: astra_dev
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./init/mongo:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - astra-net
+    profiles:
+      - full
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Message Queue Services
+  # ══════════════════════════════════════════════════════════════════════════
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: astra-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - astra-net
+    profiles:
+      - full
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: astra-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - astra-net
+    profiles:
+      - full
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: astra-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: astra_dev
+      RABBITMQ_DEFAULT_PASS: dev123
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - astra-net
+    profiles:
+      - full
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: astra-nats
+    command: "--http_port 8222 --js"
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # HTTP monitoring
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - astra-net
+    profiles:
+      - full
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Search & Analytics
+  # ══════════════════════════════════════════════════════════════════════════
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: astra-elasticsearch
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - astra-net
+    profiles:
+      - full
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Observability Stack
+  # ══════════════════════════════════════════════════════════════════════════
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: astra-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - astra-net
+    profiles:
+      - full
+      - observability
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: astra-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: "redis-datasource"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - astra-net
+    profiles:
+      - full
+      - observability
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: astra-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      COLLECTOR_ZIPKIN_HOST_PORT: ":9411"
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
+      - "14268:14268"  # Jaeger collector HTTP
+      - "9411:9411"    # Zipkin compatible endpoint
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - astra-net
+    profiles:
+      - full
+      - observability
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Service Discovery & Configuration
+  # ══════════════════════════════════════════════════════════════════════════
+
+  consul:
+    image: consul:1.17
+    container_name: astra-consul
+    command: agent -dev -ui -client=0.0.0.0
+    ports:
+      - "8500:8500"  # HTTP API & UI
+      - "8600:8600/udp"  # DNS
+    volumes:
+      - consul_data:/consul/data
+    healthcheck:
+      test: ["CMD", "consul", "info"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - astra-net
+    profiles:
+      - full
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.11
+    container_name: astra-etcd
+    environment:
+      ETCD_NAME: astra-etcd
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - etcd_data:/etcd-data
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - astra-net
+    profiles:
+      - full
+
+# ══════════════════════════════════════════════════════════════════════════
+# Networks & Volumes
+# ══════════════════════════════════════════════════════════════════════════
+
+networks:
+  astra-net:
+    driver: bridge
+    name: astra-net
+
+volumes:
+  postgres_data:
+  mysql_data:
+  redis_data:
+  mongodb_data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
+  rabbitmq_data:
+  nats_data:
+  elasticsearch_data:
+  prometheus_data:
+  grafana_data:
+  consul_data:
+  etcd_data:

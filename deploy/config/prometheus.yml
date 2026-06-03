@@ -1,0 +1,61 @@
+# Prometheus Configuration for Astra Development Environment
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: 'development'
+    cluster: 'astra-dev'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
+# Load rules once and periodically evaluate them
+# rule_files:
+#   - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Astra application metrics
+  - job_name: 'astra-app'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+        labels:
+          service: 'astra-api'
+          env: 'dev'
+    # If your app runs on different ports, add them here
+    # - targets: ['host.docker.internal:8081']
+    #   labels:
+    #     service: 'astra-grpc'
+    #     env: 'dev'
+
+  # PostgreSQL Exporter (if installed)
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+
+  # Redis Exporter (if installed)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+
+  # Node Exporter (system metrics, if installed)
+  # - job_name: 'node'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']
+
+  # Kafka Exporter (if installed)
+  # - job_name: 'kafka'
+  #   static_configs:
+  #     - targets: ['kafka-exporter:9308']

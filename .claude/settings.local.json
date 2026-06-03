@@ -107,7 +107,10 @@
       "Bash(GOPROXY=https://goproxy.cn,direct GOSUMDB=off go build *)",
       "Bash(./astractl graph *)",
       "Bash(dot -V)",
-      "Bash(./astractl doctor *)"
+      "Bash(./astractl doctor *)",
+      "Bash(chmod +x *)",
+      "Bash(./scripts/dev.sh help *)",
+      "Bash(/tmp/test-dev-env.sh)"
     ]
   }
 }
