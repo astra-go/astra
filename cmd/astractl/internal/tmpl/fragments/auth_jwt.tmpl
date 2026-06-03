@@ -1,0 +1,24 @@
+{{if .HasAuth}}
+	// Initialize JWT Authentication
+	{{if eq .AuthMethod "jwt"}}
+	auth := auth.NewJWT(&auth.JWTConfig{
+		Secret:     []byte("your-secret-key-change-in-production"),
+		Expiration: 24 * time.Hour,
+		Issuer:     "{{.Name}}",
+	})
+
+	// Protected routes
+	app.Use("/api", auth.Middleware())
+	{{else if eq .AuthMethod "oauth2"}}
+	// Initialize OAuth2
+	auth := auth.NewOAuth2(&auth.OAuth2Config{
+		ClientID:     "your-client-id",
+		ClientSecret: "your-client-secret",
+		RedirectURL:  "http://localhost:8080/callback",
+		Scopes:       []string{"openid", "profile", "email"},
+	})
+
+	app.GET("/login", auth.LoginHandler())
+	app.GET("/callback", auth.CallbackHandler())
+	{{end}}
+{{end}}

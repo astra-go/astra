@@ -1,0 +1,19 @@
+{{if .HasORM}}
+	// Initialize ORM
+	{{if eq .Database "postgres"}}
+	db, err := orm.Open(postgres.Open("postgresql://user:password@localhost:5432/{{.Name}}?sslmode=disable"))
+	{{else if eq .Database "mysql"}}
+	db, err := orm.Open(mysql.Open("user:password@tcp(localhost:3306)/{{.Name}}?charset=utf8mb4&parseTime=True&loc=Local"))
+	{{else if eq .Database "sqlite"}}
+	db, err := orm.Open(sqlite.Open("{{.Name}}.db"))
+	{{end}}
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
+	// Auto-migrate schema
+	if err := db.AutoMigrate(&model.User{}); err != nil {
+		log.Fatalf("Failed to migrate database: %v", err)
+	}
+{{end}}

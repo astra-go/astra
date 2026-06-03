@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+{{if .HasORM}}
+  {{.Database}}:
+    {{if eq .Database "postgres"}}
+    image: postgres:{{.Versions.postgres}}
+    environment:
+      POSTGRES_DB: {{.Name}}
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    {{else if eq .Database "mysql"}}
+    image: mysql:{{.Versions.mysql}}
+    environment:
+      MYSQL_DATABASE: {{.Name}}
+      MYSQL_ROOT_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    {{else if eq .Database "sqlite"}}
+    # SQLite does not require a separate service
+    {{end}}
+{{end}}
+
+{{if and .HasCache (eq .CacheBackend "redis")}}
+  redis:
+    image: redis:{{.Versions.redis}}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+{{end}}
+
+{{if .HasMQ}}
+  # Message queue service (example: RabbitMQ)
+  rabbitmq:
+    image: rabbitmq:{{.Versions.rabbitmq}}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+{{end}}
+
+volumes:
+{{if .HasORM}}
+  {{if eq .Database "postgres"}}
+  postgres_data:
+  {{else if eq .Database "mysql"}}
+  mysql_data:
+  {{end}}
+{{end}}
+{{if and .HasCache (eq .CacheBackend "redis")}}
+  redis_data:
+{{end}}
+{{if .HasMQ}}
+  rabbitmq_data:
+{{end}}
