@@ -21,10 +21,6 @@ type responseWriter struct {
 	written bool
 }
 
-func newResponseWriter(w http.ResponseWriter) ResponseWriter {
-	return &responseWriter{ResponseWriter: w, status: http.StatusOK}
-}
-
 func (rw *responseWriter) WriteHeader(code int) {
 	if rw.written {
 		return

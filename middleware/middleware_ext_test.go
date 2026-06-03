@@ -19,10 +19,8 @@ import (
 
 	"github.com/astra-go/astra"
 	"github.com/astra-go/astra/middleware"
-	mwobs "github.com/astra-go/astra/middleware/observability"
 	sec "github.com/astra-go/astra/middleware/security"
 	"github.com/astra-go/astra/testutil"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // ─── APIKey ──────────────────────────────────────────────────────────────────
@@ -839,168 +837,6 @@ func TestSignature_InMemoryNonceStore_ReplayDetects(t *testing.T) {
 	}
 }
 
-// ─── Audit ───────────────────────────────────────────────────────────────────
-
-func TestAudit_RecordsEntry(t *testing.T) {
-	var recorded mwobs.AuditEntry
-	var mu sync.Mutex
-
-	app := testutil.NewTestApp()
-	app.Use(mwobs.Audit(mwobs.AuditConfig{
-		Logger: func(entry mwobs.AuditEntry) {
-			mu.Lock()
-			recorded = entry
-			mu.Unlock()
-		},
-	}))
-	app.GET("/", func(c *astra.Ctx) error {
-		return c.String(http.StatusOK, "ok")
-	})
-	s := testutil.NewServer(t, app)
-
-	s.GET("/").AssertStatus(http.StatusOK)
-
-	mu.Lock()
-	defer mu.Unlock()
-	if recorded.Method != "GET" {
-		t.Errorf("expected method GET, got %s", recorded.Method)
-	}
-	if recorded.Path != "/" {
-		t.Errorf("expected path /, got %s", recorded.Path)
-	}
-	if recorded.Status != http.StatusOK {
-		t.Errorf("expected status 200, got %d", recorded.Status)
-	}
-}
-
-func TestAudit_Skipper_Skips(t *testing.T) {
-	called := false
-	app := testutil.NewTestApp()
-	app.Use(mwobs.Audit(mwobs.AuditConfig{
-		Skipper: func(c *astra.Ctx) bool { return true },
-		Logger: func(entry mwobs.AuditEntry) { called = true },
-	}))
-	app.GET("/", func(c *astra.Ctx) error {
-		return c.String(http.StatusOK, "ok")
-	})
-	s := testutil.NewServer(t, app)
-
-	s.GET("/").AssertStatus(http.StatusOK)
-
-	if called {
-		t.Error("expected logger not to be called when skipped")
-	}
-}
-
-func TestAudit_ActorID_FromDefaultHeader(t *testing.T) {
-	var recorded mwobs.AuditEntry
-	var mu sync.Mutex
-
-	app := testutil.NewTestApp()
-	app.Use(mwobs.Audit(mwobs.AuditConfig{
-		Logger: func(entry mwobs.AuditEntry) {
-			mu.Lock()
-			recorded = entry
-			mu.Unlock()
-		},
-	}))
-	app.GET("/", func(c *astra.Ctx) error {
-		return c.String(http.StatusOK, "ok")
-	})
-	s := testutil.NewServer(t, app)
-
-	s.GET("/", map[string]string{"X-User-ID": "user42"}).AssertStatus(http.StatusOK)
-
-	mu.Lock()
-	defer mu.Unlock()
-	if recorded.ActorID != "user42" {
-		t.Errorf("expected actor_id user42, got %s", recorded.ActorID)
-	}
-}
-
-func TestAudit_CustomGetActorID(t *testing.T) {
-	var recorded mwobs.AuditEntry
-	var mu sync.Mutex
-
-	app := testutil.NewTestApp()
-	app.Use(mwobs.Audit(mwobs.AuditConfig{
-		GetActorID: func(c *astra.Ctx) string { return "custom-actor" },
-		Logger: func(entry mwobs.AuditEntry) {
-			mu.Lock()
-			recorded = entry
-			mu.Unlock()
-		},
-	}))
-	app.GET("/", func(c *astra.Ctx) error {
-		return c.String(http.StatusOK, "ok")
-	})
-	s := testutil.NewServer(t, app)
-
-	s.GET("/").AssertStatus(http.StatusOK)
-
-	mu.Lock()
-	defer mu.Unlock()
-	if recorded.ActorID != "custom-actor" {
-		t.Errorf("expected custom-actor, got %s", recorded.ActorID)
-	}
-}
-
-func TestAudit_AsyncBuffer(t *testing.T) {
-	var recorded mwobs.AuditEntry
-	var mu sync.Mutex
-
-	app := testutil.NewTestApp()
-	app.Use(mwobs.Audit(mwobs.AuditConfig{
-		AsyncBuffer: 16,
-		Logger: func(entry mwobs.AuditEntry) {
-			mu.Lock()
-			recorded = entry
-			mu.Unlock()
-		},
-	}))
-	app.GET("/", func(c *astra.Ctx) error {
-		return c.String(http.StatusOK, "ok")
-	})
-	s := testutil.NewServer(t, app)
-
-	s.GET("/").AssertStatus(http.StatusOK)
-
-	// Wait a bit for the async goroutine to process
-	time.Sleep(50 * time.Millisecond)
-
-	mu.Lock()
-	defer mu.Unlock()
-	if recorded.Method != "GET" {
-		t.Errorf("expected method GET, got %s", recorded.Method)
-	}
-}
-
-func TestAudit_ClientIP_XForwardedFor(t *testing.T) {
-	var recorded mwobs.AuditEntry
-	var mu sync.Mutex
-
-	app := testutil.NewTestApp()
-	app.Use(mwobs.Audit(mwobs.AuditConfig{
-		Logger: func(entry mwobs.AuditEntry) {
-			mu.Lock()
-			recorded = entry
-			mu.Unlock()
-		},
-	}))
-	app.GET("/", func(c *astra.Ctx) error {
-		return c.String(http.StatusOK, "ok")
-	})
-	s := testutil.NewServer(t, app)
-
-	s.GET("/", map[string]string{"X-Forwarded-For": "1.2.3.4, 5.6.7.8"}).AssertStatus(http.StatusOK)
-
-	mu.Lock()
-	defer mu.Unlock()
-	if recorded.ClientIP != "1.2.3.4" {
-		t.Errorf("expected client IP 1.2.3.4, got %s", recorded.ClientIP)
-	}
-}
-
 // ─── CORSStrict ──────────────────────────────────────────────────────────────
 
 func TestCORSStrict_AllowedOrigin(t *testing.T) {
@@ -1139,27 +975,6 @@ func TestLongPoll_PollHandlerByQuery(t *testing.T) {
 	}()
 
 	resp := s.GET("/events?channel=my-channel")
-	resp.AssertStatus(http.StatusOK)
-}
-
-// ─── MetricsHandler ──────────────────────────────────────────────────────────
-
-func TestMetricsHandler_ServesPrometheus(t *testing.T) {
-	app := testutil.NewTestApp()
-	app.GET("/metrics", mwobs.MetricsHandler())
-	s := testutil.NewServer(t, app)
-
-	resp := s.GET("/metrics")
-	resp.AssertStatus(http.StatusOK)
-}
-
-func TestMetricsHandlerFor_CustomGatherer(t *testing.T) {
-	reg := prometheus.NewRegistry()
-	app := testutil.NewTestApp()
-	app.GET("/metrics", mwobs.MetricsHandlerFor(reg))
-	s := testutil.NewServer(t, app)
-
-	resp := s.GET("/metrics")
 	resp.AssertStatus(http.StatusOK)
 }
 

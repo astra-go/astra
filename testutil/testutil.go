@@ -16,14 +16,6 @@
 //	    // body.ID == 42
 //	}
 //
-// # Mock cache
-//
-//	mc := testutil.NewMockCache()
-//	mc.Set(ctx, "key", []byte("val"), time.Minute)
-//
-//	calls := mc.Calls()
-//	// calls[0].Method == "Set", calls[0].Key == "key"
-//
 // # Assertion helpers
 //
 //	resp.AssertStatus(http.StatusCreated).
@@ -42,10 +34,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/astra-go/astra"
-	"github.com/astra-go/astra/cache"
 )
 
 // ─── Test server ──────────────────────────────────────────────────────────────
@@ -67,16 +57,6 @@ func NewServer(t testing.TB, app *astra.App) *Server {
 	t.Helper()
 	srv := &Server{App: app, T: t}
 	srv.server = httptest.NewServer(app)
-	t.Cleanup(srv.Close)
-	return srv
-}
-
-// NewTLSServer creates a TLS-enabled test server. Useful for testing HTTPS-
-// specific behaviour (HSTS, secure cookies, etc.).
-func NewTLSServer(t testing.TB, app *astra.App) *Server {
-	t.Helper()
-	srv := &Server{App: app, T: t}
-	srv.server = httptest.NewTLSServer(app)
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -255,103 +235,6 @@ func (r *Response) AssertHeaderContains(key, substr string) *Response {
 		r.T.Errorf("testutil: header %q: want to contain %q, got %q", key, substr, got)
 	}
 	return r
-}
-
-// ─── MockCache ────────────────────────────────────────────────────────────────
-
-// CacheCall records a single call made to MockCache.
-type CacheCall struct {
-	Method string
-	Key    string
-	Keys   []string // used for multi-key Delete
-	Value  []byte
-	TTL    time.Duration
-	Err    error
-}
-
-// MockCache is a cache.Cache implementation that records every call made to it
-// and delegates storage to an in-memory cache.
-//
-// Use it in unit tests to verify that cache operations are performed with the
-// expected keys, values, and TTLs.
-//
-//	mc := testutil.NewMockCache()
-//	svc := NewService(mc)
-//	svc.GetUser(ctx, 1)
-//
-//	calls := mc.Calls()
-//	require.Equal(t, "Get", calls[0].Method)
-//	require.Equal(t, "user:1", calls[0].Key)
-type MockCache struct {
-	inner *cache.MemoryCache
-	mu    sync.Mutex
-	calls []CacheCall
-}
-
-// NewMockCache creates a MockCache backed by an in-memory store.
-func NewMockCache() *MockCache {
-	return &MockCache{inner: cache.NewMemory()}
-}
-
-// Calls returns a copy of all recorded calls in order.
-func (m *MockCache) Calls() []CacheCall {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]CacheCall, len(m.calls))
-	copy(out, m.calls)
-	return out
-}
-
-// Reset clears the recorded calls and flushes the underlying store.
-func (m *MockCache) Reset(ctx context.Context) {
-	m.mu.Lock()
-	m.calls = m.calls[:0]
-	m.mu.Unlock()
-	_ = m.inner.Flush(ctx)
-}
-
-func (m *MockCache) Get(ctx context.Context, key string) ([]byte, error) {
-	val, err := m.inner.Get(ctx, key)
-	m.mu.Lock()
-	m.calls = append(m.calls, CacheCall{Method: "Get", Key: key, Value: val, Err: err})
-	m.mu.Unlock()
-	return val, err
-}
-
-func (m *MockCache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
-	err := m.inner.Set(ctx, key, value, ttl)
-	m.mu.Lock()
-	m.calls = append(m.calls, CacheCall{Method: "Set", Key: key, Value: value, TTL: ttl, Err: err})
-	m.mu.Unlock()
-	return err
-}
-
-func (m *MockCache) Delete(ctx context.Context, keys ...string) error {
-	err := m.inner.Delete(ctx, keys...)
-	m.mu.Lock()
-	m.calls = append(m.calls, CacheCall{Method: "Delete", Keys: keys, Err: err})
-	m.mu.Unlock()
-	return err
-}
-
-func (m *MockCache) Exists(ctx context.Context, key string) (bool, error) {
-	ok, err := m.inner.Exists(ctx, key)
-	m.mu.Lock()
-	m.calls = append(m.calls, CacheCall{Method: "Exists", Key: key, Err: err})
-	m.mu.Unlock()
-	return ok, err
-}
-
-func (m *MockCache) Flush(ctx context.Context) error {
-	err := m.inner.Flush(ctx)
-	m.mu.Lock()
-	m.calls = append(m.calls, CacheCall{Method: "Flush", Err: err})
-	m.mu.Unlock()
-	return err
-}
-
-func (m *MockCache) Close() error {
-	return m.inner.Close()
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

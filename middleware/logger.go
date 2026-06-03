@@ -13,7 +13,7 @@ import (
 
 // SpanExtractor extracts distributed tracing IDs from an HTTP request.
 // Implement this interface to bridge Logger with your tracing backend.
-// Use middleware/observability.OTelSpanExtractor() for OpenTelemetry.
+// Use OTelSpanExtractor for OpenTelemetry.
 type SpanExtractor interface {
 	TraceID(r *http.Request) string
 	SpanID(r *http.Request) string
@@ -33,7 +33,7 @@ type LoggerConfig struct {
 	SensitiveParams []string
 	// SpanExtractor injects trace_id and span_id into every log record.
 	// When nil, trace context is not logged.
-	// Use middleware/observability.OTelSpanExtractor() for OpenTelemetry.
+	// Use OTelSpanExtractor for OpenTelemetry.
 	SpanExtractor SpanExtractor
 }
 
@@ -154,7 +154,7 @@ func WithLoggerSensitiveParams(params ...string) func(*LoggerConfig) {
 }
 
 // WithLoggerSpanExtractor sets the SpanExtractor used to inject trace_id and
-// span_id into log records. Use middleware/observability.OTelSpanExtractor()
+// span_id into log records. Use OTelSpanExtractor
 // for OpenTelemetry integration.
 func WithLoggerSpanExtractor(e SpanExtractor) func(*LoggerConfig) {
 	return func(c *LoggerConfig) { c.SpanExtractor = e }

@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"log/slog"
-
 	"github.com/astra-go/astra"
 )
 
@@ -34,10 +32,4 @@ func shouldSkip(skipper Skipper, c *astra.Ctx) bool {
 // for a single type to cover well.
 type ErrorHandler astra.HandlerFunc
 
-// resolveLogger returns logger if non-nil, otherwise slog.Default().
-func resolveLogger(logger *slog.Logger) *slog.Logger {
-	if logger != nil {
-		return logger
-	}
-	return slog.Default()
-}
+
