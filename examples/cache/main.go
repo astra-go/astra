@@ -1,7 +1,7 @@
 // Cache example: read-through caching for a user profile service.
 //
 // Uses github.com/astra-go/astra/cache (in-memory LRU backend).
-// To switch to Redis, replace cache.NewMemory() with:
+// To switch to Redis, replace memory.New() with:
 //
 //	import cacheredis "github.com/astra-go/astra/cache/redis"
 //	c, _ := cacheredis.New(cacheredis.Config{Addr: "localhost:6379"})
@@ -25,6 +25,7 @@ import (
 
 	"github.com/astra-go/astra"
 	"github.com/astra-go/astra/cache"
+	"github.com/astra-go/astra/cache/memory"
 	"github.com/astra-go/astra/middleware"
 )
 
@@ -153,7 +154,7 @@ func (h *UserHandler) Update(c *astra.Ctx) error {
 // ─── Main ───────────────────────────────────────────────────────────────────────
 
 func main() {
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	h := &UserHandler{db: NewDB(), cache: c, stats: &Stats{}}

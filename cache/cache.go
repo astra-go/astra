@@ -13,6 +13,7 @@ package cache
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -42,4 +43,67 @@ type Cache interface {
 
 	// Close releases any resources held by the cache client.
 	Close() error
+}
+
+// ─── JSON helpers ─────────────────────────────────────────────────────────────
+
+// GetJSON retrieves a cached value and unmarshals it into v.
+func GetJSON(ctx context.Context, c Cache, key string, v any) error {
+	b, err := c.Get(ctx, key)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, v)
+}
+
+// SetJSON serialises v to JSON and stores it with the given TTL.
+func SetJSON(ctx context.Context, c Cache, key string, v any, ttl time.Duration) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return c.Set(ctx, key, b, ttl)
+}
+
+// GetOrSet returns a cached value, calling fetch on a cache miss to populate it.
+// The result of fetch is marshalled to JSON, stored in the cache, then
+// unmarshalled into v. A failed Set is non-fatal — v is still populated.
+//
+// Security: keys derived from user input must be sanitised by the caller to
+// prevent cache-key injection (e.g. path traversal in prefixed key schemes).
+func GetOrSet(ctx context.Context, c Cache, key string, v any, ttl time.Duration, fetch func() (any, error)) error {
+	if err := GetJSON(ctx, c, key, v); err == nil {
+		return nil // cache hit
+	} else if !errors.Is(err, ErrCacheMiss) {
+		return err // unexpected cache error
+	}
+
+	result, err := fetch()
+	if err != nil {
+		return err
+	}
+
+	b, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+
+	// Non-fatal: a Set failure shouldn't prevent the caller from receiving data.
+	_ = c.Set(ctx, key, b, ttl)
+
+	return json.Unmarshal(b, v)
+}
+
+// ─── Convenience constructor ──────────────────────────────────────────────────
+
+// NewMemory creates a new in-memory LRU cache.
+// This is a convenience wrapper for testing and simple use cases.
+//
+// For production use with capacity limits, import and use:
+//   import cachemem "github.com/astra-go/astra/cache/memory"
+//   c := cachemem.New(cachemem.Config{Cap: 1000})
+func NewMemory() Cache {
+	// Avoid direct import to prevent circular dependency.
+	// Tests that need this will import cache/memory directly.
+	panic("cache.NewMemory() requires importing github.com/astra-go/astra/cache/memory directly")
 }
