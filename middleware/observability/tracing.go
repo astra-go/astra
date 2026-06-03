@@ -26,6 +26,7 @@ import (
 
 	"github.com/astra-go/astra"
 	"github.com/astra-go/astra/contract"
+	mw "github.com/astra-go/astra/middleware"
 	isani "github.com/astra-go/astra/internal/sanitize"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -35,16 +36,18 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// SpanExtractorIface extracts distributed-tracing identifiers from an HTTP
-// request. It has the same method set as middleware.SpanExtractor so that
-// values returned by OTelSpanExtractor() satisfy that interface without
-// creating an import cycle between the two packages.
-type SpanExtractorIface interface {
-	TraceID(r *http.Request) string
-	SpanID(r *http.Request) string
+// OTelSpanExtractor returns a middleware.SpanExtractor that reads trace_id and
+// span_id from the OpenTelemetry span in the request context.
+//
+// Use with middleware.LoggerWithConfig:
+//
+//	app.Use(obs.Tracing())
+//	app.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+//	    SpanExtractor: obs.OTelSpanExtractor(),
+//	}))
+func OTelSpanExtractor() mw.SpanExtractor {
+	return &otelSpanExtractor{}
 }
-
-// TracingConfig configures the OpenTelemetry tracing middleware.
 type TracingConfig struct {
 	// TracerName is the instrumentation library name. Default: "astra".
 	TracerName string
@@ -201,20 +204,6 @@ func (e *otelSpanExtractor) SpanID(r *http.Request) string {
 		return sc.SpanID().String()
 	}
 	return ""
-}
-
-// OTelSpanExtractor returns a SpanExtractorIface that reads trace_id and
-// span_id from the OpenTelemetry span in the request context.
-//
-// SpanExtractorIface has the same method set as middleware.SpanExtractor, so
-// the return value can be assigned directly to LoggerConfig.SpanExtractor:
-//
-//	app.Use(obs.Tracing())
-//	app.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
-//	    SpanExtractor: obs.OTelSpanExtractor(),
-//	}))
-func OTelSpanExtractor() SpanExtractorIface {
-	return &otelSpanExtractor{}
 }
 
 // ─── Option helpers ───────────────────────────────────────────────────────────

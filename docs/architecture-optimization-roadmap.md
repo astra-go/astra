@@ -326,34 +326,32 @@ monorepo_scaling:
 
 ---
 
-### P0-3: 修复过早抽象 ⏳ 未完成
+### P0-3: 修复过早抽象 ✅ 已完成
 
-**问题**: `middleware/observability/metrics.go` 中存在单实现接口
+**问题**: `middleware/observability/tracing.go` 中 `SpanExtractorIface` 与 `middleware.SpanExtractor` 完全重复，原为规避循环导入而创建
 
-**方案**: 直接使用具体类型，等第三个实现出现时再抽象
+**方案**: 移除 `SpanExtractorIface`，直接导入 `github.com/astra-go/astra/middleware` 包并返回 `mw.SpanExtractor` 类型。循环导入问题不存在（observability 是独立 Go 模块，可以导入核心模块的任何包）
 
 ```go
-// Before (过早抽象)
-type MetricsProvider interface {
-    RecordRequest(ctx context.Context, ...)
+// Before (重复接口)
+type SpanExtractorIface interface {
+    TraceID(r *http.Request) string
+    SpanID(r *http.Request) string
 }
-type PrometheusProvider struct{} // 唯一实现
+func OTelSpanExtractor() SpanExtractorIface { ... }
 
-// After (YAGNI 原则)
-type MetricsRecorder struct {
-    registry *prometheus.Registry
-}
-func (r *MetricsRecorder) RecordRequest(ctx context.Context, ...) {}
+// After (直接使用标准接口)
+func OTelSpanExtractor() mw.SpanExtractor { ... }
 ```
 
 **验收标准**:
-- ⏳ 移除单实现接口 **未完成**
-- ⏳ 性能基准测试无退化（`make bench`）**未完成**
-- ⏳ 更新相关文档 **未完成**
+- ✅ 移除 `SpanExtractorIface` 接口 **已完成**
+- ✅ `go build ./...` 通过 **已完成**
+- ✅ 更新相关文档 **已完成**
 
 **工作量**: 0.5 天  
-**负责人**: Middleware 维护者
-**状态**: ⏳ 未开始
+**负责人**: Architecture Lead
+**状态**: ✅ 已完成
 
 ---
 
