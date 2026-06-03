@@ -315,7 +315,7 @@ find . -name "*.go" -exec sed -i 's|github.com/astra-go/astra/mq/kafka|github.co
 2. ⏳ `config/*` 下的 3 个实现 → 合并为 `config/`
 3. ✅ `discovery/*` 下的 4 个实现 → 已合并为 `discovery/`（2026-06-02）
 4. ⏳ `lua/` — 使用频率低，考虑合并到 `rule/`
-5. ⏳ `graphql/` — 可合并到核心或独立 examples
+5. ✅ `graphql/` — 评估后保持独立（不在 go.work，零外部引用，按需 go get）
 
 **预期效果**: 
 - ✅ 第一阶段：47 → 42 个子模块（-5 个，-10.6%）**已完成**
