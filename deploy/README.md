@@ -1,12 +1,23 @@
-# Astra Deployment — Helm Chart & Kustomize
+# Astra Deployment
 
-Cloud-native deployment manifests for Astra Go Web Framework applications.
+Deployment configurations for Astra Go Web Framework applications, including local development environment and cloud-native deployment manifests.
 
 ## Directory Structure
 
 ```
 deploy/
 ├── README.md                          # This file
+├── docker-compose.dev.yml             # Local development environment
+│
+├── config/
+│   ├── prometheus.yml                 # Prometheus configuration
+│   └── grafana/
+│       └── provisioning/              # Grafana datasources and dashboards
+│
+├── init/
+│   ├── postgres/                      # PostgreSQL init scripts
+│   ├── mysql/                         # MySQL init scripts
+│   └── mongo/                         # MongoDB init scripts
 │
 ├── helm/
 │   └── astra/                        # Helm chart
@@ -36,6 +47,239 @@ deploy/
             ├── kustomization.yaml
             └── ...                    # Per-environment overrides
 ```
+
+---
+
+## 🚀 Local Development Environment
+
+### Quick Start
+
+The fastest way to get started with Astra development:
+
+```bash
+# Start minimal environment (PostgreSQL + Redis)
+./scripts/dev.sh start
+
+# Start with observability stack
+./scripts/dev.sh start observability
+
+# Start all services
+./scripts/dev.sh start full
+
+# Check service status
+./scripts/dev.sh status
+
+# View logs
+./scripts/dev.sh logs postgres
+
+# Stop environment
+./scripts/dev.sh stop
+
+# Reset environment (removes all data)
+./scripts/dev.sh reset
+```
+
+### Available Profiles
+
+#### Minimal (Default)
+Core services for most development needs:
+- **PostgreSQL** - Primary database (port 5432)
+- **Redis** - Cache and session store (port 6379)
+
+```bash
+./scripts/dev.sh start minimal
+# or simply
+./scripts/dev.sh start
+```
+
+#### Observability
+Minimal + monitoring and tracing:
+- **PostgreSQL** + **Redis** (from minimal)
+- **Prometheus** - Metrics collection (port 9090)
+- **Grafana** - Metrics visualization (port 3000, admin/admin)
+- **Jaeger** - Distributed tracing (port 16686)
+
+```bash
+./scripts/dev.sh start observability
+```
+
+#### Full
+All services including message queues, search, and service discovery:
+- All services from minimal and observability profiles
+- **MySQL** - Alternative RDBMS (port 3306)
+- **MongoDB** - Document database (port 27017)
+- **Kafka** + **Zookeeper** - Event streaming (port 9092)
+- **RabbitMQ** - Message broker (port 5672, UI: 15672)
+- **NATS** - Lightweight messaging (port 4222)
+- **Elasticsearch** - Full-text search (port 9200)
+- **Consul** - Service discovery (port 8500)
+- **etcd** - Distributed configuration (port 2379)
+
+```bash
+./scripts/dev.sh start full
+```
+
+### Service Credentials
+
+All services use consistent credentials for easy development:
+
+| Service | Connection String |
+|---------|-------------------|
+| PostgreSQL | `postgresql://astra_dev:dev123@localhost:5432/astra_dev` |
+| MySQL | `mysql://astra_dev:dev123@localhost:3306/astra_dev` |
+| MongoDB | `mongodb://astra_dev:dev123@localhost:27017/astra_dev` |
+| Redis | `redis://:dev123@localhost:6379` |
+| RabbitMQ | `amqp://astra_dev:dev123@localhost:5672` |
+| Kafka | `localhost:9092` |
+| NATS | `nats://localhost:4222` |
+| Elasticsearch | `http://localhost:9200` |
+| Consul | `http://localhost:8500` |
+| etcd | `http://localhost:2379` |
+
+### Web UIs
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| Grafana | http://localhost:3000 | admin / admin |
+| Jaeger UI | http://localhost:16686 | - |
+| Prometheus | http://localhost:9090 | - |
+| RabbitMQ Management | http://localhost:15672 | astra_dev / dev123 |
+| Consul UI | http://localhost:8500 | - |
+
+### Management Commands
+
+```bash
+# Start environment
+./scripts/dev.sh start [minimal|observability|full]
+
+# Stop services (preserves data)
+./scripts/dev.sh stop
+
+# Restart all services
+./scripts/dev.sh restart
+
+# Restart specific service
+./scripts/dev.sh restart postgres
+
+# Check service status
+./scripts/dev.sh status
+
+# Check health status
+./scripts/dev.sh health
+
+# View logs
+./scripts/dev.sh logs [service] [-f]
+
+# Shutdown and remove containers
+./scripts/dev.sh down
+
+# Shutdown and remove volumes (deletes all data)
+./scripts/dev.sh down --volumes
+
+# Clean up Docker resources
+./scripts/dev.sh clean
+
+# Complete reset (removes everything)
+./scripts/dev.sh reset
+
+# Show help
+./scripts/dev.sh help
+```
+
+### Database Initialization
+
+Each database service comes with pre-configured initialization scripts that run on first startup:
+
+- **PostgreSQL**: Creates extensions (uuid-ossp, pg_trgm), sample users table
+- **MySQL**: Creates sample users table with proper charset
+- **MongoDB**: Creates validated collections with indexes
+
+Scripts are located in `deploy/init/{postgres,mysql,mongo}/` and can be customized for your needs.
+
+### Data Persistence
+
+All services use Docker volumes for data persistence:
+- Data survives container restarts (`./scripts/dev.sh restart`)
+- Data survives container recreation (`./scripts/dev.sh down` + `./scripts/dev.sh start`)
+- Data is removed only with `./scripts/dev.sh down --volumes` or `./scripts/dev.sh reset`
+
+### Troubleshooting
+
+#### Port Conflicts
+
+If you see port binding errors, check if services are already running:
+
+```bash
+# Check what's using port 5432
+lsof -i :5432
+
+# Or use the built-in status check
+./scripts/dev.sh status
+```
+
+#### Service Not Healthy
+
+Wait a few seconds for services to initialize, then check health:
+
+```bash
+./scripts/dev.sh health
+```
+
+View service logs to diagnose issues:
+
+```bash
+./scripts/dev.sh logs postgres
+./scripts/dev.sh logs redis -f  # follow logs in real-time
+```
+
+#### Reset Environment
+
+If services are in a bad state, perform a complete reset:
+
+```bash
+./scripts/dev.sh reset
+./scripts/dev.sh start
+```
+
+#### Docker Resources
+
+If Docker is running slow or out of resources:
+
+```bash
+# Clean up unused containers, images, and build cache
+./scripts/dev.sh clean
+
+# Check Docker disk usage
+docker system df
+```
+
+### Direct Docker Compose Usage
+
+You can also use Docker Compose directly for more control:
+
+```bash
+# Minimal (specific services)
+docker-compose -f deploy/docker-compose.dev.yml up -d postgres redis
+
+# With observability
+docker-compose -f deploy/docker-compose.dev.yml --profile observability up -d
+
+# Full stack
+docker-compose -f deploy/docker-compose.dev.yml --profile full up -d
+
+# View all services
+docker-compose -f deploy/docker-compose.dev.yml ps
+
+# Stop all
+docker-compose -f deploy/docker-compose.dev.yml down
+
+# Remove volumes
+docker-compose -f deploy/docker-compose.dev.yml down -v
+```
+
+---
+
+## ☸️ Cloud-Native Deployment
 
 ## Quick Start
 
