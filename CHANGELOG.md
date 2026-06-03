@@ -36,6 +36,20 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - 参见 `docs/config/migration-guide.md`（Config 迁移）
 - `lua/` 用户: 修改 import 为 `github.com/astra-go/astra/rule/lua`，编译时加 `-tags=lua`
 
+### Changed
+- **模块结构重组（Breaking Change）**: go.work 模块数 47 → 35（-25.5%），达到 ADR-005 目标
+  - `mq/*` 7 个子模块合并为统一 `mq/` 模块（build tags + 统一 `Broker` 接口）
+  - `discovery/*` 5 个子模块合并为统一 `discovery/` 模块（build tags + 统一 `Registry` 接口）
+  - `config/*` 4 个子模块合并为统一 `config/` 模块（统一 `ConfigClient` 接口 + 兼容层）
+  - `runner/*` 4 个子包扁平化为 `runner/`（build tags: `cron`, `dagu`, `gocron`, `tqrunner`）
+  - `taskqueue/*` 5 个子包扁平化为 `taskqueue/`（build tags: `kafka`, `mongo`, `rabbitmq`, `redis`, `rocketmq`）
+  - `notify/*` 3 个子包扁平化为 `notify/`（build tags: `email`, `push`, `sms`）
+
+### Added
+- `scripts/migrate-config.sh` — Config 模块迁移脚本
+- `docs/config/migration-guide.md` — Config 模块迁移指南
+- `runner/README.md`, `taskqueue/README.md` — 新增模块文档
+
 ### Planned
 - WebAssembly (WASM) compilation target support
 - Server-sent events (SSE) built-in middleware
