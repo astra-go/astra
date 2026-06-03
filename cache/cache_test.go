@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/astra-go/astra/cache"
+	"github.com/astra-go/astra/cache/memory"
 	"github.com/astra-go/astra/testutil"
 )
 
@@ -15,7 +16,7 @@ var ctx = context.Background()
 // ─── MemoryCache ──────────────────────────────────────────────────────────────
 
 func TestMemory_SetGet(t *testing.T) {
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	if err := c.Set(ctx, "k", []byte("v"), time.Minute); err != nil {
@@ -27,7 +28,7 @@ func TestMemory_SetGet(t *testing.T) {
 }
 
 func TestMemory_Miss(t *testing.T) {
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	_, err := c.Get(ctx, "missing")
@@ -36,7 +37,7 @@ func TestMemory_Miss(t *testing.T) {
 }
 
 func TestMemory_Expiry(t *testing.T) {
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	if err := c.Set(ctx, "ttl", []byte("x"), 50*time.Millisecond); err != nil {
@@ -50,7 +51,7 @@ func TestMemory_Expiry(t *testing.T) {
 }
 
 func TestMemory_Exists(t *testing.T) {
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	ok, err := c.Exists(ctx, "nokey")
@@ -64,7 +65,7 @@ func TestMemory_Exists(t *testing.T) {
 }
 
 func TestMemory_Delete(t *testing.T) {
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	_ = c.Set(ctx, "a", []byte("1"), time.Minute)
@@ -80,7 +81,7 @@ func TestMemory_Delete(t *testing.T) {
 }
 
 func TestMemory_Flush(t *testing.T) {
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	_ = c.Set(ctx, "x", []byte("y"), time.Minute)
@@ -93,7 +94,7 @@ func TestMemory_Flush(t *testing.T) {
 
 func TestMemory_NoTTL(t *testing.T) {
 	// TTL == 0 means the entry never expires
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	_ = c.Set(ctx, "forever", []byte("yes"), 0)
@@ -104,7 +105,7 @@ func TestMemory_NoTTL(t *testing.T) {
 
 func TestMemory_IsolatesValues(t *testing.T) {
 	// Mutations to the returned slice must not corrupt the stored value
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	original := []byte("hello")
@@ -123,7 +124,7 @@ func TestMemory_IsolatesValues(t *testing.T) {
 }
 
 func TestMemory_Overwrite(t *testing.T) {
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	_ = c.Set(ctx, "k", []byte("v1"), time.Minute)
@@ -135,7 +136,7 @@ func TestMemory_Overwrite(t *testing.T) {
 // ─── JSON helpers ─────────────────────────────────────────────────────────────
 
 func TestGetSetJSON(t *testing.T) {
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	type payload struct {
@@ -156,7 +157,7 @@ func TestGetSetJSON(t *testing.T) {
 }
 
 func TestGetOrSet(t *testing.T) {
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	calls := 0
@@ -180,7 +181,7 @@ func TestGetOrSet(t *testing.T) {
 }
 
 func TestGetOrSet_FnError(t *testing.T) {
-	c := cache.NewMemory()
+	c := memory.New()
 	defer c.Close()
 
 	sentinel := errors.New("load failed")
