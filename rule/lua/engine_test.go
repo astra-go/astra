@@ -1,3 +1,5 @@
+//go:build lua
+
 package lua_test
 
 import (
@@ -6,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/astra-go/astra/lua"
+	"github.com/astra-go/astra/rule/lua"
 )
 
 // ─── ModeIsolated ─────────────────────────────────────────────────────────────

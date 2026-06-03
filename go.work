@@ -40,7 +40,6 @@ use (
 	./grpc
 	./loadbalance
 	./lock
-	./lua
 	./middleware/observability
 	./middleware/security
 	./mongodb

@@ -1,3 +1,5 @@
+//go:build lua
+
 // Package lua provides embedded Lua script execution via gopher-lua and
 // Redis-backed Lua execution via go-redis EVALSHA/EVAL.
 package lua

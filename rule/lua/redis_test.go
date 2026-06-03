@@ -1,3 +1,5 @@
+//go:build lua
+
 package lua_test
 
 import (
@@ -8,7 +10,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/astra-go/astra/lua"
+	"github.com/astra-go/astra/rule/lua"
 )
 
 // redisAddr returns the Redis address from REDIS_ADDR env, or skips the test.
