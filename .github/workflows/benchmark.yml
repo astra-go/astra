@@ -11,8 +11,8 @@ permissions:
   pull-requests: write
 
 jobs:
-  benchmark:
-    name: Performance Regression Check
+  benchmark-core:
+    name: Core Performance Regression
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
 
       - name: Run benchmarks on current branch
         run: |
-          go test -bench=. -benchmem -count=5 -run=^$ ./... > new.txt
+          go test -bench=. -benchmem -count=5 -run=^$ . > new-core.txt
 
       - name: Checkout base branch
         if: github.event_name == 'pull_request'
@@ -40,47 +40,182 @@ jobs:
       - name: Run benchmarks on base branch
         if: github.event_name == 'pull_request'
         run: |
-          go test -bench=. -benchmem -count=5 -run=^$ ./... > old.txt
+          go test -bench=. -benchmem -count=5 -run=^$ . > old-core.txt
 
-      - name: Compare benchmarks
+      - name: Compare benchmarks (core)
         if: github.event_name == 'pull_request'
-        id: benchstat
+        id: benchstat-core
         run: |
-          echo "## Benchmark Results" > comment.txt
-          echo "" >> comment.txt
-          echo "\`\`\`" >> comment.txt
-          benchstat old.txt new.txt >> comment.txt || true
-          echo "\`\`\`" >> comment.txt
-          echo "" >> comment.txt
-          echo "<details><summary>Full benchmark output</summary>" >> comment.txt
-          echo "" >> comment.txt
-          echo "\`\`\`" >> comment.txt
-          cat new.txt >> comment.txt
-          echo "\`\`\`" >> comment.txt
-          echo "</details>" >> comment.txt
+          echo "## Core Benchmark Results" > comment-core.txt
+          echo "" >> comment-core.txt
+          echo "\`\`\`" >> comment-core.txt
+          benchstat old-core.txt new-core.txt >> comment-core.txt || true
+          echo "\`\`\`" >> comment-core.txt
 
-      - name: Comment PR
+      - name: Check for performance regression (>10%)
+        if: github.event_name == 'pull_request'
+        run: |
+          # benchstat exits 0 if no significant change, 1 if change detected
+          # Parse output for regressions exceeding 10%
+          set +e
+          REGRESSION=false
+          OUTPUT=$(benchstat -geomean old-core.txt new-core.txt 2>&1)
+          echo "$OUTPUT"
+
+          # Check if any benchmark shows >10% slowdown in ns/op or allocs
+          if echo "$OUTPUT" | grep -qE "(\+[1-9][0-9]\.\d+%|\+1[0-9][0-9]\.\d+%)"; then
+            echo "⚠️ Performance regression detected (>10% slowdown)"
+            echo "## ⚠️ Performance Regression Detected" > regression.txt
+            echo "" >> regression.txt
+            echo "One or more benchmarks show **>10% slowdown** compared to base branch." >> regression.txt
+            echo "" >> regression.txt
+            echo "\`\`\`" >> regression.txt
+            echo "$OUTPUT" >> regression.txt
+            echo "\`\`\`" >> regression.txt
+            echo "" >> regression.txt
+            echo "Please review your changes for unintended performance impact." >> regression.txt
+            REGRESSION=true
+          fi
+
+          if [ "$REGRESSION" = "true" ]; then
+            echo "::error::Performance regression detected: >10% slowdown in core benchmarks"
+            exit 1
+          fi
+
+      - name: Comment PR (core)
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const comment = fs.readFileSync('comment.txt', 'utf8');
+            const comment = fs.readFileSync('comment-core.txt', 'utf8');
 
-            // Find existing benchmark comment
+            // Check for regression file
+            let regressionMsg = '';
+            try {
+              regressionMsg = fs.readFileSync('regression.txt', 'utf8');
+            } catch(e) {}
+
+            const fullComment = regressionMsg
+              ? regressionMsg + '\n---\n\n' + comment
+              : comment;
+
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
             });
 
-            const botComment = comments.find(comment =>
-              comment.user.type === 'Bot' &&
-              comment.body.includes('Benchmark Results')
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' &&
+              c.body.includes('Core Benchmark Results')
             );
 
             if (botComment) {
-              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: fullComment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: fullComment
+              });
+            }
+
+      - name: Store baseline benchmarks
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p benchmarks
+          cp new-core.txt benchmarks/core-baseline-$(date +%Y%m%d-%H%M%S).txt
+          cp new-core.txt benchmarks/core-latest.txt
+
+      - name: Upload benchmark results
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-core-results
+          path: benchmarks/
+          retention-days: 90
+
+  benchmark-reference-app:
+    name: Reference App Performance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run reference-blog benchmarks
+        working-directory: examples/reference-blog
+        run: |
+          go test -tags=bench -bench=. -benchmem -count=5 -run=^$ ./tests/benchmark/... > new-app.txt
+
+      - name: Checkout base branch
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git checkout origin/${{ github.base_ref }}
+
+      - name: Run reference-blog benchmarks on base
+        if: github.event_name == 'pull_request'
+        working-directory: examples/reference-blog
+        run: |
+          go test -tags=bench -bench=. -benchmem -count=5 -run=^$ ./tests/benchmark/... > old-app.txt
+
+      - name: Compare benchmarks (reference app)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "## Reference App Benchmark Results" > comment-app.txt
+          echo "" >> comment-app.txt
+          echo "\`\`\`" >> comment-app.txt
+          benchstat old-app.txt new-app.txt >> comment-app.txt || true
+          echo "\`\`\`" >> comment-app.txt
+
+      - name: Check for performance regression (>10%)
+        if: github.event_name == 'pull_request'
+        run: |
+          set +e
+          OUTPUT=$(benchstat -geomean old-app.txt new-app.txt 2>&1)
+          echo "$OUTPUT"
+
+          if echo "$OUTPUT" | grep -qE "(\+[1-9][0-9]\.\d+%|\+1[0-9][0-9]\.\d+%)"; then
+            echo "⚠️ Reference app performance regression detected (>10% slowdown)"
+            exit 1
+          fi
+
+      - name: Comment PR (reference app)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const comment = fs.readFileSync('comment-app.txt', 'utf8');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' &&
+              c.body.includes('Reference App Benchmark Results')
+            );
+
+            if (botComment) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -88,7 +223,6 @@ jobs:
                 body: comment
               });
             } else {
-              // Create new comment
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -101,13 +235,59 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           mkdir -p benchmarks
-          cp new.txt benchmarks/baseline-$(date +%Y%m%d-%H%M%S).txt
-          cp new.txt benchmarks/latest.txt
+          cp examples/reference-blog/new-app.txt benchmarks/app-baseline-$(date +%Y%m%d-%H%M%S).txt
+          cp examples/reference-blog/new-app.txt benchmarks/app-latest.txt
 
       - name: Upload benchmark results
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-results
+          name: benchmark-app-results
           path: benchmarks/
           retention-days: 90
+
+  benchmark-report:
+    name: Generate Performance Report
+    needs: [benchmark-core, benchmark-reference-app]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: benchmarks/
+          pattern: benchmark-*-results
+          merge-multiple: true
+
+      - name: Generate summary report
+        run: |
+          echo "# 📊 Performance Report - $(date +%Y-%m-%d)" > PERF_REPORT.md
+          echo "" >> PERF_REPORT.md
+          echo "Auto-generated by CI benchmark pipeline." >> PERF_REPORT.md
+          echo "" >> PERF_REPORT.md
+
+          if [ -f benchmarks/core-latest.txt ]; then
+            echo "## Core Framework" >> PERF_REPORT.md
+            echo "\`\`\`" >> PERF_REPORT.md
+            cat benchmarks/core-latest.txt >> PERF_REPORT.md
+            echo "\`\`\`" >> PERF_REPORT.md
+            echo "" >> PERF_REPORT.md
+          fi
+
+          if [ -f benchmarks/app-latest.txt ]; then
+            echo "## Reference Application" >> PERF_REPORT.md
+            echo "\`\`\`" >> PERF_REPORT.md
+            cat benchmarks/app-latest.txt >> PERF_REPORT.md
+            echo "\`\`\`" >> PERF_REPORT.md
+            echo "" >> PERF_REPORT.md
+          fi
+
+          cat PERF_REPORT.md
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: PERF_REPORT.md
+          retention-days: 365
