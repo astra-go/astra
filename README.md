@@ -120,6 +120,24 @@ bash scripts/sync-intra-replaces.sh
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## 🌍 Community & Feedback
+
+We're actively gathering community feedback to shape Astra's future!
+
+| Channel | Link | Best For |
+|---------|------|----------|
+| 🐛 Bug Reports | [New Bug Report](https://github.com/astra-go/astra/issues/new?template=bug_report.yml) | Broken behavior, crashes |
+| 💡 Feature Requests | [New Feature Request](https://github.com/astra-go/astra/issues/new?template=feature_request.yml) | New capabilities |
+| ❓ Questions | [New Question](https://github.com/astra-go/astra/issues/new?template=question.yml) | How-to, usage help |
+| 📝 Feedback | [Share Feedback](https://github.com/astra-go/astra/issues/new?template=feedback.yml) | DX, docs, experience |
+| 💬 Discussions | [GitHub Discussions](https://github.com/astra-go/astra/discussions) | Open-ended conversations, show-and-tell |
+
+### Version Guide
+
+- **Stable**: `v1.0.x` — Production-ready, full compatibility promise
+- **Preview**: `v1.0.x-beta.x` — New features, APIs may change
+- **Dev**: `main` branch — Latest, potentially unstable
+
 ## 📄 License
 
 Apache License 2.0
@@ -130,3 +148,4 @@ Apache License 2.0
 - **Documentation**: https://astra-go.github.io/docs
 - **Examples**: [examples/](examples/)
 - **Issue Tracker**: https://github.com/astra-go/astra/issues
+- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)

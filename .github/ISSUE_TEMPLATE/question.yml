@@ -1,0 +1,43 @@
+name: Question
+description: Ask a question about usage or implementation
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Describe your question clearly.
+      placeholder: What do you need help with?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What were you trying to do? Include code snippets if relevant.
+      render: go
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Your runtime environment.
+      placeholder: |
+        - Go version: 1.22
+        - Astra version: v1.0.5-beta.1
+        - OS: macOS / Linux
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have read the documentation at docs/
+          required: true
+        - label: I have searched existing issues and discussions
+          required: true

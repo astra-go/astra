@@ -12,6 +12,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.1.1-beta.1] — 2026-06-04
+
+### Added
+- **Reference Application** (`examples/reference-blog`): A complete blog platform demonstrating all Astra features — API server, comment service, async worker, with integration tests and benchmarks
+- **Tenant Quota Middleware** (`middleware/security/`): Per-tenant QPS, concurrency, and daily request limits with Prometheus metrics (`tenant_quota.go`, `tenant_metrics.go` + tests)
+- **Config Hot-Reload Adapters** (`config/`): Nacos and Apollo `Watchable` source implementations (`nacos_source.go`, `apollo_source.go`) + `WatchKey` for granular configuration hot-reload + tests
+- **Architecture Roadmap**: Updated docs with production-readiness milestone tracking (P2-10, P2-11)
+
 ## [2.0.0] — 2026-06-03
 
 ### Changed
@@ -770,7 +778,8 @@ be introduced in `v1.x` patch or minor releases.
 
 ---
 
-[Unreleased]: https://github.com/astra-go/astra/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/astra-go/astra/compare/v1.1.1-beta.1...HEAD
+[1.1.1-beta.1]: https://github.com/astra-go/astra/compare/v1.1.0...v1.1.1-beta.1
 [1.1.0]: https://github.com/astra-go/astra/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/astra-go/astra/compare/v0.10.0...v1.0.0
 [0.10.0]: https://github.com/astra-go/astra/compare/v0.9.0...v0.10.0

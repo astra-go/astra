@@ -1,0 +1,35 @@
+name: Community Feedback
+description: Share general feedback about Astra
+labels: ["feedback"]
+body:
+  - type: dropdown
+    id: type
+    attributes:
+      label: Feedback Type
+      description: What type of feedback are you providing?
+      options:
+        - Feature suggestion
+        - UX / Developer experience improvement
+        - Documentation improvement
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Detailed Description
+      description: Tell us more about your feedback.
+      placeholder: Describe your feedback in detail...
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Use Scenario
+      description: In what context or scenario are you providing this feedback?
+      placeholder: What were you working on when you had this thought?
+  - type: textarea
+    id: suggestions
+    attributes:
+      label: Suggestions
+      description: Any specific suggestions for how we could improve?
