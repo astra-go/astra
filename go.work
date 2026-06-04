@@ -35,6 +35,7 @@ use (
 	./examples/orm
 	./examples/quic
 	./examples/quickstart
+	./examples/showcase
 	./examples/techempower
 	./examples/websocket
 	./grpc

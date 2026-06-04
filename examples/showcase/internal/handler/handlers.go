@@ -10,8 +10,8 @@ import (
 	"github.com/astra-go/astra"
 	"github.com/astra-go/astra/examples/showcase/internal/domain"
 	"github.com/astra-go/astra/examples/showcase/internal/service"
+	"github.com/astra-go/astra/middleware/security"
 	astraorm "github.com/astra-go/astra/orm"
-	"github.com/astra-go/astra/middleware"
 )
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -24,9 +24,9 @@ func parseUintParam(c *astra.Ctx, name string) (uint, error) {
 	return uint(n), nil
 }
 
-// claimsUserID extracts user_id from the JWT claims set by middleware.JWT.
+// claimsUserID extracts user_id from the JWT claims set by security.JWT middleware.
 func claimsUserID(c *astra.Ctx) uint {
-	claims := middleware.GetClaims(c)
+	claims := security.GetClaims(c)
 	if claims == nil {
 		return 0
 	}
@@ -43,7 +43,7 @@ func claimsUserID(c *astra.Ctx) uint {
 
 // claimsTenantID extracts tenant_id from JWT claims.
 func claimsTenantID(c *astra.Ctx) uint {
-	claims := middleware.GetClaims(c)
+	claims := security.GetClaims(c)
 	if claims == nil {
 		return 0
 	}
@@ -235,7 +235,7 @@ func RequireRole(roles ...domain.Role) astra.MiddlewareFunc {
 		allowed[string(r)] = true
 	}
 	return func(c *astra.Ctx) error {
-		claims := middleware.GetClaims(c)
+		claims := security.GetClaims(c)
 		if claims == nil {
 			return service.ErrForbidden
 		}
