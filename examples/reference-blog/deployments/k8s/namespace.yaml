@@ -1,0 +1,7 @@
+# deployments/k8s/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: reference-blog
+  labels:
+    app.kubernetes.io/name: reference-blog

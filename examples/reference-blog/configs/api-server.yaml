@@ -1,0 +1,42 @@
+# configs/api-server.yaml
+
+server:
+  port: 8080
+  mode: debug  # debug | release
+
+database:
+  driver: postgres
+  dsn: "postgres://bloguser:blogpass@localhost:5432/blog?sslmode=disable"
+  max_open_conns: 50
+  max_idle_conns: 10
+  conn_max_lifetime_min: 60
+
+redis:
+  addr: localhost:6379
+  password: ""
+  db: 0
+
+kafka:
+  brokers:
+    - localhost:9092
+  client_id: api-server
+  compression: gzip
+
+grpc:
+  comment_service_addr: localhost:9090
+
+elasticsearch:
+  addresses:
+    - http://localhost:9200
+  username: ""
+  password: ""
+
+auth:
+  jwt_secret: "change-me-in-production"
+  jwt_ttl_min: 15
+
+observability:
+  enabled: true
+  prometheus_port: 9091
+  jaeger_endpoint: http://localhost:14268/api/traces
+  service_name: reference-blog/api-server

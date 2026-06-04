@@ -1,0 +1,23 @@
+# configs/comment-service.yaml
+
+server:
+  grpc_port: 9090
+  metrics_port: 9092
+
+database:
+  driver: postgres
+  dsn: "postgres://bloguser:blogpass@localhost:5432/blog?sslmode=disable"
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime_min: 60
+
+redis:
+  addr: localhost:6379
+  password: ""
+  db: 1
+
+observability:
+  enabled: true
+  prometheus_port: 9092
+  jaeger_endpoint: http://localhost:14268/api/traces
+  service_name: reference-blog/comment-service

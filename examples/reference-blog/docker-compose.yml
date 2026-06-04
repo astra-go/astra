@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # PostgreSQL - 主数据库
   postgres:
-    image: postgres:16-alpine
+    image: postgres:latest
     container_name: blog-postgres
     environment:
       POSTGRES_USER: bloguser
@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bloguser -d blog"]

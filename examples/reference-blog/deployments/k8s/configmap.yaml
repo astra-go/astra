@@ -1,0 +1,59 @@
+# deployments/k8s/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reference-blog-config
+  namespace: reference-blog
+data:
+  api-server.yaml: |
+    server:
+      port: 8080
+      mode: release
+    database:
+      driver: postgres
+      dsn: "postgres://bloguser:blogpass@postgres.reference-blog:5432/blog?sslmode=disable"
+    redis:
+      addr: redis.reference-blog:6379
+    kafka:
+      brokers:
+        - kafka.reference-blog:29092
+    grpc:
+      comment_service_addr: comment-service.reference-blog:9090
+    elasticsearch:
+      addresses:
+        - http://elasticsearch.reference-blog:9200
+    auth:
+      jwt_secret: "CHANGE_ME"
+      jwt_ttl_min: 15
+    observability:
+      enabled: true
+      prometheus_port: 9091
+      jaeger_endpoint: http://jaeger.reference-blog:14268/api/traces
+
+  comment-service.yaml: |
+    server:
+      grpc_port: 9090
+      metrics_port: 9092
+    database:
+      driver: postgres
+      dsn: "postgres://bloguser:blogpass@postgres.reference-blog:5432/blog?sslmode=disable"
+    observability:
+      enabled: true
+      prometheus_port: 9092
+      jaeger_endpoint: http://jaeger.reference-blog:14268/api/traces
+
+  worker.yaml: |
+    database:
+      driver: postgres
+      dsn: "postgres://bloguser:blogpass@postgres.reference-blog:5432/blog?sslmode=disable"
+    kafka:
+      brokers:
+        - kafka.reference-blog:29092
+      consumer_group: blog-worker
+    elasticsearch:
+      addresses:
+        - http://elasticsearch.reference-blog:9200
+    observability:
+      enabled: true
+      prometheus_port: 9093
+      jaeger_endpoint: http://jaeger.reference-blog:14268/api/traces

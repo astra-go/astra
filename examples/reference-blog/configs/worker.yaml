@@ -1,0 +1,29 @@
+# configs/worker.yaml
+
+database:
+  driver: postgres
+  dsn: "postgres://bloguser:blogpass@localhost:5432/blog?sslmode=disable"
+  max_open_conns: 10
+  max_idle_conns: 5
+  conn_max_lifetime_min: 60
+
+kafka:
+  brokers:
+    - localhost:9092
+  consumer_group: blog-worker
+  topics:
+    - article.published
+    - comment.created
+  auto_ack: false
+
+elasticsearch:
+  addresses:
+    - http://localhost:9200
+  username: ""
+  password: ""
+
+observability:
+  enabled: true
+  prometheus_port: 9093
+  jaeger_endpoint: http://localhost:14268/api/traces
+  service_name: reference-blog/worker

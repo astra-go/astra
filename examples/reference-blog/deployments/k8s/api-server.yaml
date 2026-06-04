@@ -1,0 +1,111 @@
+# deployments/k8s/api-server.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+  namespace: reference-blog
+  labels:
+    app: api-server
+    app.kubernetes.io/part-of: reference-blog
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-server
+  template:
+    metadata:
+      labels:
+        app: api-server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: api-server
+          image: reference-blog/api-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 9091
+              name: metrics
+          env:
+            - name: DATABASE_DSN
+              valueFrom:
+                configMapKeyRef:
+                  name: reference-blog-config
+                  key: dsn
+            - name: REDIS_ADDR
+              value: "redis.reference-blog:6379"
+            - name: KAFKA_BROKERS
+              value: "kafka.reference-blog:29092"
+            - name: GRPC_COMMENT_SERVICE_ADDR
+              value: "comment-service.reference-blog:9090"
+            - name: ELASTICSEARCH_ADDRESSES
+              value: "http://elasticsearch.reference-blog:9200"
+            - name: JAEGER_ENDPOINT
+              value: "http://jaeger.reference-blog:14268/api/traces"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: reference-blog-secrets
+                  key: jwt-secret
+            - name: SERVER_MODE
+              value: "release"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-server
+  namespace: reference-blog
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
+    - port: 9091
+      targetPort: 9091
+      name: metrics
+  selector:
+    app: api-server
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-server
+  namespace: reference-blog
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - host: blog.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-server
+                port:
+                  number: 80

@@ -1,0 +1,73 @@
+# deployments/k8s/comment-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comment-service
+  namespace: reference-blog
+  labels:
+    app: comment-service
+    app.kubernetes.io/part-of: reference-blog
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: comment-service
+  template:
+    metadata:
+      labels:
+        app: comment-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9092"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: comment-service
+          image: reference-blog/comment-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9090
+              name: grpc
+            - containerPort: 9092
+              name: metrics
+          env:
+            - name: DATABASE_DSN
+              value: "postgres://bloguser:blogpass@postgres.reference-blog:5432/blog?sslmode=disable"
+            - name: GRPC_PORT
+              value: "9090"
+            - name: JAEGER_ENDPOINT
+              value: "http://jaeger.reference-blog:14268/api/traces"
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            tcpSocket:
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            tcpSocket:
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: comment-service
+  namespace: reference-blog
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9090
+      targetPort: 9090
+      name: grpc
+    - port: 9092
+      targetPort: 9092
+      name: metrics
+  selector:
+    app: comment-service
