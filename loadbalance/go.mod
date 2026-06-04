@@ -3,13 +3,13 @@ module github.com/astra-go/astra/loadbalance
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/discovery v1.0.2
-	github.com/astra-go/astra/testutil v1.0.2
+	github.com/astra-go/astra/discovery v1.0.4
+	github.com/astra-go/astra/testutil v1.0.4
 )
 
 require (
-	github.com/astra-go/astra v1.0.2 // indirect
-	github.com/astra-go/astra/cache v1.0.2 // indirect
+	github.com/astra-go/astra v1.0.4 // indirect
+	github.com/astra-go/astra/cache v1.0.4 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.1 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
@@ -29,6 +29,10 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 )
 
+replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./..
 
+replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
 
+replace github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ../discovery
 
+replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil

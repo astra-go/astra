@@ -3,7 +3,7 @@ module github.com/astra-go/astra/discovery
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/testutil v1.0.2
+	github.com/astra-go/astra/testutil v1.0.4
 	github.com/hashicorp/consul/api v1.28.3
 	github.com/nacos-group/nacos-sdk-go/v2 v2.3.5
 	go.etcd.io/etcd/client/v3 v3.6.10
@@ -28,8 +28,8 @@ require (
 	github.com/aliyun/aliyun-secretsmanager-client-go v1.1.5 // indirect
 	github.com/aliyun/credentials-go v1.4.3 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
-	github.com/astra-go/astra v1.0.2 // indirect
-	github.com/astra-go/astra/cache v1.0.2 // indirect
+	github.com/astra-go/astra v1.0.4 // indirect
+	github.com/astra-go/astra/cache v1.0.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
@@ -134,3 +134,9 @@ exclude google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1
 
 // Fix proto-public version conflict (Go 1.26 requirement)
 replace github.com/hashicorp/consul/proto-public => github.com/hashicorp/consul/proto-public v0.6.5
+
+replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./..
+
+replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
+
+replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil

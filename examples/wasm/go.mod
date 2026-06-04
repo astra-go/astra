@@ -2,7 +2,7 @@ module example/wasm
 
 go 1.25.1
 
-require github.com/astra-go/astra v1.0.2
+require github.com/astra-go/astra v1.0.4
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect

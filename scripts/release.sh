@@ -1,242 +1,335 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-# ============================================
-# Astra 一键发布脚本
-# Usage: bash scripts/release.sh <version>
-# Example: bash scripts/release.sh v1.0.1
-# ============================================
+# ============================================================
+# release.sh — astra 多模块发版脚本
+# 支持主模块 + 子模块独立或统一发版
+# ============================================================
 
-# 颜色定义
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
+
+MODULE_PREFIX="github.com/astra-go/astra"
+ZERO_VERSION="v0.0.0-00010101000000-000000000000"
+
+# 颜色
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-# 使用方式
+# ---- 用法 ----
 usage() {
-    echo "Usage: $0 <version>"
-    echo ""
-    echo "Arguments:"
-    echo "  <version>  Version tag (e.g., v1.0.1, v2.0.0)"
-    echo ""
-    echo "Example:"
-    echo "  $0 v1.0.1"
-    echo ""
-    echo "Environment Variables:"
-    echo "  DRY_RUN=1    Dry-run mode (no actual changes)"
-    echo "  AUTO_CONFIRM=1  Skip all confirmations"
-    exit 1
+    cat <<EOF
+用法: $0 [命令] [选项]
+
+命令:
+  bump <版本号>            更新所有模块版本号
+  tag   <版本号>           为所有模块打 tag
+  push  <版本号>           推送 commit + tag
+  bump-pkg <子模块> <版本号>  更新指定子模块版本号
+  tag-pkg  <子模块> <版本号>  为指定子模块打 tag
+
+选项:
+  --main <版本号>          主模块版本号（默认与子模块相同）
+  --pkg  <子模块,子模块>   指定子模块（逗号分隔）
+  --dry-run                预览模式，不实际执行
+  --skip-bump-fix          跳过零版本号修复
+  --no-verify              git commit 使用 --no-verify
+
+子模块列表:
+$(list_submodules)
+
+示例:
+  # 全量发版 v1.0.5
+  $0 bump v1.0.5 && $0 tag v1.0.5 && $0 push v1.0.5
+
+  # 主模块 v2.0.0 + 子模块 v1.0.5
+  $0 bump v1.0.5 --main v2.0.0
+
+  # 只发布 cache 子模块
+  $0 bump-pkg cache v1.0.5
+  $0 tag-pkg cache v1.0.5
+  $0 push v1.0.5
+
+  # 只发布多个指定子模块
+  $0 bump v1.0.5 --pkg cache,grpc,testutil
+
+  # 预览
+  $0 tag v1.0.5 --dry-run
+EOF
 }
 
-# 检查依赖
-check_dependencies() {
-    local deps=("git" "go" "mage" "sed" "find")
-    for dep in "${deps[@]}"; do
-        if ! command -v "$dep" &> /dev/null; then
-            echo -e "${RED}Error: $dep is not installed${NC}"
-            exit 1
+# ---- 子模块列表 ----
+list_submodules() {
+    find . -name "go.mod" -not -path "./.git/*" | while read -r f; do
+        dir=$(dirname "$f")
+        mod=$(grep "^module " "$f" | sed "s|module ||")
+        if [[ "$mod" == "$MODULE_PREFIX" ]]; then
+            echo "  (主模块)  $dir"
+        elif [[ "$mod" == "$MODULE_PREFIX/"* ]]; then
+            sub=${mod#$MODULE_PREFIX/}
+            echo "  $sub"
+        fi
+    done | sort
+}
+
+# ---- 获取所有子模块路径 ----
+get_all_submodules() {
+    find . -name "go.mod" -not -path "./.git/*" | while read -r f; do
+        dir=$(dirname "$f")
+        mod=$(grep "^module " "$f" | sed "s|module ||")
+        if [[ "$mod" == "$MODULE_PREFIX/"* ]]; then
+            echo "${mod#$MODULE_PREFIX/}"
+        fi
+    done | sort
+}
+
+# ---- 收集所有子模块 go.mod 文件 ----
+collect_go_mods() {
+    find . -name "go.mod" -not -path "./.git/*"
+}
+
+# ---- 修复零版本号：将 require 中的零版本改为上一个真实版本 ----
+fix_zero_versions() {
+    local prev_version="$1"
+    echo -e "${CYAN}🔧 修复零版本号 → ${prev_version}${NC}"
+    collect_go_mods | while read -r f; do
+        # 只替换 require 行（不含 =>）
+        if grep -q "$ZERO_VERSION" "$f" && ! grep -q "=>" "$f"; then
+            sed -i '' "/=>/!s|\\(${MODULE_PREFIX}[^ ]*\\) ${ZERO_VERSION}|\\1 ${prev_version}|g" "$f" 2>/dev/null || true
+        fi
+        # 通用替换：非 replace 行中的零版本
+        sed -i '' "/=>/!s|\\(${MODULE_PREFIX}[^ ]*\\) ${ZERO_VERSION}|\\1 ${prev_version}|g" "$f" 2>/dev/null || true
+    done
+    local remaining=$(grep -r "$ZERO_VERSION" --include="go.mod" . 2>/dev/null | grep -v "=>" | wc -l | tr -d ' ')
+    echo "  剩余零版本引用: ${remaining}"
+}
+
+# ---- 同步 replace ----
+sync_replaces() {
+    if [[ -x "scripts/check-intra-replaces.sh" ]]; then
+        echo -e "${CYAN}🔧 同步 replace 指令${NC}"
+        bash scripts/check-intra-replaces.sh --fix 2>&1 | tail -3
+    fi
+}
+
+# ---- bump 命令 ----
+do_bump() {
+    local version="$1"
+    local main_version="${2:-$version}"
+    local dry_run="${3:-false}"
+    local skip_fix="${4:-false}"
+    local pkgs="${5:-}"
+
+    echo -e "${GREEN}📦 Bump → 子模块: ${version}, 主模块: ${main_version}${NC}"
+
+    if [[ "$dry_run" == "true" ]]; then
+        echo -e "${YELLOW}[DRY RUN] 将更新以下 go.mod 中的版本号:${NC}"
+        if [[ -n "$pkgs" ]]; then
+            echo "  指定子模块: $pkgs"
+        else
+            echo "  所有模块"
+        fi
+        return 0
+    fi
+
+    # 使用 bump-version.sh 如果存在
+    if [[ -x "scripts/bump-version.sh" ]]; then
+        echo "y" | ./scripts/bump-version.sh "$version" 2>&1 | tail -3
+    fi
+
+    # 修复零版本号
+    if [[ "$skip_fix" != "true" ]]; then
+        # 推断上一个版本号
+        local prev=$(echo "$version" | awk -F. '{printf("v%d.%d.%d", $1, $2, $3-1)}')
+        [[ "$prev" == "v0.0.-1" ]] && prev="v0.0.0"
+        fix_zero_versions "$prev"
+    fi
+
+    sync_replaces
+}
+
+# ---- tag 命令 ----
+do_tag() {
+    local version="$1"
+    local main_version="${2:-$version}"
+    local dry_run="${3:-false}"
+    local pkgs="${4:-}"
+
+    echo -e "${GREEN}🏷️  Tag → 子模块: ${version}, 主模块: ${main_version}${NC}"
+
+    # 收集要打 tag 的子模块
+    local targets=()
+    if [[ -n "$pkgs" ]]; then
+        IFS=',' read -ra targets <<< "$pkgs"
+    else
+        while IFS= read -r sub; do
+            targets+=("$sub")
+        done < <(get_all_submodules)
+    fi
+
+    # 打子模块 tag
+    for sub in "${targets[@]}"; do
+        local tag="${sub}/${version}"
+        if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo -e "${YELLOW}⚠️  tag ${tag} 已存在，跳过${NC}"
+        else
+            if [[ "$dry_run" == "true" ]]; then
+                echo -e "${YELLOW}[DRY RUN] git tag ${tag}${NC}"
+            else
+                git tag "$tag"
+                echo -e "  ✅ ${tag}"
+            fi
         fi
     done
+
+    # 打主模块 tag
+    if git rev-parse "$main_version" >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠️  tag ${main_version} 已存在，跳过${NC}"
+    else
+        if [[ "$dry_run" == "true" ]]; then
+            echo -e "${YELLOW}[DRY RUN] git tag ${main_version}${NC}"
+        else
+            git tag "$main_version"
+            echo -e "  ✅ ${main_version}"
+        fi
+    fi
 }
 
-# 检查参数
-if [ $# -lt 1 ]; then
+# ---- push 命令 ----
+do_push() {
+    local version="$1"
+    local main_version="${2:-$version}"
+    local no_verify="${3:-false}"
+
+    echo -e "${GREEN}🚀 推送 main + 所有 tag${NC}"
+
+    local verify_flag=""
+    [[ "$no_verify" == "true" ]] && verify_flag="--no-verify"
+
+    # 先提交未暂存的修改
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+        echo -e "${CYAN}📝 提交变更${NC}"
+        git add -A
+        git commit $verify_flag -m "chore: release ${main_version}" 2>&1 | tail -3
+    fi
+
+    git push origin main --tags 2>&1 | tail -10
+}
+
+# ---- bump-pkg 命令：只更新指定子模块 ----
+do_bump_pkg() {
+    local pkg="$1"
+    local version="$2"
+    local dry_run="${3:-false}"
+
+    echo -e "${GREEN}📦 Bump 单包 → ${pkg}: ${version}${NC}"
+
+    if [[ "$dry_run" == "true" ]]; then
+        echo -e "${YELLOW}[DRY RUN] 将更新 ${pkg} 相关版本号${NC}"
+        return 0
+    fi
+
+    # 在所有 go.mod 中查找并替换该子包的版本
+    local pkg_path="${MODULE_PREFIX}/${pkg}"
+    collect_go_mods | while read -r f; do
+        sed -i '' "/=>/!s|\\(${pkg_path}\\) v[0-9][^ ]*|\\1 ${version}|g" "$f" 2>/dev/null || true
+    done
+
+    # 修复零版本号
+    local prev=$(echo "$version" | awk -F. '{printf("v%d.%d.%d", $1, $2, $3-1)}')
+    [[ "$prev" == "v0.0.-1" ]] && prev="v0.0.0"
+    fix_zero_versions "$prev"
+
+    sync_replaces
+    echo -e "  ✅ ${pkg} 版本号已更新为 ${version}"
+}
+
+# ---- tag-pkg 命令：只为指定子模块打 tag ----
+do_tag_pkg() {
+    local pkg="$1"
+    local version="$2"
+    local dry_run="${3:-false}"
+
+    echo -e "${GREEN}🏷️  Tag 单包 → ${pkg}/${version}${NC}"
+
+    if [[ "$dry_run" == "true" ]]; then
+        echo -e "${YELLOW}[DRY RUN] git tag ${pkg}/${version}${NC}"
+        return 0
+    fi
+
+    local tag="${pkg}/${version}"
+    if git rev-parse "$tag" >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠️  tag ${tag} 已存在，跳过${NC}"
+    else
+        git tag "$tag"
+        echo -e "  ✅ ${tag}"
+    fi
+}
+
+# ---- 解析参数 ----
+CMD=""
+VERSION=""
+MAIN_VERSION=""
+PKGS=""
+DRY_RUN=false
+SKIP_FIX=false
+NO_VERIFY=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        bump|tag|push|bump-pkg|tag-pkg)
+            CMD="$1"
+            shift
+            ;;
+        --main)
+            MAIN_VERSION="$2"
+            shift 2
+            ;;
+        --pkg)
+            PKGS="$2"
+            shift 2
+            ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --skip-bump-fix)
+            SKIP_FIX=true
+            shift
+            ;;
+        --no-verify)
+            NO_VERIFY=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            if [[ -z "$VERSION" ]]; then
+                VERSION="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$CMD" ]] || [[ -z "$VERSION" ]]; then
     usage
-fi
-
-VERSION=$1
-DRY_RUN=${DRY_RUN:-0}
-AUTO_CONFIRM=${AUTO_CONFIRM:-0}
-
-# 检查 VERSION 格式
-if [[ ! $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo -e "${RED}Error: VERSION must be vMAJOR.MINOR.PATCH format (e.g., v1.0.1)${NC}"
     exit 1
 fi
 
-# 检查依赖
-check_dependencies
+[[ -z "$MAIN_VERSION" ]] && MAIN_VERSION="$VERSION"
 
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}🚀 Astra Release Script${NC}"
-echo -e "${GREEN}   Version: $VERSION${NC}"
-echo -e "${GREEN}   Dry Run: $([ $DRY_RUN -eq 1 ] && echo "YES" || echo "NO")${NC}"
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-
-# 检查当前目录
-if [ ! -f "go.work" ]; then
-    echo -e "${RED}Error: Must run from astra root directory${NC}"
-    echo "Hint: cd ~/data/project/gotest/astra"
-    exit 1
-fi
-
-# 检查 git 状态
-echo -e "${BLUE}Step 0: Checking git status...${NC}"
-if [ -n "$(git status --porcelain)" ]; then
-    echo -e "${RED}Error: Working tree has uncommitted changes${NC}"
-    git status --short
-    echo ""
-    echo "Please commit or stash changes first."
-    exit 1
-fi
-echo -e "${GREEN}✓ Working tree is clean${NC}"
-echo ""
-
-# Step 1: 切换到 main 分支
-echo -e "${BLUE}Step 1: Switching to main branch...${NC}"
-git checkout main 2>&1 || true
-git pull origin main
-echo -e "${GREEN}✓ Now on main branch${NC}"
-echo ""
-
-# Step 2: 合并 xiaolin 分支
-echo -e "${BLUE}Step 2: Merging xiaolin branch...${NC}"
-if git branch --list | grep -q "xiaolin"; then
-    git merge xiaolin --no-edit 2>&1 || {
-        echo -e "${RED}Error: Merge conflict${NC}"
-        echo "Please resolve conflicts manually."
-        exit 1
-    }
-    echo -e "${GREEN}✓ xiaolin merged into main${NC}"
-else
-    echo -e "${YELLOW}⚠ xiaolin branch not found, skipping merge${NC}"
-fi
-echo ""
-
-# Step 3: 清理 replace 指令
-echo -e "${BLUE}Step 3: Cleaning replace directives...${NC}"
-
-# 方法1: 使用 drop-intra-replaces.sh
-if [ -f "scripts/drop-intra-replaces.sh" ]; then
-    bash scripts/drop-intra-replaces.sh 2>&1 || true
-fi
-
-# 方法2: 强制用 sed 清理（double guarantee）
-echo "  Force clean with sed..."
-find . -name "go.mod" -not -path "./.git/*" -exec sed -i '' '/^[[:space:]]*replace/d' {} + 2>/dev/null || true
-
-# 验证清理结果
-echo -e "${BLUE}  Verifying clean state...${NC}"
-if grep -r "replace" --include="go.mod" . 2>/dev/null; then
-    echo -e "${RED}Error: Still have replace directives${NC}"
-    echo "Please clean manually:"
-    echo "  find . -name 'go.mod' -exec sed -i '' '/^[[:space:]]*replace/d' {} +"
-    exit 1
-fi
-echo -e "${GREEN}✓ All replace directives removed${NC}"
-echo ""
-
-# Step 4: 提交干净状态
-echo -e "${BLUE}Step 4: Committing clean state...${NC}"
-git add -A
-git commit --no-verify -m "chore: clean go.mod for $VERSION release" 2>&1 || {
-    echo -e "${YELLOW}⚠ Nothing to commit (already clean)${NC}"
-}
-echo -e "${GREEN}✓ Clean state committed${NC}"
-echo ""
-
-# Step 5: 执行发布
-echo -e "${BLUE}Step 5: Running mage release...${NC}"
-if [ $DRY_RUN -eq 1 ]; then
-    echo -e "${YELLOW}[DRY RUN] Would execute: AUTO_CONFIRM=1 VERSION=$VERSION make release${NC}"
-else
-    AUTO_CONFIRM=1 VERSION=$VERSION make release 2>&1 || {
-        echo -e "${RED}Error: make release failed${NC}"
-        echo ""
-        echo "Troubleshooting:"
-        echo "  1. Check magefiles/release.go exists"
-        echo "  2. Run: mage -d magefiles -l"
-        echo "  3. Check go.mod files still have replace?"
-        exit 1
-    }
-fi
-echo -e "${GREEN}✓ Release tags created${NC}"
-echo ""
-
-# Step 6: 推送 tag
-echo -e "${BLUE}Step 6: Pushing tags to remote...${NC}"
-if [ $DRY_RUN -eq 1 ]; then
-    echo -e "${YELLOW}[DRY RUN] Would push tags:${NC}"
-    git tag -l "*$VERSION" | while read tag; do
-        echo "  git push origin $tag"
-    done
-else
-    # 先删除远程已存在的 tag（如果有）
-    for tag in $(git tag -l "*$VERSION"); do
-        echo "  Deleting remote tag: $tag"
-        git push origin :refs/tags/$tag 2>/dev/null || true
-    done
-    
-    # 推送新 tag
-    echo "  Pushing tags..."
-    git push origin $(git tag -l "*$VERSION" | tr '\n' ' ') 2>&1 || {
-        echo -e "${RED}Error: Failed to push tags${NC}"
-        exit 1
-    }
-fi
-echo -e "${GREEN}✓ Tags pushed to remote${NC}"
-echo ""
-
-# Step 7: 恢复 replace 指令
-echo -e "${BLUE}Step 7: Restoring replace directives...${NC}"
-if [ -f "scripts/sync-intra-replaces.sh" ]; then
-    bash scripts/sync-intra-replaces.sh 2>&1 || {
-        echo -e "${RED}Error: Failed to restore replace directives${NC}"
-        echo "Please run manually: bash scripts/sync-intra-replaces.sh"
-        exit 1
-    }
-    echo -e "${GREEN}✓ Replace directives restored${NC}"
-else
-    echo -e "${YELLOW}⚠ sync-intra-replaces.sh not found, skipping${NC}"
-fi
-echo ""
-
-# Step 8: 提交恢复后的状态
-echo -e "${BLUE}Step 8: Committing restored state...${NC}"
-git add -A
-git commit --no-verify -m "chore: restore replace after $VERSION release" 2>&1 || {
-    echo -e "${YELLOW}⚠ Nothing to commit (already restored)${NC}"
-}
-echo -e "${GREEN}✓ Restored state committed${NC}"
-echo ""
-
-# Step 9: 推送到远程
-echo -e "${BLUE}Step 9: Pushing to remote...${NC}"
-if [ $DRY_RUN -eq 1 ]; then
-    echo -e "${YELLOW}[DRY RUN] Would push main branch${NC}"
-else
-    git push origin main 2>&1 || {
-        echo -e "${RED}Error: Failed to push main${NC}"
-        exit 1
-    }
-fi
-echo -e "${GREEN}✓ Main branch pushed${NC}"
-echo ""
-
-# Step 10: 切换回 xiaolin 分支
-echo -e "${BLUE}Step 10: Switching back to xiaolin branch...${NC}"
-if git branch --list | grep -q "xiaolin"; then
-    git checkout xiaolin 2>&1 || true
-    git rebase main 2>&1 || {
-        echo -e "${YELLOW}⚠ Rebase failed, please resolve conflicts manually${NC}"
-    }
-    git push origin xiaolin --force-with-lease 2>&1 || true
-    echo -e "${GREEN}✓ xiaolin branch updated${NC}"
-else
-    echo -e "${YELLOW}⚠ xiaolin branch not found, staying on main${NC}"
-fi
-echo ""
-
-# 完成
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}✅ Release $VERSION completed successfully!${NC}"
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-echo "Next steps:"
-echo "  1. Verify: go list -m github.com/astra-go/astra@$VERSION"
-echo "  2. Test: go get github.com/astra-go/astra@$VERSION"
-echo "  3. Check: https://github.com/astra-go/astra/tags"
-echo ""
+# ---- 执行 ----
+case "$CMD" in
+    bump)       do_bump "$VERSION" "$MAIN_VERSION" "$DRY_RUN" "$SKIP_FIX" "$PKGS" ;;
+    tag)        do_tag "$VERSION" "$MAIN_VERSION" "$DRY_RUN" "$PKGS" ;;
+    push)       do_push "$VERSION" "$MAIN_VERSION" "$NO_VERIFY" ;;
+    bump-pkg)   do_bump_pkg "$VERSION" "$MAIN_VERSION" "$DRY_RUN" ;;
+    tag-pkg)    do_tag_pkg "$VERSION" "$MAIN_VERSION" "$DRY_RUN" ;;
+    *)          usage; exit 1 ;;
+esac

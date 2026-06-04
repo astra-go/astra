@@ -3,9 +3,9 @@ module github.com/astra-go/astra/e2e
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v1.0.2
-	github.com/astra-go/astra/grpc v1.0.2
-	github.com/astra-go/astra/middleware/security v1.0.2
+	github.com/astra-go/astra v1.0.4
+	github.com/astra-go/astra/grpc v1.0.4
+	github.com/astra-go/astra/middleware/security v1.0.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -45,5 +45,8 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
+replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./..
 
+replace github.com/astra-go/astra/grpc v0.0.0-00010101000000-000000000000 => ../grpc
 
+replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ../middleware/security

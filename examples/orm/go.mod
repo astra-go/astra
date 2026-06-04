@@ -3,7 +3,7 @@ module example/orm
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v1.0.2
+	github.com/astra-go/astra v1.0.4
 	github.com/glebarez/sqlite v1.11.0
 	gorm.io/gorm v1.30.0
 )
@@ -41,3 +41,4 @@ require (
 	modernc.org/sqlite v1.51.0 // indirect
 )
 
+replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..

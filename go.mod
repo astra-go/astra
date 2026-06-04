@@ -7,7 +7,7 @@ go 1.25.1
 // sub-modules under this monorepo and are versioned independently.
 // Run `go mod tidy` after editing this file to refresh the indirect section.
 require (
-	github.com/astra-go/astra/testutil v1.0.2
+	github.com/astra-go/astra/testutil v1.0.4
 
 	// Request validation (validate/ package)
 	github.com/go-playground/validator/v10 v10.30.3
@@ -45,7 +45,7 @@ require (
 )
 
 require (
-	github.com/astra-go/astra/middleware/security v1.0.2 // test-only
+	github.com/astra-go/astra/middleware/security v1.0.4 // test-only
 	github.com/golang-jwt/jwt/v5 v5.3.1 // test-only
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.51.0 // test-only
@@ -54,7 +54,7 @@ require (
 require github.com/bytedance/sonic v1.15.1
 
 require (
-	github.com/astra-go/astra/cache v1.0.2 // indirect
+	github.com/astra-go/astra/cache v1.0.4 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -75,5 +75,8 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 )
 
+replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ./cache
 
+replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ./middleware/security
 
+replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ./testutil

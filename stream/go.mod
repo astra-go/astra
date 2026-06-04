@@ -3,7 +3,7 @@ module github.com/astra-go/astra/stream
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v1.0.2
+	github.com/astra-go/astra v1.0.4
 	github.com/gorilla/websocket v1.5.3
 )
 
@@ -28,3 +28,4 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 )
 
+replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./..

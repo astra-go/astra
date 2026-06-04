@@ -6,7 +6,7 @@ go 1.25.1
 // Kept separate from the core module so that projects not needing HTTP/3 do not
 // pull in quic-go's ~40 transitive dependencies.
 require (
-	github.com/astra-go/astra v1.0.2
+	github.com/astra-go/astra v1.0.4
 	github.com/quic-go/quic-go v0.48.0
 )
 
@@ -66,3 +66,4 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
+replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./..
