@@ -333,3 +333,23 @@ case "$CMD" in
     tag-pkg)    do_tag_pkg "$VERSION" "$MAIN_VERSION" "$DRY_RUN" ;;
     *)          usage; exit 1 ;;
 esac
+
+
+
+# 全量发版 v1.0.5（一条龙）
+# ./scripts/release.sh bump v1.0.5 && ./scripts/release.sh tag v1.0.5 && ./scripts/release.sh push v1.0.5 --no-verify
+
+# 主模块 v2.0.0 + 子模块 v1.0.5
+# ./scripts/release.sh bump v1.0.5 --main v2.0.0
+
+# 只发布单个子模块（如 cache）
+# ./scripts/release.sh bump-pkg cache v1.0.5
+# ./scripts/release.sh tag-pkg cache v1.0.5
+# ./scripts/release.sh push v1.0.5 --no-verify
+
+# 只发布指定多个子模块
+# ./scripts/release.sh bump v1.0.5 --pkg cache,grpc,testutil
+# ./scripts/release.sh tag v1.0.5 --pkg cache,grpc,testutil
+
+# 预览（不实际执行）
+# ./scripts/release.sh tag v1.0.5 --dry-run

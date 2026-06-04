@@ -1,0 +1,226 @@
+name: MQ Integration Test Matrix
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'mq/**'
+      - 'go.mod'
+      - 'go.sum'
+  workflow_dispatch:
+    inputs:
+      mq_type:
+        description: 'Test a specific MQ type (kafka, rabbitmq, nats, rocketmq, mqtt, pulsar, or all)'
+        required: false
+        default: 'all'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION_FILE: go.mod
+
+jobs:
+  # ── Unit tests (no broker needed) ─────────────────────────────────────────
+  unit:
+    name: MQ Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run unit tests
+        run: cd mq && go test -race -coverprofile=coverage.out -v ./...
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: mq/coverage.out
+          flags: mq-unit
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  # ── Kafka ────────────────────────────────────────────────────────────────
+  test-kafka:
+    name: Kafka Integration
+    runs-on: ubuntu-latest
+    needs: unit
+    if: |
+      github.event.inputs.mq_type == 'all' || github.event.inputs.mq_type == 'kafka' || github.event.inputs.mq_type == ''
+    services:
+      kafka:
+        image: apache/kafka:3.9.0
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_NODE_ID: 1
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Wait for Kafka
+        run: |
+          for i in $(seq 1 30); do
+            if timeout 2 bash -c 'echo > /dev/tcp/localhost/9092' 2>/dev/null; then
+              echo "Kafka is ready"
+              break
+            fi
+            echo "Waiting for Kafka... ($i/30)"
+            sleep 2
+          done
+      - name: Run Kafka integration tests
+        env:
+          KAFKA_BROKERS: localhost:9092
+          MQ_TEST_TYPE: kafka
+        run: cd mq && go test -race -tags=integration -v -run 'Test.*Kafka.*' ./...
+
+  # ── RabbitMQ ─────────────────────────────────────────────────────────────
+  test-rabbitmq:
+    name: RabbitMQ Integration
+    runs-on: ubuntu-latest
+    needs: unit
+    if: |
+      github.event.inputs.mq_type == 'all' || github.event.inputs.mq_type == 'rabbitmq' || github.event.inputs.mq_type == ''
+    services:
+      rabbitmq:
+        image: rabbitmq:3.13-management-alpine
+        ports:
+          - 5672:5672
+          - 15672:15672
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Wait for RabbitMQ
+        run: |
+          for i in $(seq 1 30); do
+            if rabbitmqctl -n rabbitmq@localhost status 2>/dev/null | grep -q 'Status of node'; then
+              echo "RabbitMQ is ready"
+              break
+            fi
+            echo "Waiting for RabbitMQ... ($i/30)"
+            sleep 2
+          done
+      - name: Run RabbitMQ integration tests
+        env:
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+          MQ_TEST_TYPE: rabbitmq
+        run: cd mq && go test -race -tags=integration -v -run 'Test.*RabbitMQ.*' ./...
+
+  # ── NATS ──────────────────────────────────────────────────────────────────
+  test-nats:
+    name: NATS Integration
+    runs-on: ubuntu-latest
+    needs: unit
+    if: |
+      github.event.inputs.mq_type == 'all' || github.event.inputs.mq_type == 'nats' || github.event.inputs.mq_type == ''
+    services:
+      nats:
+        image: nats:2.10-alpine
+        ports:
+          - 4222:4222
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Wait for NATS
+        run: |
+          for i in $(seq 1 30); do
+            if timeout 2 bash -c 'echo > /dev/tcp/localhost/4222' 2>/dev/null; then
+              echo "NATS is ready"
+              break
+            fi
+            echo "Waiting for NATS... ($i/30)"
+            sleep 2
+          done
+      - name: Run NATS integration tests
+        env:
+          NATS_URL: nats://localhost:4222
+          MQ_TEST_TYPE: nats
+        run: cd mq && go test -race -tags=integration -v -run 'Test.*Nats.*' ./...
+
+  # ── MQTT ──────────────────────────────────────────────────────────────────
+  test-mqtt:
+    name: MQTT Integration
+    runs-on: ubuntu-latest
+    needs: unit
+    if: |
+      github.event.inputs.mq_type == 'all' || github.event.inputs.mq_type == 'mqtt' || github.event.inputs.mq_type == ''
+    services:
+      emqx:
+        image: emqx/emqx:5.8-alpine
+        ports:
+          - 1883:1883
+          - 8083:8083
+        env:
+          EMQX_LISTENERS__TCP__DEFAULT__BIND: 1883
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Wait for EMQX
+        run: |
+          for i in $(seq 1 60); do
+            if timeout 2 bash -c 'echo > /dev/tcp/localhost/1883' 2>/dev/null; then
+              echo "EMQX is ready"
+              break
+            fi
+            echo "Waiting for EMQX... ($i/60)"
+            sleep 2
+          done
+      - name: Run MQTT integration tests
+        env:
+          MQTT_URL: tcp://localhost:1883
+          MQ_TEST_TYPE: mqtt
+        run: cd mq && go test -race -tags=integration -v -run 'Test.*Mqtt.*' ./...
+
+  # ── Matrix summary ──────────────────────────────────────────────────────
+  summary:
+    name: MQ Test Summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [unit, test-kafka, test-rabbitmq, test-nats, test-mqtt]
+    steps:
+      - name: Check results
+        run: |
+          echo "### MQ Integration Test Matrix Results" >> $GITHUB_STEP_SUMMARY
+          echo "| MQ Type | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit    | ${{ needs.unit.result == 'success' && '✅' || needs.unit.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Kafka   | ${{ needs.test-kafka.result == 'success' && '✅' || needs.test-kafka.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| RabbitMQ| ${{ needs.test-rabbitmq.result == 'success' && '✅' || needs.test-rabbitmq.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| NATS    | ${{ needs.test-nats.result == 'success' && '✅' || needs.test-nats.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| MQTT    | ${{ needs.test-mqtt.result == 'success' && '✅' || needs.test-mqtt.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+
+          # Fail if any non-skipped job failed
+          if [[ "${{ needs.unit.result }}" == "failure" ]] \
+             || [[ "${{ needs.test-kafka.result }}" == "failure" ]] \
+             || [[ "${{ needs.test-rabbitmq.result }}" == "failure" ]] \
+             || [[ "${{ needs.test-nats.result }}" == "failure" ]] \
+             || [[ "${{ needs.test-mqtt.result }}" == "failure" ]]; then
+            echo "::error::One or more MQ integration tests failed"
+            exit 1
+          fi
