@@ -1,5 +1,5 @@
-github.com/astra-go/astra v0.1.0 h1:vV6RVYd5InQnjFM26K39wEReJJA0d04TG1JMO9CdiWU=
-github.com/astra-go/astra v0.1.0/go.mod h1:HT8LoeNQX/RIE59A3anPzimTdviZgpqjV3q11BvZPrQ=
+github.com/astra-go/astra v1.0.2 h1:I9xcpSp2OFGwddMvF46FGOsGxbJjB1kedeKDBZaWCYw=
+github.com/astra-go/astra v1.0.2/go.mod h1:HT8LoeNQX/RIE59A3anPzimTdviZgpqjV3q11BvZPrQ=
 github.com/astra-go/astra/testutil v1.0.2 h1:ekze6kts+eKFHgZZlPQtKm5TNRtnrocZcOdfKKQhLeU=
 github.com/astra-go/astra/testutil v1.0.2/go.mod h1:brhfDCCIEy/KRfOVlqy2HJlW2gWRCApsqzhZS6bn79k=
 github.com/bradfitz/gomemcache v0.0.0-20250403215159-8d39553ac7cf h1:TqhNAT4zKbTdLa62d2HDBFdvgSbIGB3eJE8HqhgiL9I=

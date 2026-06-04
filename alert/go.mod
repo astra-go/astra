@@ -33,4 +33,3 @@ require (
 
 require github.com/astra-go/astra/rule v1.0.2
 
-replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache

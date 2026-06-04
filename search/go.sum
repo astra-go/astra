@@ -6,8 +6,8 @@ github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c h1:udKWzYgxTojEK
 github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c/go.mod h1:xomTg63KZ2rFqZQzSB4Vz2SUXa1BpHTVz9L5PTmPC4E=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
-github.com/astra-go/astra v0.1.0 h1:vV6RVYd5InQnjFM26K39wEReJJA0d04TG1JMO9CdiWU=
-github.com/astra-go/astra v0.1.0/go.mod h1:HT8LoeNQX/RIE59A3anPzimTdviZgpqjV3q11BvZPrQ=
+github.com/astra-go/astra v1.0.2 h1:I9xcpSp2OFGwddMvF46FGOsGxbJjB1kedeKDBZaWCYw=
+github.com/astra-go/astra v1.0.2/go.mod h1:HT8LoeNQX/RIE59A3anPzimTdviZgpqjV3q11BvZPrQ=
 github.com/astra-go/astra/cache v1.0.2 h1:S8+EAIcdyEr0e7/9PJ+xZXGHNAGwDXutyNfMw0XHWx4=
 github.com/astra-go/astra/cache v1.0.2/go.mod h1:4pshMfZrJLqu4PhiXLwNJMm4vw8U1+9uNb+fDgkL6kY=
 github.com/astra-go/astra/testutil v1.0.2 h1:ekze6kts+eKFHgZZlPQtKm5TNRtnrocZcOdfKKQhLeU=

@@ -154,18 +154,10 @@ require (
 	modernc.org/sqlite v1.51.0 // indirect
 )
 
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..
 
-replace github.com/astra-go/astra/auth v0.0.0-00010101000000-000000000000 => ../../auth
 
-replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../../cache
 
-replace github.com/astra-go/astra/grpc v0.0.0-00010101000000-000000000000 => ../../grpc
 
-replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ../../middleware/security
 
-replace github.com/astra-go/astra/orm v0.0.0-00010101000000-000000000000 => ../../orm
 
-replace github.com/astra-go/astra/otel v0.0.0-00010101000000-000000000000 => ../../otel
 
-replace github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 => ../../taskqueue

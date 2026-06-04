@@ -5,7 +5,7 @@ go 1.25.1
 
 // Standalone gRPC dual-stack module.
 require (
-	github.com/astra-go/astra v0.1.0
+	github.com/astra-go/astra v1.0.2
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217
@@ -44,9 +44,3 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./..
-
-replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
-
-replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil

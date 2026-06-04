@@ -28,7 +28,7 @@ require (
 	github.com/aliyun/aliyun-secretsmanager-client-go v1.1.5 // indirect
 	github.com/aliyun/credentials-go v1.4.3 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
-	github.com/astra-go/astra v0.1.0 // indirect
+	github.com/astra-go/astra v1.0.2 // indirect
 	github.com/astra-go/astra/cache v1.0.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
@@ -134,9 +134,3 @@ exclude google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1
 
 // Fix proto-public version conflict (Go 1.26 requirement)
 replace github.com/hashicorp/consul/proto-public => github.com/hashicorp/consul/proto-public v0.6.5
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./..
-
-replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
-
-replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil

@@ -48,8 +48,8 @@ github.com/armon/go-metrics v0.4.1 h1:hR91U9KYmb6bLBYLQjyM+3j+rcd/UhE+G78SFnF8gJ
 github.com/armon/go-metrics v0.4.1/go.mod h1:E6amYzXo6aW1tqzoZGT755KkbgrJsSdpwZ+3JqfkOG4=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
 github.com/armon/go-radix v1.0.0/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
-github.com/astra-go/astra v0.1.0 h1:vV6RVYd5InQnjFM26K39wEReJJA0d04TG1JMO9CdiWU=
-github.com/astra-go/astra v0.1.0/go.mod h1:HT8LoeNQX/RIE59A3anPzimTdviZgpqjV3q11BvZPrQ=
+github.com/astra-go/astra v1.0.2 h1:I9xcpSp2OFGwddMvF46FGOsGxbJjB1kedeKDBZaWCYw=
+github.com/astra-go/astra v1.0.2/go.mod h1:HT8LoeNQX/RIE59A3anPzimTdviZgpqjV3q11BvZPrQ=
 github.com/astra-go/astra/cache v1.0.2 h1:S8+EAIcdyEr0e7/9PJ+xZXGHNAGwDXutyNfMw0XHWx4=
 github.com/astra-go/astra/cache v1.0.2/go.mod h1:4pshMfZrJLqu4PhiXLwNJMm4vw8U1+9uNb+fDgkL6kY=
 github.com/astra-go/astra/testutil v1.0.2 h1:ekze6kts+eKFHgZZlPQtKm5TNRtnrocZcOdfKKQhLeU=

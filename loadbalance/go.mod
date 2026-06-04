@@ -29,10 +29,6 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 )
 
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./..
 
-replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
 
-replace github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ../discovery
 
-replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil
