@@ -291,3 +291,22 @@ jobs:
           name: performance-report
           path: PERF_REPORT.md
           retention-days: 365
+
+  chaos-test:
+    name: Chaos Engineering Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run chaos engineering tests
+        run: go test -v -race -count=1 ./e2e/... -tags=chaos
+      - name: Upload chaos test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaos-test-results
+          path: chaos-results/
+          retention-days: 30

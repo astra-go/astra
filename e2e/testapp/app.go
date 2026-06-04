@@ -4,11 +4,15 @@
 package testapp
 
 import (
+	"encoding/json"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/astra-go/astra"
+	"github.com/astra-go/astra/e2e/chaos"
 	"github.com/astra-go/astra/middleware/security"
 	"github.com/astra-go/astra/websocket"
 	"google.golang.org/grpc"
@@ -31,11 +35,34 @@ type App struct {
 
 // New creates and starts a testapp. It registers t.Cleanup to stop all servers
 // when the test ends, so callers never need to call Close() explicitly.
+// New creates and starts a testapp. It registers t.Cleanup to stop all servers
+// when the test ends, so callers never need to call Close() explicitly.
 func New(t testing.TB) *App {
+	return NewWithInjector(t, nil)
+}
+
+// NewWithInjector creates a testapp with an optional FaultInjector for chaos tests.
+func NewWithInjector(t testing.TB, injector *chaos.FaultInjector) *App {
 	t.Helper()
 
 	store := NewUserStore()
 	astraApp := astra.New(astra.WithMode(astra.ModeTest))
+
+	// ── Chaos middleware ────────────────────────────────────────────────────────
+	if injector != nil {
+		astraApp.Use(injector.Middleware())
+	}
+
+	// ── Chaos engineering endpoints (test mode only) ───────────────────────────
+	if injector != nil {
+		chaosGroup := astraApp.Group("/chaos")
+		chaosGroup.GET("/timeout", chaosTimeoutHandler(injector))
+		chaosGroup.GET("/error", chaosErrorHandler(injector))
+		chaosGroup.GET("/latency", chaosLatencyHandler(injector))
+		chaosGroup.GET("/panic", chaosPanicHandler(injector))
+		chaosGroup.POST("/inject", chaosInjectHandler(injector))
+		chaosGroup.POST("/reset", chaosResetHandler(injector))
+	}
 
 	// ── Auth routes ──────────────────────────────────────────────────────────
 	auth := astraApp.Group("/auth")
@@ -93,6 +120,82 @@ func New(t testing.TB) *App {
 
 // HTTPURL returns the base URL of the HTTP test server.
 func (a *App) HTTPURL() string { return a.HTTP.URL }
+
+// ── Chaos engineering handlers ────────────────────────────────────────────────
+
+type chaosInjectReq struct {
+	Endpoint  string  `json:"endpoint"`
+	FaultType string  `json:"fault_type"`  // timeout | error | latency | panic
+	Duration  string  `json:"duration"`   // for timeout/latency, e.g. "5s"
+	ErrRate   float64 `json:"err_rate"`   // for error, 0.0~1.0
+}
+
+func chaosTimeoutHandler(injector *chaos.FaultInjector) astra.HandlerFunc {
+	return func(c *astra.Ctx) error {
+		return c.JSON(http.StatusOK, map[string]string{"status": "timeout endpoint ready"})
+	}
+}
+
+func chaosErrorHandler(injector *chaos.FaultInjector) astra.HandlerFunc {
+	return func(c *astra.Ctx) error {
+		return c.JSON(http.StatusOK, map[string]string{"status": "error endpoint ready"})
+	}
+}
+
+func chaosLatencyHandler(injector *chaos.FaultInjector) astra.HandlerFunc {
+	return func(c *astra.Ctx) error {
+		return c.JSON(http.StatusOK, map[string]string{"status": "latency endpoint ready"})
+	}
+}
+
+func chaosPanicHandler(injector *chaos.FaultInjector) astra.HandlerFunc {
+	return func(c *astra.Ctx) error {
+		return c.JSON(http.StatusOK, map[string]string{"status": "panic endpoint ready"})
+	}
+}
+
+func chaosInjectHandler(injector *chaos.FaultInjector) astra.HandlerFunc {
+	return func(c *astra.Ctx) error {
+		var req chaosInjectReq
+		if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
+
+		switch req.FaultType {
+		case "timeout":
+			dur, _ := time.ParseDuration(req.Duration)
+			if dur <= 0 {
+				dur = time.Second
+			}
+			injector.InjectTimeout(req.Endpoint, dur)
+		case "error":
+			rate := req.ErrRate
+			if rate <= 0 {
+				rate = 0.5
+			}
+			injector.InjectError(req.Endpoint, rate)
+		case "latency":
+			dur, _ := time.ParseDuration(req.Duration)
+			if dur <= 0 {
+				dur = time.Second
+			}
+			injector.InjectLatency(req.Endpoint, dur)
+		case "panic":
+			injector.InjectPanic(req.Endpoint)
+		default:
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "unknown fault_type"})
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{"status": "injected", "endpoint": req.Endpoint, "fault_type": req.FaultType})
+	}
+}
+
+func chaosResetHandler(injector *chaos.FaultInjector) astra.HandlerFunc {
+	return func(c *astra.Ctx) error {
+		injector.Reset()
+		return c.JSON(http.StatusOK, map[string]string{"status": "reset"})
+	}
+}
 
 // GRPCConn dials the gRPC server and returns a client connection.
 // The connection is registered with t.Cleanup for automatic close.
