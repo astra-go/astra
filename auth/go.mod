@@ -12,10 +12,10 @@ require (
 	golang.org/x/oauth2 v0.36.0
 )
 
-require github.com/astra-go/astra/testutil v0.1.0
+require github.com/astra-go/astra/testutil v1.0.2
 
 require (
-	github.com/astra-go/astra/cache v0.1.0 // indirect
+	github.com/astra-go/astra/cache v1.0.2 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.1 // indirect

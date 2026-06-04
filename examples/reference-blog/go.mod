@@ -3,14 +3,14 @@ module github.com/astra-go/astra/examples/reference-blog
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/auth v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/grpc v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/mq v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/orm v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/otel v0.0.0-00010101000000-000000000000
-	github.com/astra-go/astra/search v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra v1.0.2
+	github.com/astra-go/astra/auth v1.0.2
+	github.com/astra-go/astra/cache v1.0.2
+	github.com/astra-go/astra/grpc v1.0.2
+	github.com/astra-go/astra/mq v1.0.2
+	github.com/astra-go/astra/orm v1.0.2
+	github.com/astra-go/astra/otel v1.0.2
+	github.com/astra-go/astra/search v1.0.2
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
 

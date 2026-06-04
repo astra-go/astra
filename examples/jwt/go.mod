@@ -3,8 +3,8 @@ module github.com/astra-go/astra/examples/jwt
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v0.1.0
-	github.com/astra-go/astra/middleware/security v0.1.0
+	github.com/astra-go/astra v1.0.2
+	github.com/astra-go/astra/middleware/security v1.0.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	golang.org/x/crypto v0.52.0
 )

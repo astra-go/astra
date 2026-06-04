@@ -5,7 +5,7 @@ go 1.25.1
 // Standalone Saga Redis-persistence module.
 // Provides a dtx.StateStore and dtx.Recovery backed by Redis.
 require (
-	github.com/astra-go/astra v0.1.0
+	github.com/astra-go/astra v1.0.2
 	github.com/redis/go-redis/v9 v9.20.0
 )
 

@@ -3,7 +3,7 @@ module github.com/astra-go/astra/session
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v0.1.0
+	github.com/astra-go/astra v1.0.2
 	github.com/google/uuid v1.6.0
 	github.com/redis/go-redis/v9 v9.20.0
 )

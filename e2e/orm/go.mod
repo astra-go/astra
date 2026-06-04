@@ -3,7 +3,7 @@ module github.com/astra-go/astra/e2e/orm
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/orm/clickhouse v0.0.0-00010101000000-000000000000
+	github.com/astra-go/astra/orm/clickhouse v1.0.2
 	github.com/testcontainers/testcontainers-go/modules/clickhouse v0.42.0
 )
 

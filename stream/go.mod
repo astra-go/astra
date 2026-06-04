@@ -3,7 +3,7 @@ module github.com/astra-go/astra/stream
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v0.1.0
+	github.com/astra-go/astra v1.0.2
 	github.com/gorilla/websocket v1.5.3
 )
 

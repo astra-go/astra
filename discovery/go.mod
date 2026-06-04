@@ -3,7 +3,7 @@ module github.com/astra-go/astra/discovery
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/testutil v0.1.0
+	github.com/astra-go/astra/testutil v1.0.2
 	github.com/hashicorp/consul/api v1.28.3
 	github.com/nacos-group/nacos-sdk-go/v2 v2.3.5
 	go.etcd.io/etcd/client/v3 v3.6.10
@@ -29,7 +29,7 @@ require (
 	github.com/aliyun/credentials-go v1.4.3 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/astra-go/astra v0.1.0 // indirect
-	github.com/astra-go/astra/cache v0.1.0 // indirect
+	github.com/astra-go/astra/cache v1.0.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect

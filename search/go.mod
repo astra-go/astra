@@ -5,7 +5,7 @@ go 1.25.1
 require github.com/elastic/go-elasticsearch/v8 v8.19.0
 
 require (
-	github.com/astra-go/astra/testutil v0.1.0
+	github.com/astra-go/astra/testutil v1.0.2
 	github.com/testcontainers/testcontainers-go/modules/elasticsearch v0.42.0
 )
 
@@ -14,7 +14,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/astra-go/astra v0.1.0 // indirect
-	github.com/astra-go/astra/cache v0.1.0 // indirect
+	github.com/astra-go/astra/cache v1.0.2 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.1 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect

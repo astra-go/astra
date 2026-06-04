@@ -29,7 +29,6 @@ require (
 )
 
 replace (
-	github.com/astra-go/astra/config => ../.
 	// pquerna/otp v1.4.1 does not exist; redirect to v1.4.0
 	github.com/pquerna/otp v1.4.1 => github.com/pquerna/otp v1.4.0
 )

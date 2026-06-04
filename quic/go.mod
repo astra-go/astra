@@ -6,7 +6,7 @@ go 1.25.1
 // Kept separate from the core module so that projects not needing HTTP/3 do not
 // pull in quic-go's ~40 transitive dependencies.
 require (
-	github.com/astra-go/astra v0.1.0
+	github.com/astra-go/astra v1.0.2
 	github.com/quic-go/quic-go v0.48.0
 )
 

@@ -3,14 +3,14 @@ module github.com/astra-go/astra/middleware/security
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v0.1.0
-	github.com/astra-go/astra/testutil v0.1.0
+	github.com/astra-go/astra v1.0.2
+	github.com/astra-go/astra/testutil v1.0.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/redis/go-redis/v9 v9.20.0
 )
 
 require (
-	github.com/astra-go/astra/cache v0.1.0 // indirect
+	github.com/astra-go/astra/cache v1.0.2 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.1 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect

@@ -7,7 +7,7 @@ require (
 	github.com/redis/go-redis/v9 v9.20.0
 )
 
-require github.com/astra-go/astra/testutil v0.1.0
+require github.com/astra-go/astra/testutil v1.0.2
 
 require (
 	github.com/astra-go/astra v0.1.0 // indirect
