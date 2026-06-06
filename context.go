@@ -195,8 +195,14 @@ func (c *Ctx) reset(w http.ResponseWriter, r *http.Request) {
 	}
 	c.kvStore = kv[:0]
 	// Clear the map if it was promoted; retain the allocation for reuse.
-	for k := range c.kvMap {
-		delete(c.kvMap, k)
+	if c.kvMap != nil {
+		// Delete all entries to release value references.
+		for k := range c.kvMap {
+			delete(c.kvMap, k)
+		}
+		// Release the map itself so a future request can allocate a
+		// correctly-sized map instead of carrying over a large one.
+		c.kvMap = nil
 	}
 }
 
