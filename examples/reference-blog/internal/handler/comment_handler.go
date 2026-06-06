@@ -68,7 +68,7 @@ func (h *CommentHandler) ListByArticle(c *astra.Ctx) error {
 	page := orm.ParsePage(c)
 
 	if h.grpcClient != nil {
-		resp, err := h.grpcClient.ListComments(c.Request().Context(), uint(articleID), int32(page.Page), int32(page.PageSize))
+		resp, err := h.grpcClient.ListComments(c.Request().Context(), uint(articleID), int32(page.PageNum), int32(page.PageSize))
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}

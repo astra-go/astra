@@ -9,9 +9,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/astra-go/astra/otel"
 	"github.com/astra-go/astra/examples/reference-blog/internal/domain"
 	"github.com/astra-go/astra/examples/reference-blog/internal/repository"
 	"github.com/astra-go/astra/examples/reference-blog/internal/service"
+	"github.com/astra-go/astra/mq"
+	// "github.com/astra-go/astra/otel/example" // TODO: package not available
+	"github.com/astra-go/astra/search/elastic"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -23,7 +27,21 @@ func main() {
 
 	// ── Config ─────────────────────────────────────────────────────────────────
 	dbDSN := getEnv("DATABASE_DSN", "postgres://bloguser:blogpass@localhost:5432/blog?sslmode=disable")
+	kafkaBrokers := getEnv("KAFKA_BROKERS", "localhost:9092")
 	esAddrs := getEnv("ELASTICSEARCH_ADDRESSES", "http://localhost:9200")
+	jaegerEndpoint := getEnv("JAEGER_ENDPOINT", "http://localhost:14268/api/traces")
+	consumerGroup := getEnv("CONSUMER_GROUP", "blog-worker")
+
+	// ── Observability ───────────────────────────────────────────────────────────
+	otelShutdown, err := otel.Init(ctx,
+		otel.WithServiceName("reference-blog/worker"),
+		otel.WithJaegerEndpoint(jaegerEndpoint),
+	)
+	if err != nil {
+		slog.Warn("otel init failed, continuing without tracing", "err", err)
+	} else {
+		defer otelShutdown(context.Background())
+	}
 
 	// ── Database ────────────────────────────────────────────────────────────────
 	db, err := gorm.Open(postgres.Open(dbDSN), &gorm.Config{
@@ -43,15 +61,31 @@ func main() {
 	sqlDB.SetMaxIdleConns(5)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
+	// ── Elasticsearch ───────────────────────────────────────────────────────────
+	searcher := elastic.NewSearcher(esAddrs, "", "")
+
 	// ── Repositories & Services ────────────────────────────────────────────────
 	articleRepo := repository.NewArticleRepository(db)
 	commentRepo := repository.NewCommentRepository(db)
-	searchSvc := service.NewSearchService(nil)
+	searchSvc := service.NewSearchService(searcher)
 
 	// Ensure ES index exists
 	if err := searchSvc.EnsureIndex(ctx); err != nil {
 		slog.Warn("ensure elasticsearch index", "err", err)
 	}
+
+	// ── Kafka Consumer ──────────────────────────────────────────────────────────
+	consumer, err := mq.NewConsumer(mq.ConsumerOptions{
+		Brokers:  parseBrokers(kafkaBrokers),
+		GroupID:  consumerGroup,
+		Topics:   []string{service.TopicArticlePublished, service.TopicCommentCreated},
+		AutoAck:  false,
+	})
+	if err != nil {
+		slog.Error("create kafka consumer", "err", err)
+		os.Exit(1)
+	}
+	defer consumer.Close()
 
 	// ── Message Handlers ────────────────────────────────────────────────────────
 	handlers := &Handlers{
@@ -60,11 +94,44 @@ func main() {
 		searchSvc:    searchSvc,
 	}
 
-	// ── Start Processing Loop ──────────────────────────────────────────────────
-	// TODO: Replace with actual Kafka consumer
-	slog.Info("worker starting (mock mode)")
-	_ = handlers // suppress unused warning
-	_ = esAddrs // suppress unused warning
+	// ── Start Consuming ────────────────────────────────────────────────────────
+	go func() {
+		slog.Info("worker starting, consuming topics",
+			"topics", []string{service.TopicArticlePublished, service.TopicCommentCreated})
+
+		for {
+			select {
+			case <-ctx.Done():
+				slog.Info("worker context cancelled, stopping consumer")
+				return
+			default:
+				msg, err := consumer.Consume(ctx)
+				if err != nil {
+					if ctx.Err() != nil {
+						return // context cancelled, normal exit
+					}
+					slog.Error("consume message", "err", err)
+					continue
+				}
+				if msg == nil {
+					continue
+				}
+
+				if err := handlers.Handle(ctx, msg); err != nil {
+					slog.Error("handle message",
+						"topic", msg.Topic,
+						"err", err,
+					)
+					msg.Nack(ctx, false) // requeue
+				} else {
+					if example.IsEnabled() {
+						example.RecordMessage(ctx, msg.Topic, 1)
+					}
+					msg.Ack(ctx)
+				}
+			}
+		}
+	}()
 
 	<-ctx.Done()
 	slog.Info("worker stopped")
@@ -78,14 +145,14 @@ type Handlers struct {
 	searchSvc   *service.SearchService
 }
 
-func (h *Handlers) Handle(ctx context.Context, topic string, payload []byte) error {
-	switch topic {
+func (h *Handlers) Handle(ctx context.Context, msg *mq.Message) error {
+	switch msg.Topic {
 	case service.TopicArticlePublished:
-		return h.handleArticlePublished(ctx, payload)
+		return h.handleArticlePublished(ctx, msg.Payload)
 	case service.TopicCommentCreated:
-		return h.handleCommentCreated(ctx, payload)
+		return h.handleCommentCreated(ctx, msg.Payload)
 	default:
-		slog.Warn("unknown topic", "topic", topic)
+		slog.Warn("unknown topic", "topic", msg.Topic)
 		return nil
 	}
 }
@@ -96,6 +163,7 @@ func (h *Handlers) handleArticlePublished(ctx context.Context, payload []byte) e
 		return err
 	}
 
+	// Load full article for ES indexing
 	article, err := h.articleRepo.FindByID(ctx, event.ArticleID)
 	if err != nil {
 		return err
@@ -111,10 +179,15 @@ func (h *Handlers) handleCommentCreated(ctx context.Context, payload []byte) err
 		return err
 	}
 
+	// Increment comment count (could update article metadata, send notification, etc.)
 	slog.Info("processed comment event",
 		"comment_id", event.CommentID,
 		"article_id", event.ArticleID,
 	)
+
+	// Example: invalidate article cache if it were managed here
+	// In production you'd publish a cache-invalidation event
+	_ = event
 
 	return nil
 }
@@ -126,6 +199,39 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func parseBrokers(s string) []string {
+	var brokers []string
+	for _, b := range splitComma(s) {
+		b = trim(b)
+		if b != "" {
+			brokers = append(brokers, b)
+		}
+	}
+	return brokers
+}
+
+func splitComma(s string) []string {
+	var out []string
+	start := 0
+	for i := 0; i <= len(s); i++ {
+		if i == len(s) || s[i] == ',' {
+			out = append(out, s[start:i])
+			start = i + 1
+		}
+	}
+	return out
+}
+
+func trim(s string) string {
+	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t') {
+		s = s[1:]
+	}
+	for len(s) > 0 && (s[len(s)-1] == ' ' || s[len(s)-1] == '\t') {
+		s = s[:len(s)-1]
+	}
+	return s
 }
 
 // Suppress unused variable warnings for domain package
