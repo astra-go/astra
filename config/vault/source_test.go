@@ -1,7 +1,10 @@
 package vault
 
 import (
+	"context"
+	"crypto/tls"
 	"testing"
+	"time"
 )
 
 // TestNewSource_TokenAuth tests that NewSource can be created with a token.
@@ -169,4 +172,74 @@ func TestWithKVVersion(t *testing.T) {
 	if s.kvVersion != 1 {
 		t.Errorf("expected kvVersion=1, got %d", s.kvVersion)
 	}
+}
+
+// TestWithTLS verifies TLS option.
+func TestWithTLS(t *testing.T) {
+	opt := WithTLS("/path/to/ca.crt")
+	s := &Source{}
+	opt(s)
+	if s.tlsConfig == nil {
+		t.Error("expected tlsConfig to be set")
+	}
+	if s.caCertPath != "/path/to/ca.crt" {
+		t.Errorf("expected caCertPath=/path/to/ca.crt, got %s", s.caCertPath)
+	}
+	if s.tlsConfig.MinVersion != tls.VersionTLS12 {
+		t.Errorf("expected MinVersion=TLS12, got %d", s.tlsConfig.MinVersion)
+	}
+}
+
+// TestWithTransitKey verifies Transit key option.
+func TestWithTransitKey(t *testing.T) {
+	opt := WithTransitKey("my-encryption-key")
+	s := &Source{}
+	opt(s)
+	if s.transitKey != "my-encryption-key" {
+		t.Errorf("expected transitKey=my-encryption-key, got %s", s.transitKey)
+	}
+}
+
+// TestWithTokenRenewal verifies token renewal option.
+func TestWithTokenRenewal(t *testing.T) {
+	opt := WithTokenRenewal(10 * time.Minute)
+	s := &Source{}
+	opt(s)
+	if s.tokenRenewInterval != 10*time.Minute {
+		t.Errorf("expected tokenRenewInterval=10m, got %v", s.tokenRenewInterval)
+	}
+}
+
+// TestEncryptTransit_NoKey verifies error when no transit key is configured.
+func TestEncryptTransit_NoKey(t *testing.T) {
+	s := &Source{}
+	_, err := s.EncryptTransit(context.Background(), "plaintext")
+	if err == nil {
+		t.Error("expected error when no transit key configured")
+	}
+}
+
+// TestDecryptTransit_NoKey verifies error when no transit key is configured.
+func TestDecryptTransit_NoKey(t *testing.T) {
+	s := &Source{}
+	_, err := s.DecryptTransit(context.Background(), "ciphertext")
+	if err == nil {
+		t.Error("expected error when no transit key configured")
+	}
+}
+
+// TestStartTokenRenewal_Disabled verifies no-op when renewal is disabled.
+func TestStartTokenRenewal_Disabled(t *testing.T) {
+	s := &Source{}
+	err := s.StartTokenRenewal(context.Background())
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+}
+
+// TestSource_Close_Idempotent verifies Close is safe to call multiple times.
+func TestSource_Close_Idempotent(t *testing.T) {
+	s := &Source{closeCh: make(chan struct{})}
+	s.Close()
+	s.Close() // second close should not panic
 }
