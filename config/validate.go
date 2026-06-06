@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"reflect"
 	"regexp"
 	"slices"
@@ -49,14 +51,24 @@ func (e ValidationErrors) Error() string {
 //	maxlen=N          — string length ≤ N (UTF-8 bytes)
 //	oneof=a|b|c       — fmt.Sprintf("%v") of the value must equal one option
 //	pattern=<regex>   — string must match the compiled regular expression
+//	email             — string must be a valid email address
+//	url               — string must be a valid URL
+//	uuid              — string must be a valid UUID (v4 or v7)
+//	ip                — string must be a valid IPv4 or IPv6 address
+//	dns               — string must be a valid DNS hostname
+//	host              — string must be a valid hostname or IP address
+//	port              — int must be a valid port number (1-65535)
+//	len=N             — string length must equal N exactly
 //
 // Example:
 //
 //	type ServerCfg struct {
-//	    Host    string `yaml:"host"    validate:"required"`
-//	    Port    int    `yaml:"port"    validate:"required,min=1,max=65535"`
+//	    Host    string `yaml:"host"    validate:"required,host"`
+//	    Port    int    `yaml:"port"    validate:"required,port"`
 //	    Mode    string `yaml:"mode"    validate:"oneof=debug|release|test"`
-//	    APIKey  string `yaml:"api_key" validate:"minlen=32"`
+//	    APIKey  string `yaml:"api_key" validate:"required,minlen=32"`
+//	    Email   string `yaml:"email"   validate:"email"`
+//	    LogoURL string `yaml:"logo"    validate:"url"`
 //	}
 func Validate(obj any) error {
 	if obj == nil {
@@ -222,9 +234,95 @@ func applyRule(fv reflect.Value, path, rule string) *ValidationError {
 			return &ValidationError{Field: path, Rule: "pattern",
 				Message: fmt.Sprintf("value %q does not match pattern %q", fv.String(), arg)}
 		}
+
+	case "len":
+		n, err := strconv.Atoi(arg)
+		if err != nil {
+			return &ValidationError{Field: path, Rule: "len", Message: fmt.Sprintf("invalid len argument %q", arg)}
+		}
+		if fv.Kind() == reflect.String && len(fv.String()) != n {
+			return &ValidationError{Field: path, Rule: "len",
+				Message: fmt.Sprintf("length %d must be exactly %d", len(fv.String()), n)}
+		}
+
+	case "email":
+		if fv.Kind() != reflect.String {
+			return nil
+		}
+		if !emailRegex.MatchString(fv.String()) {
+			return &ValidationError{Field: path, Rule: "email",
+				Message: fmt.Sprintf("value %q is not a valid email address", fv.String())}
+		}
+
+	case "url":
+		if fv.Kind() != reflect.String {
+			return nil
+		}
+		if _, err := url.ParseRequestURI(fv.String()); err != nil {
+			return &ValidationError{Field: path, Rule: "url",
+				Message: fmt.Sprintf("value %q is not a valid URL: %v", fv.String(), err)}
+		}
+
+	case "uuid":
+		if fv.Kind() != reflect.String {
+			return nil
+		}
+		if !uuidRegex.MatchString(fv.String()) {
+			return &ValidationError{Field: path, Rule: "uuid",
+				Message: fmt.Sprintf("value %q is not a valid UUID", fv.String())}
+		}
+
+	case "ip":
+		if fv.Kind() != reflect.String {
+			return nil
+		}
+		if net.ParseIP(fv.String()) == nil {
+			return &ValidationError{Field: path, Rule: "ip",
+				Message: fmt.Sprintf("value %q is not a valid IP address", fv.String())}
+		}
+
+	case "dns":
+		if fv.Kind() != reflect.String {
+			return nil
+		}
+		if !dnsRegex.MatchString(fv.String()) {
+			return &ValidationError{Field: path, Rule: "dns",
+				Message: fmt.Sprintf("value %q is not a valid DNS hostname", fv.String())}
+		}
+
+	case "host":
+		if fv.Kind() != reflect.String {
+			return nil
+		}
+		val := fv.String()
+		if net.ParseIP(val) == nil && !dnsRegex.MatchString(val) {
+			return &ValidationError{Field: path, Rule: "host",
+				Message: fmt.Sprintf("value %q is not a valid hostname or IP address", val)}
+		}
+
+	case "port":
+		if fv.Kind() != reflect.Int && fv.Kind() != reflect.Int8 &&
+			fv.Kind() != reflect.Int16 && fv.Kind() != reflect.Int32 &&
+			fv.Kind() != reflect.Int64 && fv.Kind() != reflect.Uint &&
+			fv.Kind() != reflect.Uint8 && fv.Kind() != reflect.Uint16 &&
+			fv.Kind() != reflect.Uint32 && fv.Kind() != reflect.Uint64 {
+			return nil
+		}
+		port := int(reflectFloat(fv))
+		if port < 1 || port > 65535 {
+			return &ValidationError{Field: path, Rule: "port",
+				Message: fmt.Sprintf("port %d is out of valid range (1-65535)", port)}
+		}
 	}
 	return nil
 }
+
+// Pre-compiled regular expressions for validation rules.
+var (
+	emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+	uuidRegex  = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	dnsRegex   = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$`)
+)
 
 func reflectFloat(fv reflect.Value) float64 {
 	switch fv.Kind() {
