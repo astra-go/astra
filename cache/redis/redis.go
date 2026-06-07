@@ -84,6 +84,13 @@ func New(cfg Config) (*Cache, error) {
 	if cfg.Addr == "" {
 		cfg.Addr = "localhost:6379"
 	}
+	// Set a default PoolSize to prevent unbounded connection growth.
+	// go-redis defaults to 10*runtime.NumCPU(), which can be excessive on
+	// high-core-count servers. Cap at 100 connections per instance.
+	if cfg.PoolSize <= 0 {
+		cfg.PoolSize = 100
+	}
+
 	client := goredis.NewClient(&goredis.Options{
 		Addr:         cfg.Addr,
 		Password:     cfg.Password,
@@ -173,6 +180,11 @@ func NewCluster(addrs []string, cfg Config) (*ClusterCache, error) {
 	if len(addrs) == 0 {
 		return nil, errors.New("cache/redis: cluster addrs must not be empty")
 	}
+	// Apply default PoolSize for cluster as well.
+	if cfg.PoolSize <= 0 {
+		cfg.PoolSize = 100
+	}
+
 	client := goredis.NewClusterClient(&goredis.ClusterOptions{
 		Addrs:        addrs,
 		Password:     cfg.Password,
