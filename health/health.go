@@ -26,12 +26,17 @@ package health
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
 	"github.com/astra-go/astra"
 )
+
+// startTime records when the process booted; used in /health uptime.
+var startTime = time.Now()
 
 // ProbeFunc is a function that checks the health of a dependency.
 // It returns nil when healthy and an error describing the failure otherwise.
@@ -45,8 +50,12 @@ type named struct {
 
 // options holds the configuration for Register.
 type options struct {
-	prefix string
-	probes []named
+	prefix    string
+	probes     []named
+	startup    []named
+	timeout    time.Duration
+	version    string
+	buildInfo  map[string]string
 }
 
 // Option configures health endpoint registration.
@@ -65,6 +74,34 @@ func WithProbe(name string, probe ProbeFunc) Option {
 	}
 }
 
+// WithStartupProbe adds a startup probe. K8s uses startup probes for
+// slow-initializing applications.
+func WithStartupProbe(name string, probe ProbeFunc) Option {
+	return func(o *options) {
+		o.startup = append(o.startup, named{name: name, probe: probe})
+	}
+}
+
+// WithTimeout sets the per-probe timeout (default: 5s).
+func WithTimeout(d time.Duration) Option {
+	return func(o *options) { o.timeout = d }
+}
+
+// WithVersion sets the application version reported in /health.
+func WithVersion(v string) Option {
+	return func(o *options) { o.version = v }
+}
+
+// WithBuildInfo adds arbitrary key-value pairs to the /health response.
+func WithBuildInfo(k, v string) Option {
+	return func(o *options) {
+		if o.buildInfo == nil {
+			o.buildInfo = make(map[string]string)
+		}
+		o.buildInfo[k] = v
+	}
+}
+
 // Register mounts /health, /ready, and /live on the given router.
 // The router parameter is typically *astra.App, which satisfies astra.RouteRegistrar.
 func Register(app astra.RouteRegistrar, opts ...Option) {
@@ -73,7 +110,12 @@ func Register(app astra.RouteRegistrar, opts ...Option) {
 		opt(o)
 	}
 
-	h := &handler{probes: o.probes}
+	h := &handler{probes: o.probes, timeout: o.timeout, version: o.version, buildInfo: o.buildInfo}
+
+	if len(o.startup) > 0 {
+		sh := &startupHandler{probes: o.startup, maxFailures: 30}
+		app.GET(o.prefix+"/startup", sh.startup)
+	}
 
 	app.GET(o.prefix+"/live", h.live)
 	app.GET(o.prefix+"/ready", h.ready)
@@ -82,17 +124,36 @@ func Register(app astra.RouteRegistrar, opts ...Option) {
 
 // handler holds the registered probes and serves the health endpoints.
 type handler struct {
-	probes []named
+	probes    []named
+	timeout   time.Duration
+	version   string
+	buildInfo map[string]string
+}
+
+type startupHandler struct {
+	mu         sync.Mutex
+	probes     []named
+	maxFailures int
+	failures   map[string]int64
+	started    map[string]bool
 }
 
 // live always returns 200 — it only signals that the Go process is alive.
 func (h *handler) live(c *astra.Ctx) error {
-	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+	resp := map[string]any{"status": "ok"}
+	if h.version != "" {
+		resp["version"] = h.version
+	}
+	return c.JSON(http.StatusOK, resp)
 }
 
 // ready runs all probes and returns 200 only if every probe passes.
 func (h *handler) ready(c *astra.Ctx) error {
-	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
+	t := h.timeout
+	if t == 0 {
+		t = 5 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(c.Request().Context(), t)
 	defer cancel()
 
 	details, ok := h.runProbes(ctx)
@@ -110,7 +171,11 @@ func (h *handler) ready(c *astra.Ctx) error {
 
 // health is a combined liveness + readiness response.
 func (h *handler) health(c *astra.Ctx) error {
-	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
+	t := h.timeout
+	if t == 0 {
+		t = 5 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(c.Request().Context(), t)
 	defer cancel()
 
 	details, ready := h.runProbes(ctx)
@@ -120,12 +185,21 @@ func (h *handler) health(c *astra.Ctx) error {
 		status = "degraded"
 		code = http.StatusServiceUnavailable
 	}
-	return c.JSON(code, map[string]any{
+
+	resp := map[string]any{
 		"status":  status,
 		"live":    true,
 		"ready":   ready,
 		"details": details,
-	})
+		"uptime":  time.Since(startTime).Round(time.Second).String(),
+	}
+	if h.version != "" {
+		resp["version"] = h.version
+	}
+	if len(h.buildInfo) > 0 {
+		resp["build"] = h.buildInfo
+	}
+	return c.JSON(code, resp)
 }
 
 // runProbes executes all probes concurrently.
@@ -163,4 +237,71 @@ func (h *handler) runProbes(ctx context.Context) (map[string]string, bool) {
 		}
 	}
 	return details, allOK
+}
+
+// startup runs the startup probe. Returns 200 when started, 503 when initializing.
+func (sh *startupHandler) startup(c *astra.Ctx) error {
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
+	defer cancel()
+
+	sh.mu.Lock()
+	if sh.failures == nil {
+		sh.failures = make(map[string]int64)
+		sh.started = make(map[string]bool)
+	}
+	sh.mu.Unlock()
+
+	details := make(map[string]string, len(sh.probes))
+	allStarted := true
+
+	for _, p := range sh.probes {
+		sh.mu.Lock()
+		if sh.started[p.name] {
+			sh.mu.Unlock()
+			details[p.name] = "started"
+			continue
+		}
+		sh.mu.Unlock()
+
+		err := p.probe(ctx)
+		sh.mu.Lock()
+		if err == nil {
+			sh.started[p.name] = true
+			details[p.name] = "started"
+		} else {
+			sh.failures[p.name]++
+			fails := sh.failures[p.name]
+			allStarted = false
+			if fails >= int64(sh.maxFailures) {
+				details[p.name] = fmt.Sprintf("failed: %s (%d/%d)", err.Error(), fails, sh.maxFailures)
+			} else {
+				details[p.name] = fmt.Sprintf("initializing (%d/%d): %s", fails, sh.maxFailures, err.Error())
+			}
+		}
+		sh.mu.Unlock()
+	}
+
+	if allStarted {
+		return c.JSON(http.StatusOK, map[string]any{"status": "ok", "details": details})
+	}
+	return c.JSON(http.StatusServiceUnavailable, map[string]any{"status": "initializing", "details": details})
+}
+
+// GolangStats returns a ProbeFunc that checks Go runtime stats.
+// Fails if goroutine count exceeds maxGoroutines or memory exceeds maxMemoryMB.
+func GolangStats(maxGoroutines int, maxMemoryMB uint64) ProbeFunc {
+	return func(ctx context.Context) error {
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+
+		g := runtime.NumGoroutine()
+		if maxGoroutines > 0 && g > maxGoroutines {
+			return fmt.Errorf("goroutines: %d > %d", g, maxGoroutines)
+		}
+		memMB := m.HeapAlloc / 1024 / 1024
+		if maxMemoryMB > 0 && memMB > maxMemoryMB {
+			return fmt.Errorf("heap: %dMB > %dMB", memMB, maxMemoryMB)
+		}
+		return nil
+	}
 }
