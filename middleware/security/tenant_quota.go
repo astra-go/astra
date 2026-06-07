@@ -127,7 +127,7 @@ func TenantQuotaWithConfig(cfg TenantQuotaConfig) astra.HandlerFunc {
 	}
 
 	// Midnight reset goroutine.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, _ := context.WithCancel(context.Background())
 	go dailyResetLoop(ctx, cfg.Store)
 
 	return func(c *astra.Ctx) error {
@@ -414,7 +414,7 @@ func (s *RedisQuotaStore) SetQuota(ctx context.Context, tenantID string, quota *
 
 func (s *RedisQuotaStore) GetQuota(ctx context.Context, tenantID string) (*TenantQuotaLimits, error) {
 	key := s.prefix + "limits:" + tenantID
-	return s.client.GetJSON(ctx, key, &TenantQuotaLimits{})
+	res, err := s.client.GetJSON(ctx, key, &TenantQuotaLimits{}); if err != nil { return nil, err }; return res.(*TenantQuotaLimits), nil
 }
 
 func secondsUntilMidnight(now time.Time) int64 {
@@ -441,11 +441,11 @@ type RedisClientAdapter struct {
 
 // redisUniversalClient matches the go-redis UniversalClient interface.
 type redisUniversalClient interface {
-	IncrBy(ctx context.Context, key string, value int64) *redisIntCmd
-	Expire(ctx context.Context, key string, ttl time.Duration) *redisBoolCmd
-	Get(ctx context.Context, key string) *redisStringCmd
-	Del(ctx context.Context, keys ...string) *redisIntCmd
-	Set(ctx context.Context, key string, value any, ttl time.Duration) *redisStatusCmd
+	IncrBy(ctx context.Context, key string, value int64) redisIntCmd
+	Expire(ctx context.Context, key string, ttl time.Duration) redisBoolCmd
+	Get(ctx context.Context, key string) redisStringCmd
+	Del(ctx context.Context, keys ...string) redisIntCmd
+	Set(ctx context.Context, key string, value any, ttl time.Duration) redisStatusCmd
 }
 
 // NewRedisClientAdapter creates a redisClient from a go-redis UniversalClient.
@@ -470,7 +470,8 @@ func (a *RedisClientAdapter) Get(ctx context.Context, key string) (int64, error)
 
 func (a *RedisClientAdapter) Del(ctx context.Context, key string) error {
 	cmd := a.client.Del(ctx, key)
-	return cmd.Err()
+	_, err := cmd.Result()
+	return err
 }
 
 func (a *RedisClientAdapter) SetJSON(ctx context.Context, key string, val any) error {
