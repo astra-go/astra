@@ -1,6 +1,3 @@
-//go:build redis
-// +build redis
-
 package taskqueue
 
 // This file provides the Redis broker, enabled with build tag "redis".

@@ -118,7 +118,7 @@ func (c *Config) WatchKeyDistinct(key string, callback func(newVal string)) {
 	callback(currentStr)
 
 	c.Watch(func() {
-		newVal, hasNew := c.Get(key)
+		newVal, _ := c.Get(key)
 		newStr := ""
 
 		if newVal != nil {

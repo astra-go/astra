@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
@@ -109,7 +108,7 @@ func NewNacosSource(cfg NacosSourceConfig) (*NacosSource, error) {
 
 	cc := constant.NewClientConfig(
 		constant.WithNamespaceId(cfg.Namespace),
-		constant.WithTimeoutMs(5*time.Second),
+		constant.WithTimeoutMs(5000),
 	)
 	if cfg.Username != "" {
 		cc = constant.NewClientConfig(

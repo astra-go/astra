@@ -29,7 +29,8 @@ import (
 
 	"github.com/apolloconfig/agollo/v4"
 	"github.com/apolloconfig/agollo/v4/env/config"
-	"gopkg.in/yaml.v3"
+	"github.com/apolloconfig/agollo/v4/storage"
+
 )
 
 // ApolloSourceConfig configures an ApolloSource.
@@ -221,11 +222,10 @@ func splitKeyHelper(key string, idx int) []string {
 		return []string{}
 	}
 
-findDot:
 	for i := idx; i < len(key); i++ {
 		if key[i] == '.' {
 			head := key[:i]
-			tail := splitKeyHelper(key[i+1], i+1)
+			tail := splitKeyHelper(key[i+1:], 0)
 			result := make([]string, 0, len(tail)+1)
 			result = append(result, head)
 			result = append(result, tail...)
@@ -244,14 +244,14 @@ type apolloSourceListener struct {
 }
 
 // OnChange implements agollo's ChangeListener.
-func (l *apolloSourceListener) OnChange(event interface{}) {
+func (l *apolloSourceListener) OnChange(event *storage.ChangeEvent) {
 	if l.notify != nil {
 		l.notify()
 	}
 }
 
 // OnNewestChange implements agollo's ChangeListener.
-func (l *apolloSourceListener) OnNewestChange(event interface{}) {
+func (l *apolloSourceListener) OnNewestChange(event *storage.FullChangeEvent) {
 	// OnChange already triggers notification
 }
 
