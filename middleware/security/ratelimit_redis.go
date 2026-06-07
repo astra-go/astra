@@ -163,6 +163,8 @@ return 0
 `)
 
 // NewRedisTokenBucketStore creates a Redis-backed token-bucket store.
+// When Redis is unavailable the store is marked offline; callers should
+// fall back to an in-memory token bucket in that case.
 func NewRedisTokenBucketStore(cfg DistributedRateLimitConfig) (*RedisTokenBucketStore, func()) {
 	if cfg.KeyPrefix == "" {
 		cfg.KeyPrefix = "astra:rl:"
@@ -196,13 +198,28 @@ func NewRedisTokenBucketStore(cfg DistributedRateLimitConfig) (*RedisTokenBucket
 			slog.String("addr", cfg.RedisAddr))
 	}
 
+	// Start background health probe so Redis is automatically re-enabled
+	// when it recovers.
+	healthCtx, healthCancel := context.WithCancel(resolveContext(cfg.Context))
+	go store.healthProbe(healthCtx, cfg.RedisAddr, cfg.Logger)
+
 	stop := func() {
+		healthCancel()
 		store.stopOnce.Do(func() { store.client.Close() })
 	}
 	return store, stop
 }
 
+// IsOnline reports whether the Redis backend is currently reachable.
+func (s *RedisTokenBucketStore) IsOnline() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.online
+}
+
 // Allow checks the token bucket. Returns true if a token is available.
+// When the store is offline it returns (false, nil) so that the caller
+// can fall back to the in-memory bucket.
 func (s *RedisTokenBucketStore) Allow(ctx context.Context, key string) (bool, error) {
 	s.mu.RLock()
 	online := s.online
@@ -224,21 +241,14 @@ func (s *RedisTokenBucketStore) Allow(ctx context.Context, key string) (bool, er
 	).Int()
 
 	if err != nil {
-		// Mark Redis offline on error; allow requests to pass.
+		// Mark Redis offline on transient error; in-memory fallback takes over.
 		if isRedisRetryable(err) {
 			s.mu.Lock()
 			s.online = false
 			s.mu.Unlock()
-			return true, nil
+			return false, nil
 		}
 		return false, fmt.Errorf("redis token-bucket: %w", err)
-	}
-
-	// Re-enable Redis on successful call after a previous failure.
-	s.mu.Lock()
-	if !s.online {
-		s.online = true
-		s.mu.Unlock()
 	}
 
 	return result == 1, nil
@@ -249,6 +259,43 @@ func (s *RedisTokenBucketStore) SetOnline(v bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.online = v
+}
+
+// healthProbe periodically pings Redis and flips the store back online when
+// it recovers. Exits when ctx is cancelled.
+func (s *RedisTokenBucketStore) healthProbe(ctx context.Context, addr string, logger *slog.Logger) {
+	// Exponential backoff: 1s, 2s, 4s, ... up to 30s.
+	interval := time.Second
+	maxInterval := 30 * time.Second
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(interval):
+		}
+
+		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		err := s.client.Ping(pingCtx).Err()
+		cancel()
+
+		if err == nil {
+			s.mu.Lock()
+			wasOffline := !s.online
+			s.online = true
+			s.mu.Unlock()
+			if wasOffline {
+				logger.Info("distributed rate limiter: Redis recovered",
+					slog.String("addr", addr))
+			}
+			interval = time.Second // reset backoff
+		} else {
+			// Still down, back off.
+			if interval < maxInterval {
+				interval = interval * 2
+			}
+		}
+	}
 }
 
 // Close releases the Redis connection.
@@ -307,7 +354,16 @@ func NewRedisSlidingWindowStore(client *redis.Client, keyPrefix string, window t
 	return store, func() { store.client.Close() }
 }
 
+// IsOnline reports whether the Redis backend is currently reachable.
+func (s *RedisSlidingWindowStore) IsOnline() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.online
+}
+
 // Allow checks the sliding window counter.
+// When the store is offline it returns (false, nil) so that the caller
+// can fall back to the in-memory bucket.
 func (s *RedisSlidingWindowStore) Allow(ctx context.Context, key string) (bool, error) {
 	s.mu.RLock()
 	online := s.online
@@ -361,15 +417,9 @@ return 0
 			s.mu.Lock()
 			s.online = false
 			s.mu.Unlock()
-			return true, nil
+			return false, nil
 		}
 		return false, fmt.Errorf("redis sliding-window: %w", err)
-	}
-
-	s.mu.Lock()
-	if !s.online {
-		s.online = true
-		s.mu.Unlock()
 	}
 
 	return result == 1, nil
@@ -431,11 +481,14 @@ func DistributedRateLimitWithConfig(cfg DistributedRateLimitConfig) (astra.Handl
 	redisStore, stopRedis := NewRedisTokenBucketStore(cfg)
 
 	// Fallback in-memory store (pure token bucket, no Redis).
+	// Used when Redis is offline — this is the local degradation layer.
 	memStore := &tokenBucketStore{
 		buckets: make(map[string]*tokenBucket),
 		rate:    cfg.Rate,
 		burst:   cfg.Burst,
 	}
+	memCtx := resolveContext(cfg.Context)
+	go memStore.cleanup(memCtx)
 
 	return func(c *astra.Ctx) error {
 		if shouldSkip(cfg.Skipper, c) {
@@ -443,24 +496,30 @@ func DistributedRateLimitWithConfig(cfg DistributedRateLimitConfig) (astra.Handl
 		}
 		key := cfg.KeyFunc(c)
 
-		// Fast path: check local in-memory bucket first.
-		// This avoids a Redis round-trip for the majority of requests.
-		if memStore.allow(key) {
-			return nil
+		if redisStore.IsOnline() {
+			// Redis is available: use distributed token bucket.
+			allowed, err := redisStore.Allow(c.Request().Context(), key)
+			if err != nil {
+				// Non-retryable error — fall back to in-memory.
+				if !memStore.allow(key) {
+					c.Writer().Header().Set("Retry-After", "1")
+					return cfg.ErrorHandler(c)
+				}
+				return nil
+			}
+			if allowed {
+				return nil
+			}
+			c.Writer().Header().Set("Retry-After", "1")
+			return cfg.ErrorHandler(c)
 		}
 
-		// Local bucket exhausted: try Redis.
-		allowed, err := redisStore.Allow(c.Request().Context(), key)
-		if err != nil {
-			// Redis error: fail open (allow) to avoid blocking traffic.
-			return nil
+		// Redis offline: degrade to in-memory token bucket.
+		if !memStore.allow(key) {
+			c.Writer().Header().Set("Retry-After", "1")
+			return cfg.ErrorHandler(c)
 		}
-		if allowed {
-			return nil
-		}
-
-		c.Writer().Header().Set("Retry-After", "1")
-		return cfg.ErrorHandler(c)
+		return nil
 	}, stopRedis
 }
 
@@ -513,6 +572,20 @@ func DistributedSlidingWindowWithConfig(cfg DistributedRateLimitConfig) (astra.H
 		online:    true,
 	}
 
+	// Probe Redis to confirm connectivity.
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if err := client.Ping(pingCtx).Err(); err != nil {
+		store.mu.Lock()
+		store.online = false
+		store.mu.Unlock()
+	}
+	pingCancel()
+
+	// Start health probe for sliding window store.
+	swHealthCtx, swHealthCancel := context.WithCancel(resolveContext(cfg.Context))
+	go swHealthProbe(store, client, cfg.RedisAddr, swHealthCtx)
+
+	// Fallback in-memory sliding window store.
 	memStore := &swStore{window: window}
 
 	return func(c *astra.Ctx) error {
@@ -521,20 +594,66 @@ func DistributedSlidingWindowWithConfig(cfg DistributedRateLimitConfig) (astra.H
 		}
 		key := cfg.KeyFunc(c)
 
-		if memStore.allow(key, limit) {
-			return nil
+		if store.IsOnline() {
+			allowed, err := store.Allow(c.Request().Context(), key)
+			if err != nil {
+				// Non-retryable error — fall back to in-memory.
+				if !memStore.allow(key, limit) {
+					return cfg.ErrorHandler(c)
+				}
+				return nil
+			}
+			if allowed {
+				return nil
+			}
+			return cfg.ErrorHandler(c)
 		}
 
-		allowed, err := store.Allow(c.Request().Context(), key)
-		if err != nil {
-			return nil
+		// Redis offline: degrade to in-memory sliding window.
+		if !memStore.allow(key, limit) {
+			return cfg.ErrorHandler(c)
 		}
-		if allowed {
-			return nil
+		return nil
+	}, func() {
+		swHealthCancel()
+		_ = client.Close()
+	}
+}
+
+// swHealthProbe periodically pings Redis and flips the sliding-window store
+// back online when it recovers.
+func swHealthProbe(store *RedisSlidingWindowStore, client *redis.Client, addr string, ctx context.Context) {
+	logger := slog.Default()
+	interval := time.Second
+	maxInterval := 30 * time.Second
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(interval):
 		}
 
-		return cfg.ErrorHandler(c)
-	}, func() { _ = client.Close() }
+		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		err := client.Ping(pingCtx).Err()
+		cancel()
+
+		if err == nil {
+			store.mu.Lock()
+			wasOffline := !store.online
+			store.online = true
+			store.mu.Unlock()
+			if wasOffline {
+				logger.Info("distributed sliding-window: Redis recovered",
+					slog.String("addr", addr))
+			}
+			interval = time.Second
+		} else {
+			if interval < maxInterval {
+				interval = interval * 2
+			}
+		}
+	}
 }
 
 // DistributedSlidingWindow is shorthand.
