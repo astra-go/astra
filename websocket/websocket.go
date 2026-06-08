@@ -274,6 +274,9 @@ func (c *Client) writePump() {
 type MessageHandler func(client *Client, message []byte)
 
 // Hub manages a set of WebSocket clients and routes messages.
+// SECURITY: MaxClients limits the number of concurrent connections.
+// When MaxClients > 0 and limit is reached, new connections are rejected
+// with HTTP 503 Service Unavailable.
 type Hub struct {
 	clients    map[*Client]bool
 	broadcast  chan []byte
@@ -281,6 +284,7 @@ type Hub struct {
 	unregister chan *Client
 	mu         sync.RWMutex
 
+	MaxClients   int           // Maximum concurrent clients (0 = unlimited)
 	onConnect    func(*Client)
 	onDisconnect func(*Client)
 }
@@ -295,6 +299,14 @@ func NewHub() *Hub {
 	}
 }
 
+// WithMaxClients sets the maximum number of concurrent connections.
+// When the limit is reached, new connections receive HTTP 503.
+// Recommended for production: set to a reasonable limit based on your server capacity.
+func (h *Hub) WithMaxClients(max int) *Hub {
+	h.MaxClients = max
+	return h
+}
+
 // OnConnect registers a callback called when a new client connects.
 func (h *Hub) OnConnect(fn func(*Client)) { h.onConnect = fn }
 
@@ -307,6 +319,20 @@ func (h *Hub) Run() {
 		select {
 		case client := <-h.register:
 			h.mu.Lock()
+			// Check MaxClients limit
+			if h.MaxClients > 0 && len(h.clients) >= h.MaxClients {
+				h.mu.Unlock()
+				// Reject connection - client will be unregistered
+				client.mu.Lock()
+				client.closed = true
+				client.mu.Unlock()
+				client.conn.WriteMessage(gorilla.CloseMessage,
+					gorilla.FormatCloseMessage(gorilla.CloseTryAgainLater, "server at capacity"))
+				client.conn.Close()
+				slog.Warn("websocket: rejected connection, max clients reached",
+					slog.Int("max", h.MaxClients))
+				continue
+			}
 			h.clients[client] = true
 			h.mu.Unlock()
 			if h.onConnect != nil {
