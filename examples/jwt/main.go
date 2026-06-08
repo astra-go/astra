@@ -5,11 +5,17 @@
 //   POST /auth/login     → { access_token, refresh_token, expires_in }
 //   POST /auth/refresh   → new access_token using refresh_token
 //   GET  /api/me         → protected: returns current user from claims
+//
+// ⚠️  SECURITY WARNING: This is an EXAMPLE with hardcoded secrets for demo purposes only.
+// ⚠️  NEVER use these secrets in production! Always use environment variables:
+// ⚠️    export JWT_ACCESS_SECRET=$(openssl rand -base64 32)
+// ⚠️    export JWT_REFRESH_SECRET=$(openssl rand -base64 32)
 package main
 
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -21,11 +27,25 @@ import (
 	sec "github.com/astra-go/astra/middleware/security"
 )
 
+var (
+	// ⚠️  EXAMPLE ONLY - DO NOT USE IN PRODUCTION
+	// In production, load these from environment variables:
+	//   accessSecret = os.Getenv("JWT_ACCESS_SECRET")
+	//   refreshSecret = os.Getenv("JWT_REFRESH_SECRET")
+	accessSecret  = getEnvOrDefault("JWT_ACCESS_SECRET", "access-secret-change-in-prod")
+	refreshSecret = getEnvOrDefault("JWT_REFRESH_SECRET", "refresh-secret-change-in-prod")
+)
+
+func getEnvOrDefault(key, def string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return def
+}
+
 const (
-	accessSecret  = "access-secret-change-in-prod"
-	refreshSecret = "refresh-secret-change-in-prod"
-	accessTTL     = 15 * time.Minute
-	refreshTTL    = 7 * 24 * time.Hour
+	accessTTL  = 15 * time.Minute
+	refreshTTL = 7 * 24 * time.Hour
 )
 
 // ─── User store ────────────────────────────────────────────────────────────────
@@ -231,6 +251,14 @@ func (h *AuthHandler) Me(c *astra.Ctx) error {
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 func main() {
+	// ⚠️  Warn if using default secrets
+	if accessSecret == "access-secret-change-in-prod" || refreshSecret == "refresh-secret-change-in-prod" {
+		fmt.Println("\n⚠️  SECURITY WARNING: Using default JWT secrets! This is NOT secure for production.")
+		fmt.Println("⚠️  Set environment variables before deployment:")
+		fmt.Println("⚠️    export JWT_ACCESS_SECRET=$(openssl rand -base64 32)")
+		fmt.Println("⚠️    export JWT_REFRESH_SECRET=$(openssl rand -base64 32)\n")
+	}
+
 	app := astra.New(astra.WithShutdownTimeout(10))
 	app.Use(
 		middleware.RequestID(),
