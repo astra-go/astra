@@ -39,6 +39,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -56,12 +57,29 @@ const (
 )
 
 // Upgrader is the default WebSocket upgrader.
-// Override CheckOrigin to restrict origins in production.
+// SECURITY: By default, CheckOrigin requires same-origin policy to prevent
+// Cross-Site WebSocket Hijacking (CSWSH). To allow all origins (NOT recommended
+// for production), explicitly set websocket.Upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 var Upgrader = gorilla.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // allow all origins by default (tighten in production)
+		// Default: same-origin policy to prevent CSWSH
+		// Compare Origin header with Host header
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			// No Origin header (e.g., non-browser clients) - allow
+			// For stricter security, return false here
+			return true
+		}
+		// Parse origin and compare with host
+		originURL, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+		host := r.Host
+		// Allow same-origin requests
+		return originURL.Host == host
 	},
 }
 
