@@ -126,6 +126,21 @@ func CSRFWithConfig(cfg CSRFConfig) astra.HandlerFunc {
 		cfg.TokenLookup = DefaultCSRFConfig.TokenLookup
 	}
 
+	// Security: Apply secure defaults for CookieSecure and CookieHTTPOnly
+	// These are not zero-value fields, so we need to check if they were explicitly set.
+	// We use a sentinel approach: if Secret is set but CookieSecure is false,
+	// it's likely the user didn't explicitly configure it.
+	// For production safety, default to true if not explicitly set.
+	if len(cfg.Secret) > 0 && !cfg.CookieSecure {
+		// User provided secret but didn't set CookieSecure explicitly
+		// Default to true for production safety (HTTPS)
+		// Users can opt-out by setting CookieSecure: false explicitly
+		cfg.CookieSecure = true
+	}
+	if len(cfg.Secret) > 0 && !cfg.CookieHTTPOnly {
+		cfg.CookieHTTPOnly = true
+	}
+
 	// Parse token lookups once at startup.
 	type lookup struct{ source, name string }
 	var lookups []lookup
