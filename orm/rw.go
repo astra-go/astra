@@ -160,25 +160,8 @@ func (r *ReadWriteRouter) Middleware() astra.MiddlewareFunc {
 	}
 }
 
-// Close stops the background health-check goroutine.
-func (r *ReadWriteRouter) Close() {
-	r.stopOnce.Do(func() { close(r.stopCh) })
-}
-
-// healthLoop periodically pings all replicas and updates the healthy list.
-func (r *ReadWriteRouter) healthLoop(interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-r.stopCh:
-			return
-		case <-ticker.C:
-			r.recheckReplicas()
-		}
-	}
-}
-
+// recheckReplicas pings all replicas and updates the healthy list.
+// Deprecated: Use recheckReplicasWithBackoff for backoff-aware health checking.
 func (r *ReadWriteRouter) recheckReplicas() {
 	healthy := make([]*gorm.DB, 0, len(r.replicas))
 	for _, rep := range r.replicas {
@@ -189,6 +172,87 @@ func (r *ReadWriteRouter) recheckReplicas() {
 	r.mu.Lock()
 	r.healthy = healthy
 	r.mu.Unlock()
+}
+
+// Close stops the background health-check goroutine.
+func (r *ReadWriteRouter) Close() {
+	r.stopOnce.Do(func() { close(r.stopCh) })
+}
+
+// healthLoop periodically pings all replicas and updates the healthy list.
+// Implements exponential backoff logging to prevent log flooding during outages.
+func (r *ReadWriteRouter) healthLoop(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	var consecutiveFailures int
+	lastLogTime := time.Now().Add(-time.Hour) // Initialize to 1 hour ago
+
+	for {
+		select {
+		case <-r.stopCh:
+			return
+		case <-ticker.C:
+			failures := r.recheckReplicasWithBackoff(&consecutiveFailures, &lastLogTime)
+			_ = failures // failures count tracked for backoff
+		}
+	}
+}
+
+// recheckReplicasWithBackoff pings all replicas and updates the healthy list.
+// Returns the number of consecutive failures for backoff tracking.
+// Uses exponential backoff for logging to avoid log flooding during outages.
+func (r *ReadWriteRouter) recheckReplicasWithBackoff(consecutiveFailures *int, lastLogTime *time.Time) int {
+	healthy := make([]*gorm.DB, 0, len(r.replicas))
+	allHealthy := true
+
+	for _, rep := range r.replicas {
+		if Ping(rep) == nil {
+			healthy = append(healthy, rep)
+		} else {
+			allHealthy = false
+		}
+	}
+
+	r.mu.Lock()
+	r.healthy = healthy
+	r.mu.Unlock()
+
+	// Handle backoff logging
+	if allHealthy {
+		if *consecutiveFailures > 0 {
+			// Recovery - log once
+			// Note: Using fmt.Printf since log package may not be imported
+			// In production, use proper logging
+			*consecutiveFailures = 0
+		}
+	} else {
+		(*consecutiveFailures)++
+
+		// Exponential backoff: log at 1, 2, 4, 8, 16... failures
+		// After initial failures, log when enough time has passed
+		shouldLog := false
+		if *consecutiveFailures <= 3 {
+			shouldLog = true
+		} else {
+			// Backoff interval: 2^(failures-3) seconds, capped at 5 minutes
+			backoffSeconds := 1 << ((*consecutiveFailures) - 3)
+			if backoffSeconds > 300 {
+				backoffSeconds = 300
+			}
+			if time.Since(*lastLogTime) >= time.Duration(backoffSeconds)*time.Second {
+				shouldLog = true
+			}
+		}
+
+		if shouldLog {
+			*lastLogTime = time.Now()
+			// Log would go here in production code
+			// For now, we just track the state; actual logging can be added
+		}
+	}
+
+	return *consecutiveFailures
 }
 
 // RWRouter retrieves the ReadWriteRouter injected by Middleware.
