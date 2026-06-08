@@ -144,6 +144,14 @@ func New(app *astra.App, opts ...Option) *Server {
 	if options.tlsConfig != nil {
 		defaultGRPCOpts = append(defaultGRPCOpts,
 			grpc.Creds(credentials.NewTLS(options.tlsConfig)))
+	} else {
+		// Security warning: gRPC server running without TLS (plaintext)
+		slog.Warn("SECURITY WARNING: gRPC server is running without TLS. " +
+			"All traffic will be unencrypted. Use WithTLSConfig() in production. " +
+			"Set ASTRA_GRPC_INSECURE_OK=1 to suppress this warning.")
+		if os.Getenv("ASTRA_GRPC_INSECURE_OK") != "1" {
+			slog.Warn("Set environment variable ASTRA_GRPC_INSECURE_OK=1 to acknowledge and suppress this warning.")
+		}
 	}
 
 	// ── Built-in interceptors (Kratos-style) ─────────────────────────────────
