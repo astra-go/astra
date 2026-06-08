@@ -4,7 +4,18 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 )
+
+// DefaultHTTPClient is the default HTTP client for probes.
+// Configured with reasonable timeouts to prevent hanging.
+var DefaultHTTPClient = &http.Client{
+	Timeout: 10 * time.Second,
+	Transport: &http.Transport{
+		TLSHandshakeTimeout:   5 * time.Second,
+		ResponseHeaderTimeout: 5 * time.Second,
+	},
+}
 
 // RedisProbe returns a ProbeFunc that pings a redis.UniversalClient.
 // Accepts any value with a Ping method matching the redis client interface,
@@ -25,7 +36,7 @@ func HTTPProbe(url string) ProbeFunc {
 		if err != nil {
 			return err
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := DefaultHTTPClient.Do(req)
 		if err != nil {
 			return err
 		}
