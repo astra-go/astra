@@ -318,11 +318,32 @@ func NewReconnectingPool(url string, cfg PoolConfig) *ReconnectingPool {
 	}
 }
 
-// Connect starts the reconnecting pool.
+// Connect starts the reconnecting pool and spawns a background goroutine
+// that keeps attempting to reconnect indefinitely.
 func (p *ReconnectingPool) Connect(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	p.stop = cancel
 
+	// Start background reconnector that runs indefinitely
+	go func() {
+		for {
+			err := p.reconnect(ctx)
+			if err == nil {
+				// Connected successfully, wait for disconnect or stop
+				return
+			}
+			// MaxReconnect attempts reached, wait before starting new series
+			slog.Warn("websocket: reconnect series exhausted, will retry",
+				"delay", p.cfg.ReconnectDelay*10)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(p.cfg.ReconnectDelay * 10):
+			}
+		}
+	}()
+
+	// Initial connection attempt (non-blocking)
 	return p.reconnect(ctx)
 }
 
