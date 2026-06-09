@@ -43,6 +43,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **CSRF 测试回归**: 修复 CookieSecure 默认值覆盖用户显式配置的问题
 - **runner/dagu.go 编译错误**: 补充缺失的 `package runner` 声明
 
+### Dependencies
+
+- **spf13/viper v1.8.1 → v1.21.0**: 间接依赖升级，跳过四个大版本
+- **关联依赖同步升级**: spf13/afero (v1.6.0→v1.15.0), spf13/cast (v1.3.1→v1.10.0), spf13/pflag (v1.0.5→v1.0.10), subosito/gotenv (v1.2.0→v1.6.0)
+
 ---
 
 ## [1.1.1-beta.1] — 2026-06-04
