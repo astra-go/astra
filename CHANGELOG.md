@@ -41,6 +41,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **Session ID 轮换机制**: 新增 `Session.RegenerateID()` 方法，在权限提升（登录、角色升级）后生成新 session ID，防止会话固定攻击
 
+### Changed
+
+- **CSRF 注释修正**: `CookieSecure`/`CookieHTTPOnly` 结构体注释现在正确反映默认值（均为 `true`）
+- **开发环境密码加固**: docker-compose.dev.yml 和 astractl 模板中的弱密码（`dev123`、`admin`、`postgres`）替换为项目唯一凭据
+
 ### Fixed
 
 - **goroutine泄漏(middleware/security)**: `DistributedRateLimitWithConfig` 中的内存回退存储清理协程无法被停止，默认使用 `context.Background()`。改用 `context.WithCancel` 修复。
