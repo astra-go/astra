@@ -16,6 +16,11 @@ import (
 	"github.com/astra-go/astra/netengine"
 )
 
+// testHTTPClient is used in tests with proper timeouts.
+var testHTTPClient = &http.Client{
+	Timeout: 10 * time.Second,
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 // startEngine creates a Reactor engine with the given handler, listens on a
@@ -247,7 +252,7 @@ func TestEngine_HEADRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testHTTPClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
