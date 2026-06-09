@@ -12,6 +12,38 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.4.2-security] — 2026-06-09
+
+### Security
+
+本次发布包含 **13 项安全修复**，覆盖 WebSocket、gRPC、HTTP 客户端、CSRF、认证密钥、资源连接池等领域。
+
+#### 🔴 Critical
+
+- **gRPC 默认明文传输**: 启动时检测 insecure 模式并记录 WARN 日志（`grpc/server.go`）
+- **WebSocket CSWSH 漏洞**: 默认 CheckOrigin 返回 false，要求显式配置允许 Origin（`websocket/websocket.go`）
+- **WebSocket ReconnectingPool 僵死**: MaxReconnect 耗尽后启动后台 goroutine 继续重试（`websocket/pool.go`）
+- **ORM 健康检查日志轰炸**: 指数退避策略，只在状态变化时输出日志（`orm/rw.go`）
+
+#### 🟠 High
+
+- **CSRF Cookie 安全默认值**: `CookieSecure` 和 `CookieHTTPOnly` 默认启用（`middleware/csrf.go`）
+- **JWT 示例硬编码密钥**: 支持环境变量读取，硬编码时输出警告（`examples/jwt/main.go`）
+- **WebSocket Hub 连接数限制**: 添加 `MaxClients` 字段防止资源耗尽（`websocket/websocket.go`）
+- **Redis 连接池无限增长**: 默认 PoolSize=100, MinIdleConns=20（`cache/redis/redis.go`）
+
+#### 🟡 Medium
+
+- **HTTP 客户端无超时（4处）**: `health/probes.go`、`alert/channel.go`、`runner/dagu.go`、`netengine/engine_test.go` 中替换 `http.DefaultClient` 为带超时客户端
+- **非结构化日志**: `tools/modproxy` 从 `log.Print/Fatal` 迁移到 `log/slog` 结构化日志
+
+### Fixed
+
+- **CSRF 测试回归**: 修复 CookieSecure 默认值覆盖用户显式配置的问题
+- **runner/dagu.go 编译错误**: 补充缺失的 `package runner` 声明
+
+---
+
 ## [1.1.1-beta.1] — 2026-06-04
 
 ### Added
