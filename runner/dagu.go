@@ -1,6 +1,8 @@
 //go:build dagu
 // +build dagu
 
+package runner
+
 // defaultHTTPClient is used for Dagu API calls with reasonable timeouts.
 var defaultHTTPClient = &http.Client{
 	Timeout: 30 * time.Second,
