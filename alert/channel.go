@@ -11,6 +11,15 @@ import (
 	"time"
 )
 
+// defaultHTTPClient is used for webhook notifications with reasonable timeouts.
+var defaultHTTPClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+	},
+}
+
 // Channel is the interface implemented by all notification backends.
 type Channel interface {
 	// Name returns the unique identifier used to reference this channel in Rule.Channels.
@@ -89,7 +98,7 @@ func (w *WebhookChannel) Send(ctx context.Context, a *Alert) error {
 		req.Header.Set(k, v)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := defaultHTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("alert/webhook: POST %s: %w", w.URL, err)
 	}
