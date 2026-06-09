@@ -1,7 +1,14 @@
 //go:build dagu
 // +build dagu
 
-package runner
+// defaultHTTPClient is used for Dagu API calls with reasonable timeouts.
+var defaultHTTPClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+	},
+}
 
 // This file provides the dagu backend, enabled with build tag "dagu".
 
@@ -157,7 +164,7 @@ func (r *DaguRunner) Jobs() []JobInfo {
 	if r.cfg.Username != "" {
 		req.SetBasicAuth(r.cfg.Username, r.cfg.Password)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := defaultHTTPClient.Do(req)
 	if err != nil {
 		slog.Warn("runner: Jobs() HTTP error", "err", err)
 		return r.localDaguJobs()
