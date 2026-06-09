@@ -487,7 +487,7 @@ func DistributedRateLimitWithConfig(cfg DistributedRateLimitConfig) (astra.Handl
 		rate:    cfg.Rate,
 		burst:   cfg.Burst,
 	}
-	memCtx := resolveContext(cfg.Context)
+	memCtx, memCancel := context.WithCancel(resolveContext(cfg.Context))
 	go memStore.cleanup(memCtx)
 
 	return func(c *astra.Ctx) error {
@@ -520,7 +520,10 @@ func DistributedRateLimitWithConfig(cfg DistributedRateLimitConfig) (astra.Handl
 			return cfg.ErrorHandler(c)
 		}
 		return nil
-	}, stopRedis
+	}, func() {
+		memCancel()
+		stopRedis()
+	}
 }
 
 // DistributedRateLimit is shorthand with DefaultDistributedRateLimitConfig.
