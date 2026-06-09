@@ -5,6 +5,8 @@ package client
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -159,6 +161,7 @@ func (p *GRPCPool) connFor(inst *discovery.ServiceInstance) (*grpc.ClientConn, e
 
 	// Default dial options: insecure + keepalive.
 	// Use WithGRPCDialOptions to override (e.g. pass TLS credentials).
+	// SECURITY WARNING: Default is insecure (plaintext). Use TLS in production.
 	defaults := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -167,6 +170,14 @@ func (p *GRPCPool) connFor(inst *discovery.ServiceInstance) (*grpc.ClientConn, e
 			PermitWithoutStream: true,
 		}),
 	}
+
+	// Warn once if using insecure credentials
+	if os.Getenv("ASTRA_GRPC_INSECURE_OK") != "1" {
+		slog.Warn("SECURITY WARNING: gRPC client using insecure (plaintext) connection. " +
+			"Use WithGRPCDialOptions(grpc.WithTransportCredentials(...)) with TLS in production. " +
+			"Set ASTRA_GRPC_INSECURE_OK=1 to suppress this warning.")
+	}
+
 	dialOpts := append(defaults, p.dialOpts...)
 
 	conn, err := grpc.NewClient(inst.Address, dialOpts...)
