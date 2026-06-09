@@ -7,3 +7,4 @@ trace.out
 .bench-current.txt
 docs/*
 tools/modproxy/*
+!tools/modproxy/main.go
