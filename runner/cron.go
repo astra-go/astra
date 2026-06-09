@@ -74,6 +74,7 @@ func (r *CronRunner) Every(name string, d time.Duration, job JobFunc) error {
 func (r *CronRunner) Start(ctx context.Context) error {
 	r.s.Start()
 	go func() {
+		<-ctx.Done()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = r.s.Shutdown(shutCtx)

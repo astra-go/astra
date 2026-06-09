@@ -40,13 +40,20 @@ type revokeEntry struct {
 type MemoryRevokeStore struct {
 	mu      sync.RWMutex
 	entries map[string]revokeEntry
+	stop    chan struct{}
+	once    sync.Once
 }
 
-// NewMemoryRevokeStore creates an empty in-memory revocation store.
+// NewMemoryRevokeStore creates an empty in-memory revocation store
+// with a background purge goroutine that runs every 5 minutes.
+// Call Close to stop the background goroutine and release resources.
 func NewMemoryRevokeStore() *MemoryRevokeStore {
-	return &MemoryRevokeStore{
+	s := &MemoryRevokeStore{
 		entries: make(map[string]revokeEntry),
+		stop:    make(chan struct{}),
 	}
+	go s.purgeLoop()
+	return s
 }
 
 // IsRevoked implements TokenRevokeStore.
@@ -99,6 +106,25 @@ func (s *MemoryRevokeStore) purgeExpiredLocked(now int64) {
 	for k, e := range s.entries {
 		if e.expireAt <= now {
 			delete(s.entries, k)
+		}
+	}
+}
+
+// Close stops the background purge goroutine. Safe to call multiple times.
+func (s *MemoryRevokeStore) Close() {
+	s.once.Do(func() { close(s.stop) })
+}
+
+// purgeLoop runs a periodic purge of expired entries every 5 minutes.
+func (s *MemoryRevokeStore) purgeLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			s.Purge()
+		case <-s.stop:
+			return
 		}
 	}
 }

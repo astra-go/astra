@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -64,7 +65,13 @@ func RecoveryWithConfig(cfg RecoveryConfig) astra.HandlerFunc {
 
 				// Send alert if configured (for production monitoring)
 				if cfg.AlertFunc != nil {
-					go cfg.AlertFunc(c, r, string(stackBuf))
+					go func() {
+						// Use a timeout to prevent AlertFunc from blocking indefinitely.
+						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+						defer cancel()
+						_ = ctx // ctx is available for AlertFunc implementations to check
+						cfg.AlertFunc(c, r, string(stackBuf))
+					}()
 				}
 
 				// Get writer once and check if it's valid

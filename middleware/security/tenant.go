@@ -31,6 +31,7 @@ package security
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/astra-go/astra"
@@ -81,6 +82,10 @@ type TenantConfig struct {
 	// Validator is an optional function that validates the extracted tenant ID.
 	// Return a non-nil error to reject the request; the error message is
 	// included in the 400 response.
+	// When nil and Required is true, a default validator is applied that
+	// rejects empty strings and values containing characters other than
+	// alphanumeric, hyphens, and underscores. This prevents injection
+	// attacks when the tenant ID is used in database queries.
 	Validator func(ctx context.Context, tenantID string) error
 
 	// Skipper skips tenant extraction for matching requests.
@@ -146,6 +151,13 @@ func buildTenantMiddleware(cfg TenantConfig) astra.HandlerFunc {
 	}
 	if cfg.Sources == 0 {
 		cfg.Sources = tenantSrcAll
+	}
+
+	// Apply a default validator when Required is true and none is provided.
+	// This prevents injection attacks (e.g. SQL injection via tenant ID)
+	// when the tenant ID is used in database queries like GORM scopes.
+	if cfg.Required && cfg.Validator == nil {
+		cfg.Validator = defaultTenantValidator
 	}
 
 	return func(c *astra.Ctx) error {
@@ -220,4 +232,19 @@ func defaultTenantError(c *astra.Ctx) error {
 		"code":    http.StatusBadRequest,
 		"message": "missing required tenant ID",
 	})
+}
+
+// defaultTenantValidator rejects tenant IDs that are empty or contain
+// characters outside [a-zA-Z0-9_-]. This prevents injection when tenant IDs
+// are interpolated into database queries (e.g. GORM scopes).
+func defaultTenantValidator(_ context.Context, tenantID string) error {
+	if tenantID == "" {
+		return fmt.Errorf("tenant ID must not be empty")
+	}
+	for _, r := range tenantID {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
+			return fmt.Errorf("tenant ID contains invalid character %q; only alphanumeric, hyphen, and underscore are allowed", r)
+		}
+	}
+	return nil
 }

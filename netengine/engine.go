@@ -1,6 +1,7 @@
 package netengine
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"net/http"
@@ -106,6 +107,8 @@ type Engine struct {
 	wsLoop      *WSEventLoop // non-nil when WebSocket event loop is enabled
 	activeConns int64        // atomic counter
 	loopIdx     uint64       // atomic, round-robin index
+	ctx         context.Context
+	cancel      context.CancelFunc
 }
 
 // New creates a Reactor engine backed by the given HTTP handler.
@@ -117,6 +120,7 @@ func New(handler http.Handler, cfg ReactorConfig) (*Engine, error) {
 		handler: handler,
 		loops:   make([]*eventLoop, cfg.NumLoops),
 	}
+	e.ctx, e.cancel = context.WithCancel(context.Background())
 	e.workers = newWorkerPool(cfg.WorkerPoolSize)
 
 	for i := range e.loops {

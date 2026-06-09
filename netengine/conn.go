@@ -127,9 +127,12 @@ func (cs *connState) dispatch() {
 				// Release connState back to pool before handing off to h2.
 				// The h2 goroutine owns the raw *tls.Conn from here on.
 				cs.loop.workerCloseConn(cs)
-				go h2srv.ServeConn(tc, &http2.ServeConnOpts{
-					Handler: cs.loop.engine.handler,
-				})
+				go func() {
+					h2srv.ServeConn(tc, &http2.ServeConnOpts{
+						Handler: cs.loop.engine.handler,
+						Context: cs.loop.engine.ctx,
+					})
+				}()
 				return
 			}
 		}

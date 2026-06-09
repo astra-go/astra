@@ -137,6 +137,11 @@ func CORSWithConfig(cfg CORSConfig) astra.HandlerFunc {
 	return func(c *astra.Ctx) error {
 		origin := c.Header("Origin")
 		if origin == "" {
+			// No Origin header means this is either a same-origin request
+			// (browser doesn't send Origin for same-origin) or a non-browser
+			// client. CORS headers are not needed for same-origin requests.
+			// For non-browser clients, CORS is irrelevant since they don't
+			// enforce the same-origin policy.
 			return nil
 		}
 

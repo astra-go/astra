@@ -308,6 +308,9 @@ func JWTWithConfig(cfg JWTConfig) astra.HandlerFunc {
 	}
 
 	parts := strings.SplitN(cfg.TokenLookup, ":", 2)
+	if len(parts) != 2 || parts[1] == "" {
+		panic(fmt.Sprintf("jwt middleware: invalid TokenLookup format %q; expected \"<source>:<name>\" (e.g. \"header:Authorization\")", cfg.TokenLookup))
+	}
 	source, name := parts[0], parts[1]
 
 	// Pre-built parser reused for every request — saves one *jwt.Parser alloc per call.

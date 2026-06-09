@@ -174,7 +174,7 @@ func NewRedisTokenBucketStore(cfg DistributedRateLimitConfig) (*RedisTokenBucket
 	}
 
 	store := &RedisTokenBucketStore{
-		client:    redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword, DB: cfg.RedisDB}),
+		client:    redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword, DB: cfg.RedisDB, DialTimeout: 3 * time.Second, ReadTimeout: 2 * time.Second, WriteTimeout: 2 * time.Second}),
 		keyPrefix: cfg.KeyPrefix,
 		rate:      cfg.Rate,
 		burst:     cfg.Burst,
@@ -558,9 +558,12 @@ func DistributedSlidingWindowWithConfig(cfg DistributedRateLimitConfig) (astra.H
 	}
 
 	client := redis.NewClient(&redis.Options{
-		Addr:     cfg.RedisAddr,
-		Password: cfg.RedisPassword,
-		DB:       cfg.RedisDB,
+		Addr:         cfg.RedisAddr,
+		Password:     cfg.RedisPassword,
+		DB:           cfg.RedisDB,
+		DialTimeout:  3 * time.Second,
+		ReadTimeout:  2 * time.Second,
+		WriteTimeout: 2 * time.Second,
 	})
 	keyPrefix := cfg.KeyPrefix
 	if keyPrefix == "" {

@@ -68,9 +68,11 @@ var Upgrader = gorilla.Upgrader{
 		// Compare Origin header with Host header
 		origin := r.Header.Get("Origin")
 		if origin == "" {
-			// No Origin header (e.g., non-browser clients) - allow
-			// For stricter security, return false here
-			return true
+			// Non-browser clients (curl, CLI tools) don't send Origin.
+			// Reject by default to prevent CSWSH. For non-browser clients,
+			// use a custom Upgrader with a permissive CheckOrigin or add
+			// a pre-shared token to the upgrade request.
+			return false
 		}
 		// Parse origin and compare with host
 		originURL, err := url.Parse(origin)

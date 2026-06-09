@@ -174,8 +174,10 @@ func TestWSEventLoopIntegration(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
 
-	// Connect a client.
-	conn, _, err := gorilla.DefaultDialer.Dial(wsURL, nil)
+	// Connect a client — send matching Origin header for same-origin CheckOrigin.
+	reqHeader := http.Header{}
+	reqHeader.Set("Origin", server.URL)
+	conn, _, err := gorilla.DefaultDialer.Dial(wsURL, reqHeader)
 	if err != nil {
 		t.Fatalf("Failed to dial: %v", err)
 	}
@@ -262,7 +264,9 @@ func TestHubModeBackwardCompatibility(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
 
-	conn, _, err := gorilla.DefaultDialer.Dial(wsURL, nil)
+	reqHeader := http.Header{}
+	reqHeader.Set("Origin", server.URL)
+	conn, _, err := gorilla.DefaultDialer.Dial(wsURL, reqHeader)
 	if err != nil {
 		t.Fatalf("Failed to dial: %v", err)
 	}
@@ -343,7 +347,9 @@ func TestHubOnConnectDisconnect(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
 
-	conn, _, err := gorilla.DefaultDialer.Dial(wsURL, nil)
+	reqHeader := http.Header{}
+	reqHeader.Set("Origin", server.URL)
+	conn, _, err := gorilla.DefaultDialer.Dial(wsURL, reqHeader)
 	if err != nil {
 		t.Fatalf("Failed to dial: %v", err)
 	}

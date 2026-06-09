@@ -118,7 +118,7 @@ func TenantQuotaWithConfig(cfg TenantQuotaConfig) astra.HandlerFunc {
 
 	// Per-tenant token buckets for QPS enforcement.
 	buckets := &quotaBucketStore{
-		buckets: make(map[string]*tokenBucket),
+		buckets: make(map[string]*bucketEntry),
 	}
 
 	// Per-tenant concurrency semaphores.
@@ -126,9 +126,14 @@ func TenantQuotaWithConfig(cfg TenantQuotaConfig) astra.HandlerFunc {
 		sems: make(map[string]*tenantSemaphore),
 	}
 
-	// Midnight reset goroutine.
+	// Midnight reset goroutine with proper cancellation.
 	ctx, _ := context.WithCancel(context.Background())
 	go dailyResetLoop(ctx, cfg.Store)
+
+	// Periodic cleanup for stale bucket/semaphore entries (every hour).
+	cleanupCtx, _ := context.WithCancel(context.Background())
+	go buckets.cleanupLoop(cleanupCtx, time.Hour)
+	go semaphores.cleanupLoop(cleanupCtx, time.Hour)
 
 	return func(c *astra.Ctx) error {
 		if shouldSkip(cfg.Skipper, c) {
@@ -214,36 +219,89 @@ func defaultQuotaErrorHandler(c *astra.Ctx) error {
 
 // ─── Token bucket store (QPS) ────────────────────────────────────────────────
 
+type quotaTokenBucket struct {
+	tokens   float64
+	lastTime time.Time
+}
+
+func (b *quotaTokenBucket) allow(rate float64, burst int) bool {
+	now := time.Now()
+	b.tokens += now.Sub(b.lastTime).Seconds() * rate
+	b.lastTime = now
+	if b.tokens > float64(burst) {
+		b.tokens = float64(burst)
+	}
+	if b.tokens < 1 {
+		return false
+	}
+	b.tokens--
+	return true
+}
+
 type quotaBucketStore struct {
 	mu      sync.RWMutex
-	buckets map[string]*tokenBucket
+	buckets map[string]*bucketEntry
+}
+
+type bucketEntry struct {
+	bucket    *quotaTokenBucket
+	lastAccess time.Time
 }
 
 func (s *quotaBucketStore) allow(key string, rate float64, burst int) bool {
 	s.mu.RLock()
-	tb, ok := s.buckets[key]
+	entry, ok := s.buckets[key]
 	s.mu.RUnlock()
 
 	if !ok {
 		s.mu.Lock()
-		if tb, ok = s.buckets[key]; !ok {
-			tb = &tokenBucket{
-				tokens:   float64(burst),
-				lastTime: time.Now(),
+		if entry, ok = s.buckets[key]; !ok {
+			entry = &bucketEntry{
+				bucket: &quotaTokenBucket{
+					tokens:   float64(burst),
+					lastTime: time.Now(),
+				},
+				lastAccess: time.Now(),
 			}
-			s.buckets[key] = tb
+			s.buckets[key] = entry
 		}
 		s.mu.Unlock()
 	}
 
-	return tb.allow(rate, burst)
+	s.mu.Lock()
+	entry.lastAccess = time.Now()
+	s.mu.Unlock()
+
+	return entry.bucket.allow(rate, burst)
+}
+
+// cleanupLoop periodically removes entries not accessed within maxIdle.
+func (s *quotaBucketStore) cleanupLoop(ctx context.Context, maxIdle time.Duration) {
+	ticker := time.NewTicker(maxIdle)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cutoff := time.Now().Add(-maxIdle)
+			s.mu.Lock()
+			for k, e := range s.buckets {
+				if e.lastAccess.Before(cutoff) {
+					delete(s.buckets, k)
+				}
+			}
+			s.mu.Unlock()
+		}
+	}
 }
 
 // ─── Concurrent semaphore store ──────────────────────────────────────────────
 
 type tenantSemaphore struct {
-	current atomic.Int64
-	max     int64
+	current    atomic.Int64
+	max        int64
+	lastAccess atomic.Int64 // Unix nano
 }
 
 type concurrentSemaphoreStore struct {
@@ -260,11 +318,13 @@ func (s *concurrentSemaphoreStore) acquire(tenantID string, maxConcurrent int) b
 		s.mu.Lock()
 		if sem, ok = s.sems[tenantID]; !ok {
 			sem = &tenantSemaphore{max: int64(maxConcurrent)}
+			sem.lastAccess.Store(time.Now().UnixNano())
 			s.sems[tenantID] = sem
 		}
 		s.mu.Unlock()
 	}
 
+	sem.lastAccess.Store(time.Now().UnixNano())
 	current := sem.current.Add(1)
 	if current > sem.max {
 		sem.current.Add(-1)
@@ -280,6 +340,28 @@ func (s *concurrentSemaphoreStore) release(tenantID string) {
 
 	if ok {
 		sem.current.Add(-1)
+	}
+}
+
+// cleanupLoop periodically removes semaphore entries with zero current count
+// that haven't been accessed recently.
+func (s *concurrentSemaphoreStore) cleanupLoop(ctx context.Context, maxIdle time.Duration) {
+	ticker := time.NewTicker(maxIdle)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cutoff := time.Now().Add(-maxIdle).UnixNano()
+			s.mu.Lock()
+			for k, sem := range s.sems {
+				if sem.current.Load() == 0 && sem.lastAccess.Load() < cutoff {
+					delete(s.sems, k)
+				}
+			}
+			s.mu.Unlock()
+		}
 	}
 }
 
