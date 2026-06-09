@@ -1047,12 +1047,13 @@ func TestRateLimit_Constructor(t *testing.T) {
 
 func TestSlidingWindow_Constructor(t *testing.T) {
 	app := testutil.NewTestApp()
-	app.Use(sec.SlidingWindowWithConfig(sec.SlidingWindowConfig{
+	mw, _ := sec.SlidingWindowWithConfig(sec.SlidingWindowConfig{
 		Limit:   100,
 		Window:  time.Second,
 		KeyFunc: func(_ *astra.Ctx) string { return "key" },
 		Context: context.Background(),
-	}))
+	})
+	app.Use(mw)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})

@@ -363,10 +363,10 @@ func factorySlidingWindow(config any) (astra.HandlerFunc, error) {
 			window = d
 		}
 	}
-	return security.SlidingWindowWithConfig(security.SlidingWindowConfig{
+	mw, _ := security.SlidingWindowWithConfig(security.SlidingWindowConfig{
 		Limit:  limit,
 		Window: window,
-	}), nil
+	}); return mw, nil
 }
 
 func factoryLogger(config any) (astra.HandlerFunc, error) {

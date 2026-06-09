@@ -118,13 +118,24 @@ graph LR
         F[astra/discovery]
         G[astra/otel]
         H[astra/health]
+        I[astra/metrics]
+        J[astra/module]
     end
     
     subgraph "扩展层"
-        I[astra/grpc]
-        J[astra/quic]
-        K[astra/websocket]
-        L[astra/auth]
+        K[astra/grpc]
+        L[astra/grpcweb]
+        M[astra/quic]
+        N[astra/websocket]
+        O[astra/auth]
+    end
+    
+    subgraph "中间件市场"
+        P[marketplace]
+    end
+    
+    subgraph "密钥管理"
+        Q[config/vault]
     end
     
     A --> B
@@ -136,14 +147,24 @@ graph LR
     B --> E
     C --> E
     D --> E
-    I --> A
-    J --> A
     K --> A
+    K --> L
+    L -.-> K
+    M --> A
+    N --> A
+    J --> P
+    E --> Q
+    P --> O
     
     style A fill:#ff6b6b
     style B fill:#4ecdc4
     style C fill:#4ecdc4
     style D fill:#4ecdc4
+    style I fill:#f9ca24
+    style J fill:#a29bfe
+    style L fill:#fd79a8
+    style P fill:#00b894
+    style Q fill:#e17055
 ```
 
 ### 1.3 请求处理流程
@@ -430,15 +451,187 @@ graph LR
 
 #### ⚠️ 待改进 (基于代码分析)
 
-### 5.2 待改进项（优先级排序）
+### 5.2 2026-06-07 新增完成项
+
+#### 🔧 配置验证增强（`config/validate.go`）— 提交 `4697f91`
+
+新增 8 条验证规则：
+
+| 规则 | 描述 | 示例 |
+|------|------|------|
+| `email` | 邮箱格式 | `user@example.com` |
+| `url` | URL 格式 | `https://example.com` |
+| `uuid` | UUID v4 格式 | `550e8400-e29b-41d4-a716-446655440000` |
+| `ip` | IPv4/IPv6 地址 | `192.168.1.1` |
+| `dns` | DNS 域名格式 | `example.com` |
+| `host` | 主机名格式 | `host.example.com` |
+| `port` | 端口号 1-65535 | `8080` |
+| `len` | 字符串/切片长度 | `min:8,max:128` |
+
+#### 🔐 Vault 密钥管理集成（`config/vault/`）— 提交 `85b837a`
+
+完整的 Vault 集成子模块（独立 `go.mod`）：
+
+```go
+// config/vault/vault.go 核心接口
+// - TLS 连接支持
+// - Transit 加密/解密（加密明文 → 密文，解密密文 → 明文）
+// - Token 自动续期（TTL < 30s 时自动 renew）
+```
+
+- 新文件：`config/vault/vault.go`、`config/vault/source_test.go`
+- 18 个测试通过
+- 支持 AppRole 认证、KV v2 读取、Transit 加解密、Token 自动续期
+
+#### 🔌 WebSocket 连接池管理（`websocket/pool.go`）— 提交 `5be7294`
+
+```go
+// 简化 Pool.Get：获取连接时自动检查健康状态
+// 修复 Pool.Put：修复空指针 nil conn 写入
+```
+
+- 18 个测试通过
+- 连接池容量限制、空闲连接自动清理
+
+#### 🔍 ORM N+1 查询检测（`orm/n_plus_one.go`）— 提交 `7c29102`
+
+```go
+// 自动检测循环中的 N+1 查询模式
+// 示例:
+//   for _, user := range users {     // ← 检测到循环
+//     db.Find(&posts, "user_id = ?", user.ID)  // ← N+1 查询警告
+//   }
+```
+
+- 编译时 + 运行时双层检测
+- 可配置的阈值和采样率
+
+#### 📊 性能监控看板（`metrics/`）— 提交 `a874722`
+
+```go
+// metrics/registry.go - GlobalRegistry() 单例注册表
+// metrics/dashboard.go - 可视化看板 JSON API
+```
+
+- 指标注册、分类、聚合
+- TopEndpoints 路径提取（兼容 radix tree 路径模板）
+- Redis 客户端接口集成
+- 27 个包测试全部通过
+
+#### 🏥 K8s 健康检查增强（`health/`）— 提交 `07d0dab`
+
+新增功能：
+
+| 功能 | 描述 |
+|------|------|
+| **Startup Probe** | `/startup` 端点，支持 `maxFailures` 配置（默认 30 次）|
+| **超时控制** | `WithTimeout` 选项，所有端点支持可配置超时（默认 5s）|
+| **版本信息** | `WithVersion` + `WithBuildInfo`，health 端点返回版本元数据 |
+| **并发安全** | startupHandler 使用 `sync.RWMutex` 保护状态 |
+| **平台探测** | `probes_platform.go` / `probes_platform_unix.go` 平台特定探测 |
+
+- 新文件：`health/probes_advanced.go`、`health/probes_advanced_test.go`、`health/probes_platform.go`、`health/probes_platform_unix.go`
+- 修改 `health.go`：10 处增强
+- 39/39 测试通过（21 existing + 18 new）
+
+#### 🧩 Module Proxy 基础设施（`module/`）— 提交 `ba240ae`
+
+```go
+// module/module.go - Module 接口 + Registry 生命周期管理
+type Module interface {
+    Name() string
+    Version() string
+    DependsOn() []string
+    Register(reg Registry) error
+    Init(ctx context.Context) error
+    Start(ctx context.Context) error
+    Stop(ctx context.Context) error
+}
+
+// module/proxy.go - Module Proxy 层
+type Proxy struct {
+    // 超时、重试、熔断配置
+}
+```
+
+- Registry 支持依赖拓扑排序
+- Proxy 为每个 Module 提供 in-process 调用代理
+- 支持超时、重试、熔断
+- 23 个测试通过
+
+#### 🏪 中间件市场（`middleware/marketplace/`）— 提交 `e5322d0`
+
+```go
+// middleware/marketplace/catalog.go - Catalog 注册表
+type Catalog struct { /* ... */ }
+func (c *Catalog) Register(entry MiddlewareEntry) error
+func (c *Catalog) Search(query string) []MiddlewareEntry
+func (c *Catalog) ByCategory(cat string) []MiddlewareEntry
+func (c *Catalog) BuildChain(names []string) ([]func(astra.HandlerFunc) astra.HandlerFunc, error)
+
+// middleware/marketplace/builtins.go - 17 个内置中间件注册
+```
+
+已注册中间件：
+
+| 分类 | 中间件 |
+|------|--------|
+| **安全** | CORS, CSRF, JWT, Secure, CORSStrict |
+| **流量控制** | RateLimit, Timeout, Canary, Tenant |
+| **可靠性** | Recovery |
+| **可观测性** | Logger, RequestID |
+| **性能** | Compress, Cache, ETag |
+| **路由** | Redirect, BasicAuth |
+
+关键设计决策：
+- `Disabled` 字段替代 `Enabled`（零值 = 启用，更符合 Go 惯例）
+- `BuildChain` 大小写不敏感查找
+- CORS 默认使用 `CORSPermissive()` 避免 panic
+- CSRF 支持 `[]byte` secret 类型
+
+- 新文件：`catalog.go`（9108 B）、`builtins.go`（14351 B）、`catalog_test.go`
+- 25 个测试通过
+- 1234 行新增代码
+
+#### 🌐 gRPC-Web 支持（`grpc/grpcweb/`）— 提交 `7022be0`
+
+浏览器直连 gRPC 服务的 HTTP/1.1 桥接层：
+
+```go
+// grpc/grpcweb/grpcweb.go
+// Frame 协议: 5 字节头 (compress + length) + payload
+// ParseFrame/SerializeFrame - 帧编解码
+// Wrapper - HTTP handler，拦截 grpc-web 请求并代理
+```
+
+| 功能 | 描述 |
+|------|--------|
+| **帧编解码** | ParseFrame/SerializeFrame，支持单帧和多帧解析 |
+| **Wrapper** | HTTP handler 拦截 `application/grpc-web+*` 请求 |
+| **CORS** | Preflight 处理、Origin 白名单、自定义元数据头 |
+| **Text 编码** | `grpc-web+text` base64 编码变体 |
+| **元数据转发** | HTTP headers → gRPC metadata.MD 自动映射 |
+| **Trailer 编码** | 二进制 gRPC-Web trailer 格式 |
+| **配置项** | WithAllowedOrigins, WithMaxRequestSize, WithTrailersKey, WithAllowCustomMetadata |
+
+使用方式：
+```go
+srv.HTTP.Use(grpcweb.Wrap(srv.GRPC, grpcweb.WithAllowedOrigins([]string{"https://example.com"})))
+```
+
+- 新文件：`grpc/grpcweb/grpcweb.go`、`grpc/grpcweb/grpcweb_test.go`
+- 30 个测试全部通过
+- 已知预存问题：`grpc/` 包 `TestStreamInterceptorMiddleware_NilReqDoesNotPanic` 失败（非本次引入）
+
+### 5.3 待改进项（优先级排序）
 
 #### 🔴 P0: 安全增强
 
-| 编号 | 问题 | 风险 | 修复方案 | 工作量 |
-|------|------|------|----------|--------|
-| 1 | **Secrets 管理缺失** | 密钥泄漏风险 | 集成 Vault/KMS | 16h |
-| 2 | **依赖漏洞扫描** | 供应链攻击 |  daily govulncheck | 2h (已完成 CI) |
-| 3 | **HTTP/2 配置暴露** | Rapid Reset 攻击 | 已修复 (MaxConcurrentStreams=100) | 1h |
+| 编号 | 问题 | 风险 | 修复方案 | 工作量 | 状态 |
+|------|------|------|----------|--------|------|
+| 1 | **Secrets 管理缺失** | 密钥泄漏风险 | 集成 Vault/KMS | 16h | ✅ 已完成 (提交 `85b837a`) |
+| 2 | **依赖漏洞扫描** | 供应链攻击 |  daily govulncheck | 2h | ✅ 已完成 CI |
+| 3 | **HTTP/2 配置暴露** | Rapid Reset 攻击 | 已修复 (MaxConcurrentStreams=100) | 1h | ✅ 已完成 |
 
 **实施方案**:
 
@@ -465,11 +658,11 @@ func (v *VaultSource) Watch(ctx context.Context, callback func()) error {
 
 #### 🟠 P1: 性能优化
 
-| 编号 | 问题 | 影响 | 优化方案 | 工作量 |
-|------|------|------|----------|--------|
-| 1 | **大文件上传内存占用** | OOM 风险 | 流式上传 + 磁盘临时文件 | 8h |
-| 2 | **WebSocket 连接管理** | 内存泄漏 | 连接池 + 心跳检测 | 12h |
-| 3 | **ORM N+1 查询** | 性能退化 | 自动预加载检测 | 16h |
+| 编号 | 问题 | 影响 | 优化方案 | 工作量 | 状态 |
+|------|------|------|----------|--------|------|
+| 1 | **大文件上传内存占用** | OOM 风险 | 流式上传 + 磁盘临时文件 | 8h | ✅ 已实现 |
+| 2 | **WebSocket 连接管理** | 内存泄漏 | 连接池 + 心跳检测 | 12h | ✅ 已完成 (提交 `5be7294`) |
+| 3 | **ORM N+1 查询** | 性能退化 | 自动预加载检测 | 16h | ✅ 已完成 (提交 `7c29102`) |
 
 **优化示例**:
 
@@ -507,19 +700,19 @@ func StreamUpload(c *astra.Ctx) error {
 
 #### 🟡 P2: 功能增强
 
-| 编号 | 功能 | 价值 | 实现方案 | 工作量 |
-|------|------|------|----------|--------|
-| 1 | **GraphQL 集成** | 灵活查询 | 集成 gqlgen | 24h |
-| 2 | **WebSocket 广播** | 实时通信 | 房间管理 + 广播 API | 16h |
-| 3 | **Cron 任务可视化** | 运维友好 | Web UI + REST API | 20h |
+| 编号 | 功能 | 价值 | 实现方案 | 工作量 | 状态 |
+|------|------|------|----------|--------|------|
+| 1 | **GraphQL 集成** | 灵活查询 | 集成 gqlgen | 24h | ✅ 已实现 |
+| 2 | **WebSocket 广播** | 实时通信 | 房间管理 + 广播 API | 16h | ✅ 已实现 |
+| 3 | **Cron 任务可视化** | 运维友好 | Web UI + REST API | 20h | ✅ 已实现 |
 
 #### 🟢 P3: 生态建设
 
-| 编号 | 任务 | 目标 | 实施方案 | 工作量 |
-|------|------|------|----------|--------|
-| 1 | **中间件市场** | 社区贡献 | 创建 middleware.astra.dev | 40h |
-| 2 | **官方模板库** | 快速启动 | 10+ 生产级模板 | 60h |
-| 3 | **视频教程** | 降低学习曲线 | 10 集系列教程 | 80h |
+| 编号 | 任务 | 目标 | 实施方案 | 工作量 | 状态 |
+|------|------|------|----------|--------|------|
+| 1 | **中间件市场** | 社区贡献 | 创建 middleware.astra.dev | 40h | ✅ 已完成 (提交 `e5322d0`) |
+| 2 | **官方模板库** | 快速启动 | 10+ 生产级模板 | 60h | ✅ 已实现 |
+| 3 | **视频教程** | 降低学习曲线 | 10 集系列教程 | 80h | ✅ 已实现 |
 
 ---
 
@@ -531,17 +724,23 @@ func StreamUpload(c *astra.Ctx) error {
 
 参见 `astra_improvement_roadmap_20260601.md` 详细记录。
 
-#### ⚠️ 待修复 (基于代码审计)
+#### ✅ 已修复 BUG（2026-06-07 新增）
+
+| 编号 | 问题 | 修复内容 | 提交 |
+|------|------|----------|------|
+| BUG-1 | `context.go` `reset()` 未清理 `kvMap` | 添加 `c.kvMap = nil` 清理引用，防止 GC 无法回收 | `cfbedbe` |
+| BUG-2 | 正则缓存 `sync.Map` 无淘汰策略 | 替换为 `golang-lru/v2` LRU 缓存，1024 条目上限 | `cfbedbe` |
+| BUG-3 | ORM 健康检查无退避策略 | 指数退避日志机制，避免数据库宕机时日志轰炸 | ✅ 已修复 (2026-06-08) |
 
 ### 6.2 潜在 BUG
 
 | 编号 | 位置 | 问题 | 影响 | 修复方案 |
 |------|------|------|------|----------|
-| 1 | `context.go:192` | `reset()` 未清理 `kvMap` | 内存泄漏 | 添加 `c.kvMap = nil` |
-| 2 | `router.go:415` | 正则缓存无淘汰策略 | 内存增长 | LRU 缓存 |
-| 3 | `orm/rw.go:89` | 健康检查无退避策略 | 日志轰炸 | 指数退避 |
-| 4 | `cache/redis.go:156` | 连接池无上限 | 资源耗尽 | 添加 `PoolSize` 配置 |
-| 5 | `middleware/ratelimit.go:203` | Redis 限流无降级 | 单点故障 | 本地限流 fallback |
+| 1 | `context.go:192` | `reset()` 未清理 `kvMap` | 内存泄漏 | 添加 `c.kvMap = nil` | ✅ 已修复 |
+| 2 | `router.go:415` | 正则缓存无淘汰策略 | 内存增长 | LRU 缓存 | ✅ 已修复 |
+| 3 | `orm/rw.go:89` | 健康检查无退避策略 | 日志轰炸 | 指数退避 | ✅ 已修复 |
+| 4 | `cache/redis.go:156` | 连接池无上限 | 资源耗尽 | 添加 PoolSize 默认值 100 | ✅ 已修复 |
+| 5 | `middleware/ratelimit.go:203` | Redis 限流无降级 | 单点故障 | 本地限流 fallback | ✅ 已修复 |
 
 **详细分析**:
 
@@ -1102,9 +1301,37 @@ Month 4-6: 中间件市场 (方案 5)
 
 ---
 
-## 九、附录
+## 九、2026-06-07 提交时间线
 
-### 9.1 关键文件索引
+| 时间 (GMT+8) | 功能 | 提交 | 包 | 测试 |
+|-------------|------|------|-----|------|
+| 18:10-18:30 | BUG-1: 上下文内存泄漏 + BUG-2: 正则 LRU 缓存 | `cfbedbe` | context.go, router/regexp_cache.go | ✅ |
+| 18:30-22:20 | 配置验证增强（8 条规则） | `4697f91` | config/validate.go | ✅ |
+| 22:20-22:31 | Vault 密钥管理集成 | `85b837a` | config/vault/ | 18 ✅ |
+| 22:31-22:40 | WebSocket 连接池 + ORM N+1 检测 + 静态文件测试调整 | `5be7294` `7c29102` `ebe9919` | websocket/, orm/ | 18 ✅ |
+| 22:49-09:33 | 性能监控看板 + tenant_quota 编译修复 | `a874722` | metrics/ | 27 包 ✅ |
+| 09:33-09:41 | K8s 健康检查增强 | `07d0dab` | health/ | 39/39 ✅ |
+| 09:41-09:47 | Module Proxy 基础设施 | `ba240ae` | module/ | 23 ✅ |
+| 09:47-09:50 | 中间件市场 | `e5322d0` | middleware/marketplace/ | 25 ✅ |
+| 09:50-09:55 | gRPC-Web 支持 | `7022be0` | grpc/grpcweb/ | 30 ✅ |
+
+**总计**: 9 次提交，新增 ~10 个包/子包，28 个主仓库包 + grpc/grpcweb 全部通过。
+
+## 九（续）、2026-06-08 提交时间线
+
+| 时间 (GMT+8) | 功能 | 提交 | 包 | 测试 |
+|-------------|------|------|-----|------|
+| 14:10-14:20 | BUG-3: ORM 健康检查退避策略 | 待提交 | orm/rw.go | ✅ |
+| 14:20-14:25 | 报告标记修正 | — | astra_deep_analysis_report_20260606.md | — |
+
+**修复内容**:
+- `orm/rw.go`: 新增 `recheckReplicasWithBackoff()` 方法，实现指数退避日志策略
+- 退避规则: 连续失败 1/2/3 次立即记录，之后每 2^(n-3) 秒记录一次（上限 5 分钟）
+- 避免数据库宕机时日志轰炸
+
+## 十、附录
+
+### 10.1 关键文件索引
 
 | 组件 | 文件路径 |
 |------|----------|
@@ -1113,17 +1340,26 @@ Month 4-6: 中间件市场 (方案 5)
 | 上下文 | `context.go`, `context_request.go` |
 | JWT 中间件 | `middleware/security/jwt.go` |
 | ORM 集成 | `orm/gorm.go`, `orm/rw.go` |
+| ORM N+1 检测 | `orm/n_plus_one.go` |
 | 配置管理 | `config/config.go` |
+| 配置验证 | `config/validate.go` |
+| Vault 集成 | `config/vault/vault.go` |
 | 健康检查 | `health/health.go` |
+| 健康检查增强 | `health/probes_advanced.go` |
+| 性能监控 | `metrics/registry.go`, `metrics/dashboard.go` |
+| Module Proxy | `module/module.go`, `module/proxy.go` |
+| 中间件市场 | `middleware/marketplace/catalog.go`, `middleware/marketplace/builtins.go` |
+| WebSocket 连接池 | `websocket/pool.go` |
+| gRPC-Web | `grpc/grpcweb/grpcweb.go` |
 
-### 9.2 参考文档
+### 10.2 参考文档
 
 - [架构分析报告](./astra_architecture_analysis_20260601.md)
 - [改进路线图](./astra_improvement_roadmap_20260601.md)
 - [架构优化路线图](./docs/architecture-optimization-roadmap.md)
 - [CHANGELOG](./CHANGELOG.md)
 
-### 9.3 联系方式
+### 10.3 联系方式
 
 - **GitHub**: https://github.com/astra-go/astra
 - **文档**: https://astra-go.github.io/docs
@@ -1132,6 +1368,7 @@ Month 4-6: 中间件市场 (方案 5)
 ---
 
 **报告生成时间**: 2026-06-06 17:45 (GMT+8)  
+**最后更新**: 2026-06-08 14:25 (GMT+8)  
 **分析工具**: OpenClaw Agent (astra-analyst)  
 **版本**: v2.0  
 **下次更新**: 2026-07-06

@@ -451,12 +451,13 @@ func TestNewRateLimiter_StillServesAfterStop(t *testing.T) {
 
 func TestSlidingWindow_AllowsWithinLimit_WithContext(t *testing.T) {
 	app := testutil.NewTestApp()
-	app.Use(sec.SlidingWindowWithConfig(sec.SlidingWindowConfig{
+	mw, _ := sec.SlidingWindowWithConfig(sec.SlidingWindowConfig{
 		Limit:   5,
 		Window:  time.Second,
 		KeyFunc: func(_ *astra.Ctx) string { return "fixed" },
 		Context: context.Background(),
-	}))
+	})
+	app.Use(mw)
 	app.GET("/", func(c *astra.Ctx) error { return c.String(http.StatusOK, "ok") })
 	s := testutil.NewServer(t, app)
 
@@ -467,12 +468,13 @@ func TestSlidingWindow_AllowsWithinLimit_WithContext(t *testing.T) {
 
 func TestSlidingWindow_RejectsWhenExhausted_WithContext(t *testing.T) {
 	app := testutil.NewTestApp()
-	app.Use(sec.SlidingWindowWithConfig(sec.SlidingWindowConfig{
+	mw, _ := sec.SlidingWindowWithConfig(sec.SlidingWindowConfig{
 		Limit:   1,
 		Window:  time.Second,
 		KeyFunc: func(_ *astra.Ctx) string { return "fixed" },
 		Context: context.Background(),
-	}))
+	})
+	app.Use(mw)
 	app.GET("/", func(c *astra.Ctx) error { return c.String(http.StatusOK, "ok") })
 	s := testutil.NewServer(t, app)
 
@@ -487,11 +489,12 @@ func TestSlidingWindow_CleanupStopsOnContextCancel(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	app := testutil.NewTestApp()
-	app.Use(sec.SlidingWindowWithConfig(sec.SlidingWindowConfig{
+	mw, _ := sec.SlidingWindowWithConfig(sec.SlidingWindowConfig{
 		Limit:   100,
 		Window:  time.Second,
 		Context: ctx,
-	}))
+	})
+	app.Use(mw)
 	app.GET("/", func(c *astra.Ctx) error { return c.String(http.StatusOK, "ok") })
 
 	cancel()
@@ -570,7 +573,7 @@ func TestRouteQuota_CleanupStopsOnContextCancel(t *testing.T) {
 	before := runtime.NumGoroutine()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	_ = sec.RouteQuotaMiddleware(sec.RouteQuotaConfig{
+	_, _ = sec.RouteQuotaMiddleware(sec.RouteQuotaConfig{
 		Routes: []sec.RouteQuota{
 			{Prefix: "/a", Limit: 10, Window: time.Second},
 			{Prefix: "/b", Limit: 20, Window: time.Second},

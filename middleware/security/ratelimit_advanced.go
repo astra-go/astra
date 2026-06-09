@@ -80,10 +80,11 @@ type SlidingWindowConfig struct {
 // Use NewSlidingWindow or SlidingWindowWithConfig with Context/App when you
 // need controlled shutdown (tests, dynamic middleware replacement).
 func SlidingWindow(limit int64, window time.Duration) astra.HandlerFunc {
-	return SlidingWindowWithConfig(SlidingWindowConfig{
+	mw, _ := SlidingWindowWithConfig(SlidingWindowConfig{
 		Limit:  limit,
 		Window: window,
 	})
+	return mw
 }
 
 // NewSlidingWindow returns a sliding-window middleware and a stop function.
@@ -94,17 +95,14 @@ func SlidingWindow(limit int64, window time.Duration) astra.HandlerFunc {
 //	defer stop()
 //	app.Use(mw)
 func NewSlidingWindow(limit int64, window time.Duration) (astra.HandlerFunc, func()) {
-	ctx, cancel := context.WithCancel(context.Background())
-	mw := SlidingWindowWithConfig(SlidingWindowConfig{
-		Limit:   limit,
-		Window:  window,
-		Context: ctx,
+	return SlidingWindowWithConfig(SlidingWindowConfig{
+		Limit:  limit,
+		Window: window,
 	})
-	return mw, cancel
 }
 
 // SlidingWindowWithConfig returns a SlidingWindow middleware with full config.
-func SlidingWindowWithConfig(cfg SlidingWindowConfig) astra.HandlerFunc {
+func SlidingWindowWithConfig(cfg SlidingWindowConfig) (astra.HandlerFunc, func()) {
 	if cfg.Window <= 0 {
 		cfg.Window = time.Second
 	}
@@ -119,7 +117,7 @@ func SlidingWindowWithConfig(cfg SlidingWindowConfig) astra.HandlerFunc {
 		}
 	}
 
-	ctx := resolveContext(cfg.Context)
+	ctx, cancel := context.WithCancel(resolveContext(cfg.Context))
 
 	store := &swStore{window: cfg.Window}
 
@@ -138,7 +136,7 @@ func SlidingWindowWithConfig(cfg SlidingWindowConfig) astra.HandlerFunc {
 		}
 	}()
 
-	return func(c *astra.Ctx) error {
+	mw := func(c *astra.Ctx) error {
 		if shouldSkip(cfg.Skipper, c) {
 			return nil
 		}
@@ -156,6 +154,7 @@ func SlidingWindowWithConfig(cfg SlidingWindowConfig) astra.HandlerFunc {
 		}
 		return nil
 	}
+	return mw, cancel
 }
 
 // ─── swStore — the per-key sliding-window store ───────────────────────────────
@@ -315,9 +314,7 @@ type RouteQuota struct {
 //	defer stop()
 //	app.Use(mw)
 func NewRouteQuotaMiddleware(cfg RouteQuotaConfig) (astra.HandlerFunc, func()) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cfg.Context = ctx
-	return RouteQuotaMiddleware(cfg), cancel
+	return RouteQuotaMiddleware(cfg)
 }
 
 // RouteQuotaMiddleware returns a middleware that applies different rate limits
@@ -334,7 +331,7 @@ func NewRouteQuotaMiddleware(cfg RouteQuotaConfig) (astra.HandlerFunc, func()) {
 //	    DefaultLimit:  500,
 //	    DefaultWindow: time.Second,
 //	}))
-func RouteQuotaMiddleware(cfg RouteQuotaConfig) astra.HandlerFunc {
+func RouteQuotaMiddleware(cfg RouteQuotaConfig) (astra.HandlerFunc, func()) {
 	if cfg.DefaultWindow <= 0 {
 		cfg.DefaultWindow = time.Second
 	}
@@ -352,7 +349,7 @@ func RouteQuotaMiddleware(cfg RouteQuotaConfig) astra.HandlerFunc {
 		}
 	}
 
-	ctx := resolveContext(cfg.Context)
+	ctx, cancel := context.WithCancel(resolveContext(cfg.Context))
 
 	// One swStore per route entry + one for the default.
 	stores := make([]*swStore, len(cfg.Routes)+1)
@@ -378,7 +375,7 @@ func RouteQuotaMiddleware(cfg RouteQuotaConfig) astra.HandlerFunc {
 	}
 	defaultStore := stores[len(stores)-1]
 
-	return func(c *astra.Ctx) error {
+	mw := func(c *astra.Ctx) error {
 		if shouldSkip(cfg.Skipper, c) {
 			return nil
 		}
@@ -400,6 +397,7 @@ func RouteQuotaMiddleware(cfg RouteQuotaConfig) astra.HandlerFunc {
 		}
 		return nil
 	}
+	return mw, cancel
 }
 
 // hasPrefix returns true if path starts with prefix.
