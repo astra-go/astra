@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -47,28 +47,31 @@ func main() {
 	uploadToken = getEnv("PROXY_UPLOAD_TOKEN", "")
 	addr := getEnv("PROXY_LISTEN_ADDR", defaultAddr)
 
+	logger := slog.Default()
+
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
-		log.Fatalf("Failed to create cache dir: %v", err)
+		logger.Error("failed to create cache dir", "err", err)
+		os.Exit(1)
 	}
 	if err := os.MkdirAll(privateDir, 0755); err != nil {
-		log.Fatalf("Failed to create private dir: %v", err)
+		logger.Error("failed to create private dir", "err", err)
+		os.Exit(1)
 	}
 
 	// Register handlers on DefaultServeMux
 	http.HandleFunc("/", handleRequest)
 
-	log.Printf("🚀 Astra Module Proxy listening on %s", addr)
-	log.Printf("   Upstream: %s", upstreamURL)
-	log.Printf("   Cache dir: %s", cacheDir)
-	log.Printf("   Private dir: %s", privateDir)
-	if uploadToken != "" {
-		log.Printf("   Upload: enabled (token required)")
-	} else {
-		log.Printf("   Upload: disabled (set PROXY_UPLOAD_TOKEN to enable)")
-	}
-	log.Printf("   Usage:    go env -w GOPROXY=http://localhost%s,direct", addr)
+	logger.Info("Astra Module Proxy started",
+		"listen_addr", addr,
+		"upstream", upstreamURL,
+		"cache_dir", cacheDir,
+		"private_dir", privateDir,
+		"upload_enabled", uploadToken != "")
+	logger.Info("usage: go env -w GOPROXY=http://localhost"+addr+",direct")
+
 	if err := http.ListenAndServe(addr, nil); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		logger.Error("server failed", "err", err)
+		os.Exit(1)
 	}
 }
 
@@ -135,7 +138,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, modulePath, suffix string
 	// 1. Try private dir first
 	privateFile := filepath.Join(privateDir, upstreamPath)
 	if data, err := os.ReadFile(privateFile); err == nil {
-		log.Printf("[PRIVATE HIT] %s", upstreamPath)
+		slog.Info("private hit", "path", upstreamPath)
 		ct := contentTypeFor(upstreamPath)
 		w.Header().Set("Content-Type", ct)
 		w.Write(data)
@@ -145,14 +148,14 @@ func handleGet(w http.ResponseWriter, r *http.Request, modulePath, suffix string
 	// 2. Try cache
 	cacheFile := filepath.Join(cacheDir, upstreamPath)
 	if data, err := os.ReadFile(cacheFile); err == nil {
-		log.Printf("[CACHE HIT] %s", upstreamPath)
+		slog.Info("cache hit", "path", upstreamPath)
 		ct := contentTypeFor(upstreamPath)
 		w.Header().Set("Content-Type", ct)
 		w.Write(data)
 		return
 	}
 
-	log.Printf("[CACHE MISS] %s", upstreamPath)
+	slog.Info("cache miss", "path", upstreamPath)
 
 	// 3. Fetch from upstream
 	ctx, cancel := context.WithTimeout(r.Context(), requestTimeout)
@@ -161,7 +164,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, modulePath, suffix string
 	url := upstreamURL + upstreamPath
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		log.Printf("[ERROR] create request failed: %v", err)
+		slog.Error("create request failed", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -171,7 +174,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, modulePath, suffix string
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		log.Printf("[ERROR] upstream request failed: %v", err)
+		slog.Error("upstream request failed", "err", err)
 		http.Error(w, "upstream request failed", http.StatusBadGateway)
 		return
 	}
@@ -182,7 +185,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, modulePath, suffix string
 		return
 	}
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("[ERROR] upstream returned %d for %s", resp.StatusCode, upstreamPath)
+		slog.Error("upstream returned error", "status", resp.StatusCode, "path", upstreamPath)
 		http.Error(w, "upstream error", http.StatusBadGateway)
 		return
 	}
@@ -190,7 +193,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, modulePath, suffix string
 	// Read body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("[ERROR] read response body failed: %v", err)
+		slog.Error("read response body failed", "err", err)
 		http.Error(w, "read response body failed", http.StatusInternalServerError)
 		return
 	}
@@ -198,7 +201,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, modulePath, suffix string
 	// Save to cache (best effort)
 	if err := os.MkdirAll(filepath.Dir(cacheFile), 0755); err == nil {
 		if err := os.WriteFile(cacheFile, body, 0644); err != nil {
-			log.Printf("[WARN] failed to write cache %s: %v", cacheFile, err)
+			slog.Warn("failed to write cache", "file", cacheFile, "err", err)
 		}
 	}
 
@@ -231,7 +234,7 @@ func handlePut(w http.ResponseWriter, r *http.Request, modulePath, suffix string
 	// Read body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("[ERROR] read request body failed: %v", err)
+		slog.Error("read request body failed", "err", err)
 		http.Error(w, "read request body failed", http.StatusInternalServerError)
 		return
 	}
@@ -239,18 +242,18 @@ func handlePut(w http.ResponseWriter, r *http.Request, modulePath, suffix string
 	// Save to private dir
 	privateFile := filepath.Join(privateDir, modulePath+suffix)
 	if err := os.MkdirAll(filepath.Dir(privateFile), 0755); err != nil {
-		log.Printf("[ERROR] create private dir failed: %v", err)
+		slog.Error("create private dir failed", "err", err)
 		http.Error(w, "create private dir failed", http.StatusInternalServerError)
 		return
 	}
 
 	if err := os.WriteFile(privateFile, body, 0644); err != nil {
-		log.Printf("[ERROR] write private file failed: %v", err)
+		slog.Error("write private file failed", "err", err)
 		http.Error(w, "write private file failed", http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("[UPLOAD] saved %s", privateFile)
+	slog.Info("upload saved", "file", privateFile)
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte("OK"))
 }
