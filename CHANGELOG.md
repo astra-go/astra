@@ -39,6 +39,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **goroutine泄漏(middleware/security)**: `DistributedRateLimitWithConfig` 中的内存回退存储清理协程无法被停止，默认使用 `context.Background()`。改用 `context.WithCancel` 修复。
 - **CSRF 测试回归**: 修复 CookieSecure 默认值覆盖用户显式配置的问题
 - **runner/dagu.go 编译错误**: 补充缺失的 `package runner` 声明
 
