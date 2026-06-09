@@ -41,6 +41,14 @@
 // Calling Destroy() inside a handler marks the session for deletion: the store
 // entry and cookie are removed when the response is written.
 //
+// # Session fixation protection
+//
+// After privilege escalation (login, role upgrade, password change) always call
+// RegenerateID() to obtain a new session ID:
+//
+//	sess := session.Get(c)
+//	sess.RegenerateID() // prevents session fixation
+//
 // # Cookie signing
 //
 // The session ID is HMAC-SHA256 signed with SecretKey to prevent cookie
@@ -238,6 +246,37 @@ func (s *Session) Destroy() {
 	s.destroyed = true
 	s.dirty = true
 	s.mu.Unlock()
+}
+
+// RegenerateID generates a new session ID while preserving all data.
+// Call this after privilege escalation (login, role upgrade, password change)
+// to prevent session fixation attacks.
+//
+// Example:
+//
+//	sess := session.Get(c)
+//	sess.RegenerateID() // new ID, same data
+func (s *Session) RegenerateID() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.destroyed {
+		return // no-op on destroyed sessions
+	}
+
+	oldID := s.id
+	newID := uuid.NewString()
+	s.id = newID
+	s.dirty = true
+
+	// Best-effort deletion of the old ID from the store.
+	// Failure is non-fatal — the old session will expire via its TTL.
+	if err := s.store.Delete(context.Background(), oldID); err != nil {
+		slog.Warn("session: failed to delete old session ID on regenerate",
+			"old_id", oldID,
+			"err", err,
+		)
+	}
 }
 
 // Middleware returns an Astra middleware that loads, injects, and auto-saves
