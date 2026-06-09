@@ -1,6 +1,6 @@
 package lo
 
-import "math/rand"
+import "math/rand/v2"
 
 // ─── Transformation ───────────────────────────────────────────────────────────
 

@@ -5,7 +5,7 @@ package chaos
 
 import (
 	"context"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"sync"
 	"time"
@@ -37,7 +37,7 @@ type FaultInjector struct {
 func NewFaultInjector() *FaultInjector {
 	return &FaultInjector{
 		faults:  make(map[string]*faultConfig),
-		randSrc: rand.New(rand.NewSource(time.Now().UnixNano())),
+		randSrc: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano()))),
 	}
 }
 
