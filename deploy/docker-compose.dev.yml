@@ -17,7 +17,7 @@ services:
     container_name: astra-postgres
     environment:
       POSTGRES_USER: astra_dev
-      POSTGRES_PASSWORD: dev123
+      POSTGRES_PASSWORD: astra_dev_9kF2mP8x
       POSTGRES_DB: astra_dev
       POSTGRES_INITDB_ARGS: "-E UTF8 --locale=en_US.UTF-8"
     ports:
@@ -38,7 +38,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: astra-redis
-    command: redis-server --appendonly yes --requirepass dev123
+    command: redis-server --appendonly yes --requirepass astra_dev_9kF2mP8x
     ports:
       - "6379:6379"
     volumes:
@@ -60,10 +60,10 @@ services:
     image: mysql:8.0
     container_name: astra-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: dev123
+      MYSQL_ROOT_PASSWORD: astra_dev_9kF2mP8x
       MYSQL_DATABASE: astra_dev
       MYSQL_USER: astra_dev
-      MYSQL_PASSWORD: dev123
+      MYSQL_PASSWORD: astra_dev_9kF2mP8x
     ports:
       - "3306:3306"
     volumes:
@@ -71,7 +71,7 @@ services:
       - ./init/mysql:/docker-entrypoint-initdb.d:ro
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pdev123"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-paste_dev_9kF2mP8x"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -87,7 +87,7 @@ services:
     container_name: astra-mongodb
     environment:
       MONGO_INITDB_ROOT_USERNAME: astra_dev
-      MONGO_INITDB_ROOT_PASSWORD: dev123
+      MONGO_INITDB_ROOT_PASSWORD: astra_dev_9kF2mP8x
       MONGO_INITDB_DATABASE: astra_dev
     ports:
       - "27017:27017"
@@ -166,7 +166,7 @@ services:
     container_name: astra-rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: astra_dev
-      RABBITMQ_DEFAULT_PASS: dev123
+      RABBITMQ_DEFAULT_PASS: astra_dev_9kF2mP8x
     ports:
       - "5672:5672"   # AMQP
       - "15672:15672" # Management UI
@@ -267,7 +267,7 @@ services:
     container_name: astra-grafana
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: grafana_dev_7hX3mR9k
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_INSTALL_PLUGINS: "redis-datasource"
     ports:

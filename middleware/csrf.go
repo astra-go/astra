@@ -57,12 +57,12 @@ type CSRFConfig struct {
 	// CookieMaxAge is the Max-Age of the CSRF cookie. Default: 24h.
 	CookieMaxAge time.Duration
 
-	// CookieSecure sets the Secure flag on the cookie. Default: false.
-	// Set to true in production (HTTPS).
+	// CookieSecure sets the Secure flag on the cookie. Default: true.
+	// Must be false for local HTTP development testing.
 	CookieSecure bool
 
-	// CookieHTTPOnly sets the HttpOnly flag. Default: false.
-	// Normally the token must be readable by JavaScript, so this is false.
+	// CookieHTTPOnly sets the HttpOnly flag. Default: true.
+	// Set to false for SPA apps that need JavaScript access to the token.
 	CookieHTTPOnly bool
 
 	// CookieSameSite sets the SameSite attribute. Default: http.SameSiteLaxMode.

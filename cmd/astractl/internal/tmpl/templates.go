@@ -455,7 +455,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - DATABASE_DSN=host=postgres user=postgres password=postgres dbname={{.NameLower}} sslmode=disable
+      - DATABASE_DSN=host=postgres user=postgres password={{.NameLower}}_dev_9kF2mP8x dbname={{.NameLower}} sslmode=disable
       - REDIS_ADDR=redis:6379
     depends_on:
       postgres:
@@ -469,7 +469,7 @@ services:
     environment:
       POSTGRES_DB: {{.NameLower}}
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: {{.NameLower}}_dev_9kF2mP8x
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
