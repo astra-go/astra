@@ -37,6 +37,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **HTTP 客户端无超时（4处）**: `health/probes.go`、`alert/channel.go`、`runner/dagu.go`、`netengine/engine_test.go` 中替换 `http.DefaultClient` 为带超时客户端
 - **非结构化日志**: `tools/modproxy` 从 `log.Print/Fatal` 迁移到 `log/slog` 结构化日志
 
+### Added
+
+- **Session ID 轮换机制**: 新增 `Session.RegenerateID()` 方法，在权限提升（登录、角色升级）后生成新 session ID，防止会话固定攻击
+
 ### Fixed
 
 - **goroutine泄漏(middleware/security)**: `DistributedRateLimitWithConfig` 中的内存回退存储清理协程无法被停止，默认使用 `context.Background()`。改用 `context.WithCancel` 修复。
