@@ -48,6 +48,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **spf13/viper v1.8.1 → v1.21.0**: 间接依赖升级，跳过四个大版本
 - **关联依赖同步升级**: spf13/afero (v1.6.0→v1.15.0), spf13/cast (v1.3.1→v1.10.0), spf13/pflag (v1.0.5→v1.0.10), subosito/gotenv (v1.2.0→v1.6.0)
 
+### Changed
+
+- **math/rand → math/rand/v2**: `lo/slice.go` 和 `e2e/chaos` 迁移到 Go 1.22+ 新版随机数库（ChaCha8 算法）
+
 ---
 
 ## [1.1.1-beta.1] — 2026-06-04
