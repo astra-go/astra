@@ -185,6 +185,7 @@ func (p *Proxy[T]) doCall(ctx context.Context, fn func(svc T) error, cancel cont
 
 	select {
 	case <-ctx.Done():
+		<-done // wait for the goroutine to finish
 		return ctx.Err()
 	case err := <-done:
 		return err

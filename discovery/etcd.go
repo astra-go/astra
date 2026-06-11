@@ -47,6 +47,7 @@ func NewEtcdRegistry(client *clientv3.Client, prefix string) *EtcdRegistry {
 		client:   client,
 		prefix:   prefix,
 		leaseIDs: make(map[string]clientv3.LeaseID),
+		kaCtxs:   make(map[string]context.CancelFunc),
 	}
 }
 
@@ -87,14 +88,19 @@ func (r *EtcdRegistry) Register(ctx context.Context, instance *ServiceInstance) 
 	r.leaseIDs[instance.ID] = lease.ID
 	r.mu.Unlock()
 
-	// Background keepalive — runs until the client is closed or the context is cancelled.
+	// Background keepalive — cancelled when Deregister is called or the registry is closed.
+	kaCtx, cancelKa := context.WithCancel(context.Background())
+	r.mu.Lock()
+	r.kaCtxs[instance.ID] = cancelKa
+	r.mu.Unlock()
 	go func() {
-		kaCh, err := r.client.KeepAlive(context.Background(), lease.ID)
+		defer cancelKa()
+		kaCh, err := r.client.KeepAlive(kaCtx, lease.ID)
 		if err != nil {
 			return
 		}
 		for range kaCh {
-			// Drain responses; KeepAlive stops automatically when the client closes.
+			// Drain responses; exits when kaCtx is cancelled.
 		}
 	}()
 
@@ -108,8 +114,15 @@ func (r *EtcdRegistry) Deregister(ctx context.Context, instanceID string) error 
 	if ok {
 		delete(r.leaseIDs, instanceID)
 	}
+	cancelKa, kaOk := r.kaCtxs[instanceID]
+	if kaOk {
+		delete(r.kaCtxs, instanceID)
+	}
 	r.mu.Unlock()
 
+	if kaOk {
+		cancelKa() // stop the KeepAlive goroutine
+	}
 	if ok {
 		if _, err := r.client.Revoke(ctx, leaseID); err != nil {
 			return fmt.Errorf("etcd: revoke lease: %w", err)
@@ -184,6 +197,12 @@ func (r *EtcdRegistry) Watch(ctx context.Context, serviceName string) (<-chan []
 
 // Close closes the underlying etcd client.
 func (r *EtcdRegistry) Close() error {
+	r.mu.Lock()
+	for _, cancelKa := range r.kaCtxs {
+		cancelKa()
+	}
+	r.kaCtxs = nil
+	r.mu.Unlock()
 	return r.client.Close()
 }
 

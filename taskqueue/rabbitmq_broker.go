@@ -97,6 +97,12 @@ func NewRabbitmqBroker(cfg RabbitmqConfig) (*RabbitmqBroker, error) {
 	}
 
 	if err := b.rabbitmqDeclareTopology(); err != nil {
+		if pubCh != nil {
+			_ = pubCh.Close()
+		}
+		if getCh != nil {
+			_ = getCh.Close()
+		}
 		_ = conn.Close()
 		return nil, err
 	}
@@ -125,8 +131,12 @@ func NewRabbitmqBrokerFromConn(conn *amqp.Connection, cfg RabbitmqConfig) (*Rabb
 		delay:  cfg.UseDelayedExchange,
 	}
 	if err := b.rabbitmqDeclareTopology(); err != nil {
-		_ = pubCh.Close()
-		_ = getCh.Close()
+		if pubCh != nil {
+			_ = pubCh.Close()
+		}
+		if getCh != nil {
+			_ = getCh.Close()
+		}
 		return nil, err
 	}
 	return b, nil

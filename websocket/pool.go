@@ -387,6 +387,9 @@ func (p *ReconnectingPool) nextDelay(current time.Duration) time.Duration {
 
 // Close stops the reconnecting pool.
 func (p *ReconnectingPool) Close() error {
+	if p == nil {
+		return nil
+	}
 	if p.stop != nil {
 		p.stop()
 	}

@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -55,6 +56,7 @@ type ServerOptions struct {
 	// Kratos-style additions
 	timeout   time.Duration // per-call deadline; 0 = no limit
 	tlsConfig *tls.Config   // gRPC TLS config; nil = plaintext
+	insecureOK bool         // allow plaintext; for dev/test only
 	// gateway
 	gatewayPrefix    string
 	gatewayRegistrar GatewayRegistrar
@@ -89,6 +91,13 @@ func WithShutdownTimeout(d time.Duration) Option {
 // Default: 0 (no timeout enforced by the server).
 func WithTimeout(d time.Duration) Option {
 	return func(o *ServerOptions) { o.timeout = d }
+}
+
+// WithInsecure disables TLS enforcement for the gRPC server.
+// WARNING: use this only in local development or test environments.
+// In production, always use WithTLSConfig() instead.
+func WithInsecure() Option {
+	return func(o *ServerOptions) { o.insecureOK = true }
 }
 
 // WithTLSConfig enables TLS for the gRPC listener using the provided config.
@@ -145,12 +154,15 @@ func New(app *astra.App, opts ...Option) *Server {
 		defaultGRPCOpts = append(defaultGRPCOpts,
 			grpc.Creds(credentials.NewTLS(options.tlsConfig)))
 	} else {
-		// Security warning: gRPC server running without TLS (plaintext)
-		slog.Warn("SECURITY WARNING: gRPC server is running without TLS. " +
-			"All traffic will be unencrypted. Use WithTLSConfig() in production. " +
-			"Set ASTRA_GRPC_INSECURE_OK=1 to suppress this warning.")
-		if os.Getenv("ASTRA_GRPC_INSECURE_OK") != "1" {
-			slog.Warn("Set environment variable ASTRA_GRPC_INSECURE_OK=1 to acknowledge and suppress this warning.")
+		if options.insecureOK || os.Getenv("ASTRA_GRPC_INSECURE_OK") == "1" {
+			slog.Warn("gRPC server is running without TLS (plaintext). " +
+				"Use WithTLSConfig() or set up a TLS-terminating proxy in production.")
+		} else {
+			slog.Error("gRPC server has no TLS configuration and ASTRA_GRPC_INSECURE_OK is not set. " +
+				"All gRPC traffic will be unencrypted. This is not allowed in production. " +
+				"To allow plaintext in dev/test, pass grpcserver.WithInsecure() or set ASTRA_GRPC_INSECURE_OK=1.")
+			log.Fatalf("gRPC: TLS is required but not configured; aborting. " +
+				"Set WithTLSConfig() or pass WithInsecure() (dev/test only).")
 		}
 	}
 
