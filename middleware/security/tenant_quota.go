@@ -127,15 +127,19 @@ func TenantQuotaWithConfig(cfg TenantQuotaConfig) astra.HandlerFunc {
 	}
 
 	// Midnight reset goroutine with proper cancellation.
-	ctx, _ := context.WithCancel(context.Background())
+	// cancel is captured by the returned middleware closure, so it stays
+	// alive as long as the middleware is registered.
+	ctx, cancelCtx := context.WithCancel(context.Background())
 	go dailyResetLoop(ctx, cfg.Store)
 
 	// Periodic cleanup for stale bucket/semaphore entries (every hour).
-	cleanupCtx, _ := context.WithCancel(context.Background())
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
 	go buckets.cleanupLoop(cleanupCtx, time.Hour)
 	go semaphores.cleanupLoop(cleanupCtx, time.Hour)
 
 	return func(c *astra.Ctx) error {
+		_ = cancelCtx  // keep cancel alive (prevents goroutine leak)
+		_ = cleanupCancel
 		if shouldSkip(cfg.Skipper, c) {
 			c.Next()
 			return nil

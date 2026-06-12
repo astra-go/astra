@@ -204,18 +204,36 @@ func sha256Hex(b []byte) string {
 // use a Redis-backed implementation.
 // Call Close to stop the background reaper goroutine.
 type InMemoryNonceStore struct {
-	mu     sync.Mutex
-	nonces map[string]time.Time
-	stop   chan struct{}
-	once   sync.Once
+	mu       sync.Mutex
+	nonces   map[string]time.Time
+	stop     chan struct{}
+	once     sync.Once
+	maxSize  int           // maximum entries before eviction of oldest
 }
+
+const defaultMaxNonceEntries = 100_000
 
 // NewInMemoryNonceStore creates a new InMemoryNonceStore with a background
 // reaper that evicts expired nonces every minute.
 func NewInMemoryNonceStore() *InMemoryNonceStore {
 	s := &InMemoryNonceStore{
-		nonces: make(map[string]time.Time),
-		stop:   make(chan struct{}),
+		nonces:  make(map[string]time.Time),
+		stop:    make(chan struct{}),
+		maxSize: defaultMaxNonceEntries,
+	}
+	go s.reap()
+	return s
+}
+
+// NewInMemoryNonceStoreWithSize creates a store with a custom max entry limit.
+func NewInMemoryNonceStoreWithSize(maxEntries int) *InMemoryNonceStore {
+	if maxEntries <= 0 {
+		maxEntries = defaultMaxNonceEntries
+	}
+	s := &InMemoryNonceStore{
+		nonces:  make(map[string]time.Time),
+		stop:    make(chan struct{}),
+		maxSize: maxEntries,
 	}
 	go s.reap()
 	return s
@@ -223,12 +241,29 @@ func NewInMemoryNonceStore() *InMemoryNonceStore {
 
 // Seen returns true if the nonce was already recorded within its window.
 // If not seen, the nonce is recorded before returning false.
+// If the store exceeds maxSize, the oldest entries are evicted first.
 func (s *InMemoryNonceStore) Seen(nonce string, window time.Duration) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if exp, ok := s.nonces[nonce]; ok && time.Now().Before(exp) {
 		return true, nil
 	}
+
+	// Evict oldest entries if at capacity to prevent unbounded memory growth.
+	if len(s.nonces) >= s.maxSize {
+		oldestKey := ""
+		oldestTime := time.Now().Add(365 * 24 * time.Hour)
+		for k, exp := range s.nonces {
+			if exp.Before(oldestTime) {
+				oldestKey = k
+				oldestTime = exp
+			}
+		}
+		if oldestKey != "" {
+			delete(s.nonces, oldestKey)
+		}
+	}
+
 	s.nonces[nonce] = time.Now().Add(window)
 	return false, nil
 }

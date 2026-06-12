@@ -136,6 +136,7 @@ func IPFilter(cfg IPFilterConfig) astra.HandlerFunc {
 	}
 
 	return func(c *astra.Ctx) error {
+		_ = reloadCancel // keep cancel alive (prevents goroutine leak)
 		if shouldSkip(cfg.Skipper, c) {
 			c.Next()
 			return nil

@@ -22,6 +22,9 @@ import (
 //	    "my-secret",
 //	)
 func GenerateJWT(claims jwt.Claims, secret string) (string, error) {
+	if len(secret) < MinJWTKeyLength {
+		return "", fmt.Errorf("jwt: HMAC key must be at least %d bytes (got %d)", MinJWTKeyLength, len(secret))
+	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(secret))
 }

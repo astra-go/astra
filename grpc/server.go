@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -161,8 +160,7 @@ func New(app *astra.App, opts ...Option) *Server {
 			slog.Error("gRPC server has no TLS configuration and ASTRA_GRPC_INSECURE_OK is not set. " +
 				"All gRPC traffic will be unencrypted. This is not allowed in production. " +
 				"To allow plaintext in dev/test, pass grpcserver.WithInsecure() or set ASTRA_GRPC_INSECURE_OK=1.")
-			log.Fatalf("gRPC: TLS is required but not configured; aborting. " +
-				"Set WithTLSConfig() or pass WithInsecure() (dev/test only).")
+			os.Exit(1)
 		}
 	}
 

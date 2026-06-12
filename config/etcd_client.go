@@ -20,8 +20,9 @@ package config
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"log/slog"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -96,6 +97,24 @@ func NewEtcdClient(opts EtcdOptions) (ConfigClient, error) {
 	}
 	if opts.KeyPrefix == "" {
 		opts.KeyPrefix = "/config"
+	}
+
+	// SECURITY: Warn if connecting without TLS (same model as gRPC server).
+	// Production etcd clusters should always use TLS.
+	var hasTLS bool
+	for _, ep := range opts.Endpoints {
+		if strings.HasPrefix(ep, "https://") {
+		hasTLS = true
+			break
+		}
+	}
+	if !hasTLS {
+		if os.Getenv("ASTRA_ETCD_INSECURE_OK") != "1" {
+		slog.Error("config/etcd: no TLS endpoints configured. " +
+				"Set ASTRA_ETCD_INSECURE_OK=1 to allow insecure connections (NOT for production)")
+			os.Exit(1)
+		}
+		slog.Warn("config/etcd: using insecure (non-TLS) connection — do NOT use in production")
 	}
 
 	// Create Etcd client

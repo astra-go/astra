@@ -50,6 +50,7 @@ package orm
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -57,6 +58,14 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// schemaNameRe validates PostgreSQL schema names to prevent SQL injection.
+var schemaNameRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+
+// isValidSchemaName returns true if name is a safe PostgreSQL schema identifier.
+func isValidSchemaName(name string) bool {
+	return schemaNameRe.MatchString(name)
+}
 
 // TenantMode controls how tenant isolation is applied.
 type TenantMode int
@@ -200,6 +209,11 @@ func (m *TenantDBManager) Register(tenantID string, db *gorm.DB) error {
 func (m *TenantDBManager) RegisterSchema(tenantID string, db *gorm.DB, schemaName string) error {
 	if err := m.Register(tenantID, db); err != nil {
 		return err
+	}
+	// SECURITY: Validate schemaName to prevent SQL injection via SET LOCAL search_path.
+	// PostgreSQL schema names must match: [a-zA-Z_][a-zA-Z0-9_]*
+	if !isValidSchemaName(schemaName) {
+		return fmt.Errorf("orm: invalid schema name %q: must match ^[a-zA-Z_][a-zA-Z0-9_]*$", schemaName)
 	}
 	m.mu.Lock()
 	m.schemas[tenantID] = schemaName

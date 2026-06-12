@@ -28,8 +28,8 @@ type RecoveryConfig struct {
 
 // DefaultRecoveryConfig is the default recovery configuration.
 var DefaultRecoveryConfig = RecoveryConfig{
-	PrintStack:     true,
-	IsProduction:   false,
+	PrintStack:     false, // safer default: don't leak stack traces
+	IsProduction:   true,  // safer default: don't leak error details
 	AlertFunc:      nil,
 }
 

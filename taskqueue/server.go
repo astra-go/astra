@@ -184,7 +184,14 @@ func (s *Server) RegisterCron(expr string, taskType string, payload []byte, opts
 		s.cronSvc = cron.New()
 	}
 	_, err := s.cronSvc.AddFunc(expr, func() {
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), s.cfg.DefaultTimeout)
+		defer cancel()
+		// Respect server shutdown
+		select {
+		case <-s.stopCh:
+			return
+		default:
+		}
 		if _, err := s.client.EnqueueTask(ctx, taskType, payload, opts...); err != nil {
 			if err != ErrDuplicateTask {
 				s.cfg.Logger.Warn("taskqueue: cron enqueue failed",
