@@ -108,6 +108,7 @@ type Engine struct {
 	states   []*ruleState
 	channels map[string]Channel
 	stopCh   chan struct{}
+	done     chan struct{} // closed when eval loop goroutine exits
 	log      *slog.Logger
 }
 
@@ -121,6 +122,7 @@ func NewEngine(cfg EngineConfig) *Engine {
 		metrics:  make(map[string]MetricFunc),
 		channels: make(map[string]Channel),
 		stopCh:   make(chan struct{}),
+		done:     make(chan struct{}),
 		log:      slog.Default(),
 	}
 }
@@ -167,6 +169,7 @@ func (e *Engine) Start(ctx context.Context) {
 	ticker := time.NewTicker(e.cfg.EvalInterval)
 	go func() {
 		defer ticker.Stop()
+		defer close(e.done)
 		for {
 			select {
 			case <-ticker.C:
@@ -180,9 +183,10 @@ func (e *Engine) Start(ctx context.Context) {
 	}()
 }
 
-// Stop halts the evaluation loop.
+// Stop halts the evaluation loop and waits for the goroutine to exit.
 func (e *Engine) Stop() {
 	close(e.stopCh)
+	<-e.done // wait for eval loop goroutine
 }
 
 // ActiveAlerts returns a snapshot of all currently firing alerts.

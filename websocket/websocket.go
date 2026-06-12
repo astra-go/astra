@@ -60,6 +60,9 @@ const (
 // SECURITY: By default, CheckOrigin requires same-origin policy to prevent
 // Cross-Site WebSocket Hijacking (CSWSH). To allow all origins (NOT recommended
 // for production), explicitly set websocket.Upgrader.CheckOrigin = func(r *http.Request) bool { return true }
+//
+// To allow specific origins, use NewUpgraderWithOrigins() which creates an
+// Upgrader with an explicit origin whitelist.
 var Upgrader = gorilla.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -83,6 +86,42 @@ var Upgrader = gorilla.Upgrader{
 		// Allow same-origin requests
 		return originURL.Host == host
 	},
+}
+
+// NewUpgraderWithOrigins creates a WebSocket Upgrader that allows connections
+// from the specified origin whitelist. Same-origin requests are always allowed
+// regardless of the whitelist.
+//
+// Example:
+//
+//	upgrader := websocket.NewUpgraderWithOrigins("https://app.example.com", "https://admin.example.com")
+//	websocket.HandlerWithUpgrader(hub, handler, upgrader)
+//
+// SECURITY: Only use trusted origins. Do not include "*" or wildcard patterns.
+func NewUpgraderWithOrigins(allowedOrigins ...string) gorilla.Upgrader {
+	originSet := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		originSet[o] = true
+	}
+	return gorilla.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return false
+			}
+			originURL, err := url.Parse(origin)
+			if err != nil {
+				return false
+			}
+			// Same-origin is always allowed.
+			if originURL.Host == r.Host {
+				return true
+			}
+			return originSet[origin]
+		},
+	}
 }
 
 // Message is a structured WebSocket message with an optional event type.

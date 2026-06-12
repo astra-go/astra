@@ -79,6 +79,7 @@ type DaguRunner struct {
 	mux      *http.ServeMux
 	mu       sync.Mutex // serialises Start/Stop
 	httpSrv  *http.Server
+	done     chan struct{} // closed when ListenAndServe goroutine exits
 }
 
 // NewDaguRunner creates a DaguRunner.
@@ -131,17 +132,19 @@ func (r *DaguRunner) Start(_ context.Context) error {
 		Handler: r.mux,
 	}
 	r.httpSrv = srv
+	r.done = make(chan struct{})
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("runner: callback server error", "err", err)
 		}
+		close(r.done)
 	}()
 	slog.Info("runner: callback server started", "port", r.cfg.CallbackPort)
 	return nil
 }
 
 // Stop gracefully shuts down the callback HTTP server.
-// In-flight job callbacks are allowed to complete until ctx expires.
+// Blocks until the server goroutine has exited or ctx expires.
 func (r *DaguRunner) Stop(ctx context.Context) error {
 	r.mu.Lock()
 	srv := r.httpSrv
@@ -149,7 +152,20 @@ func (r *DaguRunner) Stop(ctx context.Context) error {
 	if srv == nil {
 		return nil
 	}
-	return srv.Shutdown(ctx)
+	err := srv.Shutdown(ctx)
+	if err != nil {
+		return err
+	}
+	// Wait for ListenAndServe goroutine to finish.
+	select {
+	case <-r.done:
+		r.mu.Lock()
+		r.httpSrv = nil
+		r.mu.Unlock()
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Jobs queries the Dagu REST API and returns info for DAGs managed by this runner.

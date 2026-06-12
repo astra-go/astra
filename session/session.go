@@ -290,6 +290,9 @@ func Middleware(store Store, cfgs ...Config) astra.MiddlewareFunc {
 	if cfg.SecretKey == "" {
 		panic("session: Config.SecretKey must not be empty")
 	}
+	if len(cfg.SecretKey) < 32 {
+		panic("session: Config.SecretKey must be at least 32 bytes for adequate HMAC security, got " + fmt.Sprintf("%d", len(cfg.SecretKey)))
+	}
 
 	return func(c *astra.Ctx) error {
 		sess := load(c.Request(), store, cfg)

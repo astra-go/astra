@@ -17,6 +17,8 @@ import (
 	"net"
 	"net/smtp"
 	"net/textproto"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -43,6 +45,13 @@ type SmtpConfig struct {
 	// When false (default), STARTTLS is used.
 	ImplicitTLS bool
 
+	// EnvPrefix enables reading sensitive fields from environment variables.
+	// When set (e.g. "SMTP"), the following env vars are checked:
+	//   SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM
+	// Environment variables take precedence over struct fields for Host,
+	// Username, and Password. This avoids storing credentials in config files.
+	EnvPrefix string
+
 	// TLSConfig overrides the default TLS configuration.
 	TLSConfig *tls.Config
 
@@ -56,7 +65,10 @@ type SmtpSender struct {
 }
 
 // NewSmtpSender creates an SMTP-backed EmailSender.
+// When SmtpConfig.EnvPrefix is set, sensitive fields are read from environment
+// variables first (e.g. SMTP_PASSWORD), falling back to struct values.
 func NewSmtpSender(cfg SmtpConfig) *SmtpSender {
+	cfg.resolveFromEnv()
 	if cfg.Port == 0 {
 		cfg.Port = 587
 	}
@@ -64,6 +76,32 @@ func NewSmtpSender(cfg SmtpConfig) *SmtpSender {
 		cfg.DialTimeout = 10 * time.Second
 	}
 	return &SmtpSender{cfg: cfg}
+}
+
+// resolveFromEnv reads Host, Username, Password, and Port from environment
+// variables when EnvPrefix is set. Environment values take precedence over
+// struct fields for security-sensitive data.
+func (c *SmtpConfig) resolveFromEnv() {
+	if c.EnvPrefix == "" {
+		return
+	}
+	if v := os.Getenv(c.EnvPrefix + "_HOST"); v != "" {
+		c.Host = v
+	}
+	if v := os.Getenv(c.EnvPrefix + "_PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.Port = n
+		}
+	}
+	if v := os.Getenv(c.EnvPrefix + "_USERNAME"); v != "" {
+		c.Username = v
+	}
+	if v := os.Getenv(c.EnvPrefix + "_PASSWORD"); v != "" {
+		c.Password = v
+	}
+	if v := os.Getenv(c.EnvPrefix + "_FROM"); v != "" {
+		c.From = v
+	}
 }
 
 // Send delivers msg via SMTP. A new connection is opened per call.

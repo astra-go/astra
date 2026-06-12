@@ -82,6 +82,7 @@ type Config struct {
 	data    map[string]any
 	sources []Source
 	hooks   []func()
+	hookSem chan struct{} // limits concurrent hook goroutines
 
 	// hot-reload state
 	watcherOnce   sync.Once
@@ -96,6 +97,7 @@ func New(sources ...Source) (*Config, error) {
 		data:        make(map[string]any),
 		sources:     sources,
 		watcherDone: make(chan struct{}),
+		hookSem:     make(chan struct{}, 8), // max 8 concurrent hook goroutines
 	}
 	close(c.watcherDone) // pre-close so StopWatch is safe before StartWatch
 	if err := c.Load(); err != nil {
@@ -127,8 +129,14 @@ func (c *Config) Load() error {
 	c.mu.Unlock()
 
 	// Notify watchers outside the lock to avoid deadlocks if a hook calls Load.
+	// Use a semaphore to limit concurrent hook goroutines and prevent goroutine
+	// storms when config changes rapidly (e.g. batch file writes).
 	for _, h := range hooks {
-		go safeHook(h)
+		c.hookSem <- struct{}{} // acquire semaphore slot
+		go func(hook func()) {
+			defer func() { <-c.hookSem }() // release slot
+			safeHook(hook)
+		}(h)
 	}
 	return nil
 }

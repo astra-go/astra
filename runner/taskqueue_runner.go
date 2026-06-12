@@ -27,6 +27,7 @@ type TaskqueueRunner struct {
 	mu      sync.RWMutex
 	jobs    []JobInfo
 	started bool
+	done    chan struct{} // signals when server.Run goroutine has exited
 }
 
 // NewTaskqueueRunner creates a taskqueue-backed Runner.
@@ -81,17 +82,28 @@ func (r *TaskqueueRunner) Start(ctx context.Context) error {
 		return fmt.Errorf("runner: already started")
 	}
 	r.started = true
+	r.done = make(chan struct{})
 	r.mu.Unlock()
 
-	go func() { _ = r.server.Run(ctx, r.mux) }()
+	go func() {
+		_ = r.server.Run(ctx, r.mux)
+		close(r.done)
+	}()
 	return nil
 }
 
 // Stop gracefully shuts down the worker pool.
+// Blocks until the server goroutine has exited or ctx expires.
 // In-flight tasks are allowed to complete up to ServerConfig.ShutdownTimeout.
-func (r *TaskqueueRunner) Stop(_ context.Context) error {
+func (r *TaskqueueRunner) Stop(ctx context.Context) error {
 	r.server.Stop()
-	return nil
+	// Wait for the server goroutine to finish.
+	select {
+	case <-r.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Jobs returns a snapshot of all registered jobs.

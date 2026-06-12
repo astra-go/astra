@@ -149,6 +149,8 @@ func (r *GocronRunner) Start(ctx context.Context) error {
 
 	// Mirror ctx cancellation to the scheduler so that context-based app
 	// lifecycle management works: cancel(ctx) → scheduler shuts down.
+	// Stop() will also call Shutdown directly, so this goroutine only acts
+	// as a fallback for context-based cancellation.
 	go func() {
 		<-ctx.Done()
 		_ = r.s.Shutdown()
@@ -157,13 +159,15 @@ func (r *GocronRunner) Start(ctx context.Context) error {
 }
 
 // Stop gracefully shuts down the scheduler.
-// Blocks until all running jobs complete or ctx expires.
+// Cancels the Start context and blocks until the scheduler has fully stopped.
 func (r *GocronRunner) Stop(ctx context.Context) error {
 	r.mu.Lock()
 	if r.cancel != nil {
-		r.cancel()
+		r.cancel() // triggers the Start goroutine's Shutdown too
 	}
 	r.mu.Unlock()
+	// Call Shutdown ourselves for deterministic blocking; the Start goroutine's
+	// redundant Shutdown call is harmless (gocron handles double-shutdown).
 	done := make(chan error, 1)
 	go func() { done <- r.s.Shutdown() }()
 	select {
