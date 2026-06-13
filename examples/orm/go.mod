@@ -3,7 +3,7 @@ module example/orm
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v1.0.4
+	github.com/astra-go/astra v1.0.5
 	github.com/glebarez/sqlite v1.11.0
 	gorm.io/gorm v1.30.0
 )

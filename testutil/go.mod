@@ -4,9 +4,9 @@ module github.com/astra-go/astra/testutil
 go 1.25.1
 
 // Standalone testing utilities module.
-require github.com/astra-go/astra v1.0.4
+require github.com/astra-go/astra v1.0.5
 
-require github.com/astra-go/astra/cache v1.0.4
+require github.com/astra-go/astra/cache v1.0.5
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect

@@ -3,8 +3,8 @@ module github.com/astra-go/astra/loadbalance
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/discovery v1.0.4
-	github.com/astra-go/astra/testutil v1.0.4
+	github.com/astra-go/astra/discovery v1.0.5
+	github.com/astra-go/astra/testutil v1.0.5
 )
 
 require (
@@ -23,8 +23,8 @@ require (
 	github.com/aliyun/aliyun-secretsmanager-client-go v1.1.5 // indirect
 	github.com/aliyun/credentials-go v1.4.3 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
-	github.com/astra-go/astra v1.0.4 // indirect
-	github.com/astra-go/astra/cache v1.0.4 // indirect
+	github.com/astra-go/astra v1.0.5 // indirect
+	github.com/astra-go/astra/cache v1.0.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect

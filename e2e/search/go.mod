@@ -3,7 +3,7 @@ module github.com/astra-go/astra/e2e/search
 go 1.25.1
 
 require (
-	github.com/astra-go/astra/search v1.0.4
+	github.com/astra-go/astra/search v1.0.5
 	github.com/testcontainers/testcontainers-go/modules/elasticsearch v0.42.0
 )
 

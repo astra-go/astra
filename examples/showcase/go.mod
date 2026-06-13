@@ -3,14 +3,14 @@ module github.com/astra-go/astra/examples/showcase
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v1.0.4
-	github.com/astra-go/astra/auth v1.0.4
-	github.com/astra-go/astra/cache v1.0.4
-	github.com/astra-go/astra/grpc v1.0.4
-	github.com/astra-go/astra/middleware/security v1.0.4
-	github.com/astra-go/astra/orm v1.0.4
-	github.com/astra-go/astra/otel v1.0.4
-	github.com/astra-go/astra/taskqueue v1.0.4
+	github.com/astra-go/astra v1.0.5
+	github.com/astra-go/astra/auth v1.0.5
+	github.com/astra-go/astra/cache v1.0.5
+	github.com/astra-go/astra/grpc v1.0.5
+	github.com/astra-go/astra/middleware/security v1.0.5
+	github.com/astra-go/astra/orm v1.0.5
+	github.com/astra-go/astra/otel v1.0.5
+	github.com/astra-go/astra/taskqueue v1.0.5
 	github.com/casbin/casbin/v2 v2.135.0
 	github.com/docker/go-connections v0.7.0
 	github.com/glebarez/sqlite v1.11.0

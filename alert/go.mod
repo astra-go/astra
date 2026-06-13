@@ -5,12 +5,12 @@ go 1.25.1
 // Standalone alert engine module — rule-based alerting with expression evaluation
 // and pluggable notification channels (webhook, log, …).
 // Depends on the core astra module for lifecycle integration (Module interface).
-require github.com/astra-go/astra v1.0.4
+require github.com/astra-go/astra v1.0.5
 
-require github.com/astra-go/astra/testutil v1.0.4
+require github.com/astra-go/astra/testutil v1.0.5
 
 require (
-	github.com/astra-go/astra/cache v1.0.4 // indirect
+	github.com/astra-go/astra/cache v1.0.5 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.1 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
@@ -31,6 +31,6 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 )
 
-require github.com/astra-go/astra/rule v1.0.4
+require github.com/astra-go/astra/rule v1.0.5
 
 replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache

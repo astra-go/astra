@@ -7,15 +7,15 @@ go 1.25.1
 //   auth/rbac  — Casbin-based RBAC middleware
 //   auth/oauth2 — OAuth2/OIDC authorization-code flow with PKCE
 require (
-	github.com/astra-go/astra v1.0.4
+	github.com/astra-go/astra v1.0.5
 	github.com/casbin/casbin/v2 v2.119.0
 	golang.org/x/oauth2 v0.36.0
 )
 
-require github.com/astra-go/astra/testutil v1.0.4
+require github.com/astra-go/astra/testutil v1.0.5
 
 require (
-	github.com/astra-go/astra/cache v1.0.4 // indirect
+	github.com/astra-go/astra/cache v1.0.5 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.1 // indirect

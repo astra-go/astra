@@ -3,11 +3,11 @@ module github.com/astra-go/astra/examples/reference-blog
 go 1.25.1
 
 require (
-	github.com/astra-go/astra v1.0.4
-	github.com/astra-go/astra/cache v1.0.4
-	github.com/astra-go/astra/mq v1.0.4
-	github.com/astra-go/astra/orm v1.0.4
-	github.com/astra-go/astra/search v1.0.4
+	github.com/astra-go/astra v1.0.5
+	github.com/astra-go/astra/cache v1.0.5
+	github.com/astra-go/astra/mq v1.0.5
+	github.com/astra-go/astra/orm v1.0.5
+	github.com/astra-go/astra/search v1.0.5
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.52.0
