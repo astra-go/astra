@@ -392,12 +392,10 @@ func CollectSystemStats() *SystemStats {
 		Goroutines: runtime.NumGoroutine(),
 		CPUPercent: 0, // Would need external package for CPU%
 		Uptime:     time.Since(globalRegistry.Load().(*Registry).startTime),
-		LastGC:     time.Unix(0, int64(m.LastGC)),
+		LastGC:     time.Unix(0, int64(m.LastGC)), // #nosec G115 - m.LastGC 是纳秒时间戳，不会超过 int64 最大值
 		NumGC:      int(m.NumGC),
 	}
 }
-
-// itoa converts an int to a string.
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

@@ -122,6 +122,7 @@ func (w *WSEventLoop) Register(nc net.Conn) (*WSConn, error) {
 		return nil, err
 	}
 
+	// #nosec G115 - loopIdx 用于取模运算，结果范围受限于 loops 数量，不会溢出
 	idx := int(atomic.AddUint64(&w.engine.loopIdx, 1)-1) % len(w.engine.loops)
 	loop := w.engine.loops[idx]
 

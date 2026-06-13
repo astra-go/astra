@@ -104,10 +104,10 @@ type Ctx struct {
 
 	// handler chain and current index.
 	// index advances through handlers in Next(); Abort() sets it to abortIndex
-	// (math.MaxInt16) to stop the chain. int16 supports up to 32 767 handlers
+	// (math.MaxInt) to stop the chain. int supports up to 9223372036854775807 handlers
 	// per chain — far beyond any practical limit.
 	handlers HandlersChain
-	index    int16
+	index    int
 
 	// routeKey is the matched route template (e.g. "/users/:id"), set directly
 	// by the router to avoid the string→any interface boxing that c.Set would incur.

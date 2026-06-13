@@ -30,7 +30,7 @@ func newPoller(_ *eventLoop) (pollerBackend, error) {
 		scratch: make([]unix.Kevent_t, 512)}
 	// Register wakeup pipe read-end with EV_CLEAR (edge-like: drain on each edge).
 	if _, err = unix.Kevent(kfd, []unix.Kevent_t{{
-		Ident:  uint64(fds[0]),
+		Ident:  uint64(fds[0]), // #nosec G115 - fds[0] 是文件描述符，值很小
 		Filter: unix.EVFILT_READ,
 		Flags:  unix.EV_ADD | unix.EV_ENABLE | unix.EV_CLEAR,
 	}}, nil, nil); err != nil {
@@ -46,7 +46,7 @@ func newPoller(_ *eventLoop) (pollerBackend, error) {
 // EV_DISPATCH disables the filter after firing (like EPOLLONESHOT).
 func (p *kqueuePoller) add(fd int) error {
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{{
-		Ident:  uint64(fd),
+		Ident:  uint64(fd), // #nosec G115 - fd 是文件描述符，值很小
 		Filter: unix.EVFILT_READ,
 		Flags:  unix.EV_ADD | unix.EV_ENABLE | unix.EV_DISPATCH,
 	}}, nil, nil)
@@ -56,7 +56,7 @@ func (p *kqueuePoller) add(fd int) error {
 // mod re-enables a dispatched (disabled) filter for the next event.
 func (p *kqueuePoller) mod(fd int) error {
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{{
-		Ident:  uint64(fd),
+		Ident:  uint64(fd), // #nosec G115 - fd 是文件描述符，值很小
 		Filter: unix.EVFILT_READ,
 		Flags:  unix.EV_ENABLE | unix.EV_DISPATCH,
 	}}, nil, nil)
@@ -65,7 +65,7 @@ func (p *kqueuePoller) mod(fd int) error {
 
 func (p *kqueuePoller) del(fd int) error {
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{{
-		Ident:  uint64(fd),
+		Ident:  uint64(fd), // #nosec G115 - fd 是文件描述符，值很小
 		Filter: unix.EVFILT_READ,
 		Flags:  unix.EV_DELETE,
 	}}, nil, nil)
@@ -89,6 +89,7 @@ func (p *kqueuePoller) wait(events []pollEvent) (int, error) {
 		for i := range n {
 			ke := &kEvents[i]
 			// Drain wakeup pipe internally.
+			// #nosec G115 - ke.Ident 是文件描述符，在 BSD 系统上不会超过 int 最大值
 			if int(ke.Ident) == p.wakeR {
 				var buf [64]byte
 				for {
@@ -98,6 +99,7 @@ func (p *kqueuePoller) wait(events []pollEvent) (int, error) {
 				}
 				continue
 			}
+			// #nosec G115 - ke.Ident 是文件描述符，在 BSD 系统上不会超过 int 最大值
 			events[count].fd = int(ke.Ident)
 			events[count].readable = ke.Filter == unix.EVFILT_READ
 			events[count].hangup = ke.Flags&unix.EV_EOF != 0

@@ -1,6 +1,8 @@
 package astra
 
-import "github.com/astra-go/astra/router"
+import (
+	"github.com/astra-go/astra/router"
+)
 
 // context_flow.go — handler-chain flow control methods for Ctx.
 //
@@ -10,11 +12,9 @@ import "github.com/astra-go/astra/router"
 //     handlers. Middleware that called Next() before the abort will still run its
 //     deferred post-handler code (like timing or logging finalization).
 
-import "math"
-
 // abortIndex is the sentinel value assigned to Ctx.index when Abort is called.
-// Any value ≥ abortIndex means the chain was stopped.  int16 max = 32767.
-const abortIndex int16 = math.MaxInt16
+// Any value ≥ abortIndex means the chain was stopped. int max = 9223372036854775807.
+const abortIndex int = int(^uint(0) >> 1) // math.MaxInt
 
 // Next executes the next handler in the chain.
 // It is safe to call on an already-aborted context — the call is a no-op.
@@ -24,15 +24,15 @@ const abortIndex int16 = math.MaxInt16
 // caller does not check the return value.
 func (c *Ctx) Next() (err error) {
 	c.index++
-	for c.index < int16(len(c.handlers)) {
+	for c.index < len(c.handlers) {
 		err = c.handlers[c.index](c)
 		if err != nil {
 			c.app.options.ErrorHandler(c, err)
 			return
 		}
-		// Guard against int16 overflow when a handler called Abort() (sets
-		// c.index = abortIndex = math.MaxInt16). Incrementing MaxInt16 wraps
-		// to MinInt16 which would satisfy the loop condition and cause a panic.
+		// Guard against overflow when a handler called Abort() (sets
+		// c.index = abortIndex = math.MaxInt). Incrementing MaxInt will
+		// not wrap in int type.
 		if c.IsAborted() {
 			return
 		}

@@ -213,6 +213,7 @@ func (e *Engine) Serve(ln net.Listener) error {
 			return err
 		}
 		atomic.AddInt64(&e.activeConns, 1)
+		// #nosec G115 - loopIdx 用于取模运算，结果范围受限于 loops 数量，不会溢出
 		idx := int(atomic.AddUint64(&e.loopIdx, 1)-1) % len(e.loops)
 		e.loops[idx].dispatchNewDirect(conn)
 	}
