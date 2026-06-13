@@ -27,7 +27,7 @@ func tryFromDir(name string) *template.Template {
 		return nil
 	}
 	path := filepath.Join(templateDir, name+".tmpl")
-	src, err := os.ReadFile(path)
+	src, err := os.ReadFile(path) // 
 	if err != nil {
 		return nil
 	}

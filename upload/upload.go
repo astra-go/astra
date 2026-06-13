@@ -181,7 +181,7 @@ func SaveFile(c *astra.Ctx, field string, cfg SaveFileConfig) (string, *multipar
 	}
 
 	// Ensure destination directory exists.
-	if err := os.MkdirAll(cfg.DestDir, 0o755); err != nil {
+	if err := os.MkdirAll(cfg.DestDir, 0o700); err != nil {
 		return "", nil, fmt.Errorf("upload: mkdir %q: %w", cfg.DestDir, err)
 	}
 

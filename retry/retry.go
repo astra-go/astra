@@ -198,6 +198,7 @@ func nextDelay(p Policy, attempt int) time.Duration {
 	}
 	if p.Jitter {
 		// Add jitter in [-25%, +25%] of the computed delay.
+		// sing math/rand is acceptable for retry jitter (non-cryptographic use)
 		jitter := d * 0.25 * (2*rand.Float64() - 1)
 		d += jitter
 		if d < 0 {

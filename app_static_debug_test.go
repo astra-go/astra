@@ -15,7 +15,7 @@ func TestStatic_SymlinkDebug(t *testing.T) {
 	staticDir := filepath.Join(tmpDir, "static")
 	subDir := filepath.Join(staticDir, "subdir")
 
-	if err := os.MkdirAll(subDir, 0755); err != nil {
+	if err := os.MkdirAll(subDir, 0700); err != nil {
 		t.Fatal(err)
 	}
 

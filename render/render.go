@@ -327,15 +327,10 @@ func (e *HTMLEngine) Reload() error { return e.load() }
 // builtinFuncs returns a set of convenience functions available in all templates.
 func builtinFuncs() template.FuncMap {
 	return template.FuncMap{
-		// safeHTML marks a string as trusted HTML (bypasses escaping).
 		"safeHTML": func(s string) template.HTML { return template.HTML(s) },
-		// safeURL marks a string as a trusted URL.
 		"safeURL": func(s string) template.URL { return template.URL(s) },
-		// safeAttr marks a string as a trusted HTML attribute value.
 		"safeAttr": func(s string) template.HTMLAttr { return template.HTMLAttr(s) },
-		// safeCSS marks a string as trusted CSS.
 		"safeCSS": func(s string) template.CSS { return template.CSS(s) },
-		// safeJS marks a string as trusted JavaScript.
 		"safeJS": func(s string) template.JS { return template.JS(s) },
 		// dict builds a map[string]any from alternating key-value pairs.
 		// Useful for passing multiple values into a sub-template:

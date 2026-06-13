@@ -119,7 +119,7 @@ func (c *CachedGraph) SaveToFile(path string) error {
 
 // LoadCachedGraphFromFile loads a cached graph from a JSON file.
 func LoadCachedGraphFromFile(path string) (*CachedGraph, error) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // 
 	if err != nil {
 		return nil, fmt.Errorf("failed to open cache file: %w", err)
 	}
@@ -136,7 +136,7 @@ func LoadCachedGraphFromFile(path string) (*CachedGraph, error) {
 
 // ComputeGoModHash computes SHA256 hash of go.mod file.
 func ComputeGoModHash(goModPath string) (string, error) {
-	file, err := os.Open(goModPath)
+	file, err := os.Open(goModPath) // 
 	if err != nil {
 		return "", fmt.Errorf("failed to open go.mod: %w", err)
 	}

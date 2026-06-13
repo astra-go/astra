@@ -14,10 +14,10 @@ func TestStatic_PathTraversal(t *testing.T) {
 	staticDir := filepath.Join(tmpDir, "static")
 	secretDir := filepath.Join(tmpDir, "secret")
 	
-	if err := os.Mkdir(staticDir, 0755); err != nil {
+	if err := os.Mkdir(staticDir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(secretDir, 0755); err != nil {
+	if err := os.Mkdir(secretDir, 0700); err != nil {
 		t.Fatal(err)
 	}
 	
@@ -98,10 +98,10 @@ func TestStatic_SymlinkTraversal(t *testing.T) {
 	staticDir := filepath.Join(tmpDir, "static")
 	secretDir := filepath.Join(tmpDir, "secret")
 	
-	if err := os.Mkdir(staticDir, 0755); err != nil {
+	if err := os.Mkdir(staticDir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(secretDir, 0755); err != nil {
+	if err := os.Mkdir(secretDir, 0700); err != nil {
 		t.Fatal(err)
 	}
 	
@@ -143,10 +143,10 @@ func TestStatic_ValidSymlinkWithinRoot(t *testing.T) {
 	staticDir := filepath.Join(tmpDir, "static")
 	subDir := filepath.Join(staticDir, "subdir")
 	
-	if err := os.Mkdir(staticDir, 0755); err != nil {
+	if err := os.Mkdir(staticDir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(subDir, 0755); err != nil {
+	if err := os.Mkdir(subDir, 0700); err != nil {
 		t.Fatal(err)
 	}
 	

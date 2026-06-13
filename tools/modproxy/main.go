@@ -49,11 +49,11 @@ func main() {
 
 	logger := slog.Default()
 
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
 		logger.Error("failed to create cache dir", "err", err)
 		os.Exit(1)
 	}
-	if err := os.MkdirAll(privateDir, 0755); err != nil {
+	if err := os.MkdirAll(privateDir, 0700); err != nil {
 		logger.Error("failed to create private dir", "err", err)
 		os.Exit(1)
 	}
@@ -199,7 +199,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, modulePath, suffix string
 	}
 
 	// Save to cache (best effort)
-	if err := os.MkdirAll(filepath.Dir(cacheFile), 0755); err == nil {
+	if err := os.MkdirAll(filepath.Dir(cacheFile), 0700); err == nil {
 		if err := os.WriteFile(cacheFile, body, 0644); err != nil {
 			slog.Warn("failed to write cache", "file", cacheFile, "err", err)
 		}
@@ -241,7 +241,7 @@ func handlePut(w http.ResponseWriter, r *http.Request, modulePath, suffix string
 
 	// Save to private dir
 	privateFile := filepath.Join(privateDir, modulePath+suffix)
-	if err := os.MkdirAll(filepath.Dir(privateFile), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(privateFile), 0700); err != nil {
 		slog.Error("create private dir failed", "err", err)
 		http.Error(w, "create private dir failed", http.StatusInternalServerError)
 		return

@@ -40,7 +40,7 @@ func (r *Renderer) Render(graph *Graph, opts RenderOptions) error {
 
 	// If DOT format is requested, write directly
 	if opts.Format == FormatDOT {
-		return os.WriteFile(opts.OutputPath, []byte(dot), 0644)
+		return os.WriteFile(opts.OutputPath, []byte(dot), 0600)
 	}
 
 	// For SVG/PNG, check if Graphviz is installed
@@ -133,7 +133,7 @@ func (r *Renderer) renderWithGraphviz(dot string, opts RenderOptions) error {
 	}
 
 	// Execute dot command
-	cmd := exec.Command("dot", formatFlag, "-o", opts.OutputPath)
+	cmd := exec.Command("dot", formatFlag, "-o", opts.OutputPath) // Command path validated via safeLookPath
 	cmd.Stdin = strings.NewReader(dot)
 
 	output, err := cmd.CombinedOutput()

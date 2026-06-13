@@ -107,22 +107,29 @@ type formBinder struct{}
 func (b *formBinder) Bind(r *http.Request, obj any) error {
 	ct := contentType(r)
 	if strings.HasPrefix(ct, "multipart/form-data") {
-		if err := r.ParseMultipartForm(32 << 20); err != nil {
+		// Limit memory usage to 10MB to prevent memory exhaustion attacks
+		const maxMemory = 10 << 20 // 10MB
+		if err := r.ParseMultipartForm(maxMemory); err != nil { //maxMemory is set to 10MB
 			return fmt.Errorf("binding: invalid multipart form")
 		}
 		return mapValues(obj, r.MultipartForm.Value, "form")
 	}
-	if err := r.ParseForm(); err != nil {
+	// Limit form body size to prevent DoS attacks
+	r2 := r
+	r2.Body = http.MaxBytesReader(nil, r.Body, maxBodySize)
+	if err := r2.ParseForm(); err != nil {
 		return fmt.Errorf("binding: invalid form data")
 	}
-	return mapValues(obj, r.Form, "form")
+	return mapValues(obj, r2.Form, "form")
 }
 
 // ─── Multipart helper ─────────────────────────────────────────────────────────
 
 // FormFile retrieves a multipart file upload from the request.
 func FormFile(r *http.Request, key string) (*multipart.FileHeader, error) {
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
+	// Limit memory usage to 10MB to prevent memory exhaustion attacks
+	const maxMemory = 10 << 20 // 10MB
+	if err := r.ParseMultipartForm(maxMemory); err != nil { // maxMemory is set to 10MB
 		return nil, err
 	}
 	_, fh, err := r.FormFile(key)

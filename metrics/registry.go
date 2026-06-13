@@ -2,9 +2,9 @@ package metrics
 
 import (
 	"math"
-	"strings"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -392,7 +392,7 @@ func CollectSystemStats() *SystemStats {
 		Goroutines: runtime.NumGoroutine(),
 		CPUPercent: 0, // Would need external package for CPU%
 		Uptime:     time.Since(globalRegistry.Load().(*Registry).startTime),
-		LastGC:     time.Unix(0, int64(m.LastGC)), // #nosec G115 - m.LastGC 是纳秒时间戳，不会超过 int64 最大值
+		LastGC:     time.Unix(0, int64(m.LastGC)), // m.LastGC 是纳秒时间戳，不会超过 int64 最大值
 		NumGC:      int(m.NumGC),
 	}
 }

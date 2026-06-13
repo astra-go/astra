@@ -591,6 +591,7 @@ func (c *WSConn) WriteMessage(msgType int, data []byte) error {
 // Close sends a close frame and unregisters the connection.
 func (c *WSConn) Close() {
 	// Send a clean close frame before unregistering.
+	// Write error when sending close frame is non-critical (connection closing anyway)
 	c.writeMu.Lock()
 	if !c.IsClosed() {
 		c.gorillaConn.SetWriteDeadline(time.Now().Add(writeWait))
@@ -758,6 +759,7 @@ func (w *WSEventLoop) HandlerWithUpgrader(upgrader *gorilla.Upgrader) astra.Hand
 }
 
 // Broadcast sends a message to all active WebSocket connections.
+// Individual write errors are non-critical in broadcast (connection will be cleaned up by hub)
 func (w *WSEventLoop) Broadcast(msgType int, data []byte) {
 	w.hubMu.RLock()
 	defer w.hubMu.RUnlock()

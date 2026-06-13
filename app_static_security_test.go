@@ -15,10 +15,10 @@ func TestStatic_SecurityEdgeCases(t *testing.T) {
 	staticDir := filepath.Join(tmpDir, "static")
 	secretDir := filepath.Join(tmpDir, "secret")
 
-	if err := os.Mkdir(staticDir, 0755); err != nil {
+	if err := os.Mkdir(staticDir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(secretDir, 0755); err != nil {
+	if err := os.Mkdir(secretDir, 0700); err != nil {
 		t.Fatal(err)
 	}
 
@@ -109,10 +109,10 @@ func TestStatic_SymlinkChain(t *testing.T) {
 	staticDir := filepath.Join(tmpDir, "static")
 	secretDir := filepath.Join(tmpDir, "secret")
 
-	if err := os.Mkdir(staticDir, 0755); err != nil {
+	if err := os.Mkdir(staticDir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(secretDir, 0755); err != nil {
+	if err := os.Mkdir(secretDir, 0700); err != nil {
 		t.Fatal(err)
 	}
 
@@ -158,7 +158,7 @@ func TestStatic_DirectoryTraversal(t *testing.T) {
 	staticDir := filepath.Join(tmpDir, "static")
 	subDir := filepath.Join(staticDir, "subdir")
 
-	if err := os.MkdirAll(subDir, 0755); err != nil {
+	if err := os.MkdirAll(subDir, 0700); err != nil {
 		t.Fatal(err)
 	}
 
@@ -208,7 +208,7 @@ func TestStatic_CaseSensitivity(t *testing.T) {
 	tmpDir := t.TempDir()
 	staticDir := filepath.Join(tmpDir, "static")
 
-	if err := os.Mkdir(staticDir, 0755); err != nil {
+	if err := os.Mkdir(staticDir, 0700); err != nil {
 		t.Fatal(err)
 	}
 
@@ -239,7 +239,7 @@ func TestStatic_LargePathDepth(t *testing.T) {
 	tmpDir := t.TempDir()
 	staticDir := filepath.Join(tmpDir, "static")
 
-	if err := os.Mkdir(staticDir, 0755); err != nil {
+	if err := os.Mkdir(staticDir, 0700); err != nil {
 		t.Fatal(err)
 	}
 
@@ -248,7 +248,7 @@ func TestStatic_LargePathDepth(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		deepPath = filepath.Join(deepPath, "level")
 	}
-	if err := os.MkdirAll(deepPath, 0755); err != nil {
+	if err := os.MkdirAll(deepPath, 0700); err != nil {
 		t.Fatal(err)
 	}
 

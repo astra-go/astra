@@ -39,7 +39,6 @@ import (
 	"github.com/astra-go/astra/cmd/astractl/internal/cli"
 	"github.com/astra-go/astra/cmd/astractl/internal/doctor"
 	"github.com/astra-go/astra/cmd/astractl/internal/fsutil"
-	"github.com/astra-go/astra/cmd/astractl/internal/graph"
 	gencontainer "github.com/astra-go/astra/cmd/astractl/internal/gen/container"
 	gencrud "github.com/astra-go/astra/cmd/astractl/internal/gen/crud"
 	generrors "github.com/astra-go/astra/cmd/astractl/internal/gen/errors"
@@ -47,12 +46,13 @@ import (
 	genmiddleware "github.com/astra-go/astra/cmd/astractl/internal/gen/middleware"
 	genmodel "github.com/astra-go/astra/cmd/astractl/internal/gen/model"
 	genopenapi "github.com/astra-go/astra/cmd/astractl/internal/gen/openapi"
-	genschema  "github.com/astra-go/astra/cmd/astractl/internal/gen/schema"
 	genproto "github.com/astra-go/astra/cmd/astractl/internal/gen/proto"
 	genrepo "github.com/astra-go/astra/cmd/astractl/internal/gen/repo"
+	genschema "github.com/astra-go/astra/cmd/astractl/internal/gen/schema"
 	genservice "github.com/astra-go/astra/cmd/astractl/internal/gen/service"
 	gentest "github.com/astra-go/astra/cmd/astractl/internal/gen/test"
 	genwire "github.com/astra-go/astra/cmd/astractl/internal/gen/wire"
+	"github.com/astra-go/astra/cmd/astractl/internal/graph"
 	"github.com/astra-go/astra/cmd/astractl/internal/tmpl"
 	"github.com/astra-go/astra/cmd/astractl/internal/tpldata"
 )
@@ -203,7 +203,7 @@ func cmdNew(args []string) error {
 		filepath.Join(name, "migrations"),
 	}
 	for _, d := range commonDirs {
-		if err := os.MkdirAll(d, 0755); err != nil {
+		if err := os.MkdirAll(d, 0700); err != nil {
 			return &cli.CLIError{Msg: fmt.Sprintf("mkdir %s: %v", d, err)}
 		}
 	}
@@ -247,7 +247,7 @@ func cmdNew(args []string) error {
 			filepath.Join(name, ".github", "workflows"),
 		}
 		for _, d := range msDirs {
-			if err := os.MkdirAll(d, 0755); err != nil {
+			if err := os.MkdirAll(d, 0700); err != nil {
 				return &cli.CLIError{Msg: fmt.Sprintf("mkdir %s: %v", d, err)}
 			}
 		}
@@ -274,7 +274,7 @@ func cmdNew(args []string) error {
 			filepath.Join(name, "pkg", "errors"),
 		}
 		for _, d := range dddDirs {
-			if err := os.MkdirAll(d, 0755); err != nil {
+			if err := os.MkdirAll(d, 0700); err != nil {
 				return &cli.CLIError{Msg: fmt.Sprintf("mkdir %s: %v", d, err)}
 			}
 		}
@@ -302,7 +302,7 @@ func cmdNew(args []string) error {
 			filepath.Join(name, "service"),
 		}
 		for _, d := range simpleDirs {
-			if err := os.MkdirAll(d, 0755); err != nil {
+			if err := os.MkdirAll(d, 0700); err != nil {
 				return &cli.CLIError{Msg: fmt.Sprintf("mkdir %s: %v", d, err)}
 			}
 		}
@@ -373,7 +373,7 @@ func cmdMigrateCreate(name string) error {
 		}
 	}
 
-	if err := os.MkdirAll("migrations", 0755); err != nil {
+	if err := os.MkdirAll("migrations", 0700); err != nil {
 		return &cli.CLIError{Msg: fmt.Sprintf("mkdir migrations: %v", err)}
 	}
 
@@ -618,7 +618,7 @@ func cmdTidy(args []string) error {
 		if err != nil {
 			return &cli.CLIError{Msg: fmt.Sprintf("go binary not found: %v", err)}
 		}
-		cmd := exec.Command(goBin, "mod", "tidy")
+		cmd := exec.Command(goBin, "mod", "tidy") // Command path validated via safeLookPath
 		cmd.Dir = d.abs
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -681,7 +681,7 @@ func checkTidyModule(dir string) error {
 	if err != nil {
 		return fmt.Errorf("go binary not found: %w", err)
 	}
-	out, err := exec.Command(goBin, "mod", "tidy").CombinedOutput()
+	out, err := exec.Command(goBin, "mod", "tidy").CombinedOutput() // Command path validated via safeLookPath
 	if err != nil {
 		return fmt.Errorf("go mod tidy error: %v\n%s", err, out)
 	}
@@ -691,10 +691,10 @@ func checkTidyModule(dir string) error {
 
 	// Always restore originals.
 	if len(beforeMod) > 0 {
-		_ = os.WriteFile(filepath.Join(dir, "go.mod"), beforeMod, 0644)
+		_ = os.WriteFile(filepath.Join(dir, "go.mod"), beforeMod, 0600)
 	}
 	if len(beforeSum) > 0 {
-		_ = os.WriteFile(filepath.Join(dir, "go.sum"), beforeSum, 0644)
+		_ = os.WriteFile(filepath.Join(dir, "go.sum"), beforeSum, 0600)
 	} else if len(afterSum) > 0 {
 		_ = os.Remove(filepath.Join(dir, "go.sum"))
 	}
@@ -767,7 +767,7 @@ func repoRoot() (string, error) {
 		fmt.Fprintf(os.Stderr, "warning: git not found, using current directory as root: %s\n", wd)
 		return wd, nil
 	}
-	out, err := exec.Command(gitBin, "rev-parse", "--show-toplevel").Output()
+	out, err := exec.Command(gitBin, "rev-parse", "--show-toplevel").Output() // Command path validated via safeLookPath
 	if err != nil {
 		wd, werr := os.Getwd()
 		if werr != nil {
@@ -801,10 +801,15 @@ var resolvedGit = sync.OnceValues(func() (string, error) {
 // skipping any relative entries (e.g. "." or "bin") which are the primary
 // vector for PATH-hijacking attacks.
 func safeLookPath(name string) (string, error) {
+	// Validate name to prevent path traversal attacks
+	if strings.Contains(name, "..") || strings.ContainsAny(name, "/\\") {
+		return "", fmt.Errorf("invalid command name: %s", name)
+	}
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
 		if !filepath.IsAbs(dir) {
 			continue
 		}
+		// name is validated above to prevent path traversal
 		candidate := filepath.Join(dir, name)
 		fi, err := os.Stat(candidate)
 		if err != nil || fi.IsDir() {

@@ -33,7 +33,7 @@ func Run(args []string) error {
 		return &cli.CLIError{Msg: "invalid flags: " + err.Error()}
 	}
 
-	raw, err := os.ReadFile(yamlFile)
+	raw, err := os.ReadFile(yamlFile) // 
 	if err != nil {
 		return &cli.CLIError{
 			Msg:     fmt.Sprintf("read %s: %v", yamlFile, err),

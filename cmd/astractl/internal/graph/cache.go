@@ -57,7 +57,7 @@ func (cm *CacheManager) Load(goModPath string) (*Graph, error) {
 // Save writes the graph to disk with hash and timestamp.
 func (cm *CacheManager) Save(graph *Graph, goModPath string) error {
 	// Ensure cache directory exists
-	if err := os.MkdirAll(cm.cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cm.cacheDir, 0700); err != nil {
 		return fmt.Errorf("failed to create cache directory: %w", err)
 	}
 

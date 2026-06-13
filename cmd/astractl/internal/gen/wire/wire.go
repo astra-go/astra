@@ -193,7 +193,7 @@ func readModulePath(dir string) (modPath, modRoot string, err error) {
 	}
 	for {
 		candidate := filepath.Join(abs, "go.mod")
-		f, err := os.Open(candidate)
+		f, err := os.Open(candidate) // 
 		if err == nil {
 			defer f.Close()
 			scanner := bufio.NewScanner(f)

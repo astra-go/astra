@@ -118,11 +118,12 @@ func newWSEventLoop(e *Engine, onMessage func(*WSConn, int, []byte), onError fun
 func (w *WSEventLoop) Register(nc net.Conn) (*WSConn, error) {
 	fd, err := connFd(nc)
 	if err != nil {
+		// Close error in cleanup is non-critical
 		nc.Close()
 		return nil, err
 	}
 
-	// #nosec G115 - loopIdx 用于取模运算，结果范围受限于 loops 数量，不会溢出
+	//  loopIdx 用于取模运算，结果范围受限于 loops 数量，不会溢出
 	idx := int(atomic.AddUint64(&w.engine.loopIdx, 1)-1) % len(w.engine.loops)
 	loop := w.engine.loops[idx]
 
@@ -158,6 +159,7 @@ func (w *WSEventLoop) Unregister(conn *WSConn) {
 	}
 
 	w.conns.Delete(conn.fd)
+	// Poller del error is non-critical (best-effort cleanup)
 	conn.loop.poller.del(conn.fd) //nolint:errcheck
 	conn.netConn.Close()
 	atomic.AddInt64(&w.activeConns, -1)

@@ -55,7 +55,7 @@ func WriteString(dir, filename, src string, force bool) error {
 			}
 		}
 	}
-	if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(src), 0600); err != nil {
 		return &cli.CLIError{
 			Msg:  fmt.Sprintf("write %s: %v", path, err),
 			Hint: "check that you have write permission to the output directory",
@@ -68,7 +68,7 @@ func resolvePath(dir, filename string) (string, error) {
 	if dir == "" {
 		return filename, nil
 	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", &cli.CLIError{Msg: fmt.Sprintf("mkdir %s: %v", dir, err)}
 	}
 	absDir, err := filepath.Abs(dir)

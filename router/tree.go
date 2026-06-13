@@ -65,7 +65,7 @@ func recordChildIndex(n *node, childPos int) {
 	b := n.children[childPos].path[0]
 	switch n.childIndex[b] {
 	case childIndexAbsent:
-		n.childIndex[b] = int16(childPos) // #nosec G115 - childPos 在实际场景中不会超过 32767
+		n.childIndex[b] = int16(childPos) // childPos 在实际场景中不会超过 32767
 	default:
 		if n.childIndex[b] != childIndexCollision {
 			// First collision for this byte: migrate the previously indexed child

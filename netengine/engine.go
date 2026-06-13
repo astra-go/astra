@@ -213,7 +213,7 @@ func (e *Engine) Serve(ln net.Listener) error {
 			return err
 		}
 		atomic.AddInt64(&e.activeConns, 1)
-		// #nosec G115 - loopIdx 用于取模运算，结果范围受限于 loops 数量，不会溢出
+		// loopIdx 用于取模运算，结果范围受限于 loops 数量，不会溢出
 		idx := int(atomic.AddUint64(&e.loopIdx, 1)-1) % len(e.loops)
 		e.loops[idx].dispatchNewDirect(conn)
 	}
@@ -222,6 +222,7 @@ func (e *Engine) Serve(ln net.Listener) error {
 // Close signals the engine to shut down.  Existing connections are closed.
 // You normally close the net.Listener instead; Close is for emergency shutdown.
 func (e *Engine) Close() {
+	e.cancel() // Cancel the context to release resources
 	for _, loop := range e.loops {
 		loop.close()
 	}

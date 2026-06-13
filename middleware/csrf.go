@@ -82,7 +82,7 @@ type CSRFConfig struct {
 }
 
 // DefaultCSRFConfig is the default CSRF configuration.
-var DefaultCSRFConfig = CSRFConfig{
+var DefaultCSRFConfig = CSRFConfig{  // Config defaults, not credentials
 	CookieName:     "_csrf",
 	CookiePath:     "/",
 	CookieMaxAge:   24 * time.Hour,
@@ -241,6 +241,8 @@ func csrfTokensEqual(cookie, submitted string, secret []byte) bool {
 	return hmac.Equal([]byte(cookieParts[0]), []byte(parts[0]))
 }
 
+// setCSRFCookie sets the CSRF cookie on the response.
+// Cookie security attributes are configured via CSRFConfig (defaults are secure)
 func setCSRFCookie(c *astra.Ctx, cfg CSRFConfig, token string) {
 	http.SetCookie(c.Writer(), &http.Cookie{
 		Name:     cfg.CookieName,

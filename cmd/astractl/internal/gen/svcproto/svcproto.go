@@ -39,7 +39,7 @@ func Run(args []string) error {
 }
 
 func generate(protoFile, outDir, module string, force bool) error {
-	raw, err := os.ReadFile(protoFile)
+	raw, err := os.ReadFile(protoFile) // 
 	if err != nil {
 		return &cli.CLIError{
 			Msg:     fmt.Sprintf("read %s: %v", protoFile, err),
@@ -82,7 +82,7 @@ service UserService { rpc GetUser(GetUserRequest) returns (GetUserResponse); }`,
 		filepath.Join(outDir, "migrations"),
 		filepath.Join(outDir, ".github", "workflows"),
 	} {
-		if mkErr := os.MkdirAll(d, 0755); mkErr != nil {
+		if mkErr := os.MkdirAll(d, 0700); mkErr != nil {
 			return &cli.CLIError{Msg: fmt.Sprintf("mkdir %s: %v", d, mkErr)}
 		}
 	}

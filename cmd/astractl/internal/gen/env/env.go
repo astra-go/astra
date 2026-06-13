@@ -56,7 +56,7 @@ func Run(args []string) error {
 	switch *ide {
 	case "vscode", "cursor":
 		vsdir := filepath.Join(*dir, ".vscode")
-		if err := os.MkdirAll(vsdir, 0755); err != nil {
+		if err := os.MkdirAll(vsdir, 0700); err != nil {
 			return &cli.CLIError{Msg: fmt.Sprintf("mkdir %s: %v", vsdir, err)}
 		}
 		if err := fsutil.WriteTemplate(*dir, filepath.Join(".vscode", "settings.json"), tmpl.VSCodeSettings(), data, *force); err != nil {
@@ -74,7 +74,7 @@ func Run(args []string) error {
 
 	case "goland":
 		ideaDir := filepath.Join(*dir, ".idea")
-		if err := os.MkdirAll(ideaDir, 0755); err != nil {
+		if err := os.MkdirAll(ideaDir, 0700); err != nil {
 			return &cli.CLIError{Msg: fmt.Sprintf("mkdir %s: %v", ideaDir, err)}
 		}
 		fmt.Println("  hint: JetBrains IDE configuration is managed by the IDE itself.")
@@ -92,7 +92,7 @@ func Run(args []string) error {
 	// .devcontainer/devcontainer.json
 	if *devcontainer {
 		dcDir := filepath.Join(*dir, ".devcontainer")
-		if err := os.MkdirAll(dcDir, 0755); err != nil {
+		if err := os.MkdirAll(dcDir, 0700); err != nil {
 			return &cli.CLIError{Msg: fmt.Sprintf("mkdir %s: %v", dcDir, err)}
 		}
 		if err := fsutil.WriteTemplate(*dir, filepath.Join(".devcontainer", "devcontainer.json"), tmpl.DevContainer(), data, *force); err != nil {
@@ -104,20 +104,20 @@ func Run(args []string) error {
 	// .githooks/pre-commit + scripts/install-hooks.sh
 	if *hooks {
 		hooksDir := filepath.Join(*dir, ".githooks")
-		if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		if err := os.MkdirAll(hooksDir, 0700); err != nil {
 			return &cli.CLIError{Msg: fmt.Sprintf("mkdir %s: %v", hooksDir, err)}
 		}
 		hookFile := filepath.Join(*dir, ".githooks", "pre-commit")
 		if err := fsutil.WriteTemplate(*dir, filepath.Join(".githooks", "pre-commit"), tmpl.GitHookPreCommit(), data, *force); err != nil {
 			return err
 		}
-		if err := os.Chmod(hookFile, 0755); err != nil {
+		if err := os.Chmod(hookFile, 0700); err != nil {
 			return &cli.CLIError{Msg: fmt.Sprintf("chmod %s: %v", hookFile, err)}
 		}
 		written = append(written, ".githooks/pre-commit")
 
 		scriptsDir := filepath.Join(*dir, "scripts")
-		if err := os.MkdirAll(scriptsDir, 0755); err != nil {
+		if err := os.MkdirAll(scriptsDir, 0700); err != nil {
 			return &cli.CLIError{Msg: fmt.Sprintf("mkdir %s: %v", scriptsDir, err)}
 		}
 		installSrc := "#!/bin/sh\n# Install project git hooks.\ngit config core.hooksPath .githooks\necho '✓ git hooks installed (.githooks/)'\n"
@@ -125,7 +125,7 @@ func Run(args []string) error {
 			return err
 		}
 		installScript := filepath.Join(*dir, "scripts", "install-hooks.sh")
-		if err := os.Chmod(installScript, 0755); err != nil {
+		if err := os.Chmod(installScript, 0700); err != nil {
 			return &cli.CLIError{Msg: fmt.Sprintf("chmod %s: %v", installScript, err)}
 		}
 		written = append(written, "scripts/install-hooks.sh")

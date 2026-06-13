@@ -12,11 +12,11 @@ func TestSymlinkDebug(t *testing.T) {
 	staticDir := filepath.Join(tmpDir, "static")
 	subDir := filepath.Join(staticDir, "subdir")
 	
-	os.Mkdir(staticDir, 0755)
-	os.Mkdir(subDir, 0755)
+	os.Mkdir(staticDir, 0700)
+	os.Mkdir(subDir, 0700)
 	
 	targetFile := filepath.Join(subDir, "target.txt")
-	os.WriteFile(targetFile, []byte("valid symlink content"), 0644)
+	os.WriteFile(targetFile, []byte("valid symlink content"), 0600)
 	
 	symlinkPath := filepath.Join(staticDir, "link.txt")
 	if err := os.Symlink(targetFile, symlinkPath); err != nil {

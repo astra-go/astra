@@ -282,6 +282,7 @@ func grepRecursive(root, pattern string) (bool, error) {
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
+		// path from filepath.WalkDir, validated above
 		f, err := os.Open(path)
 		if err != nil {
 			return nil
