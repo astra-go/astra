@@ -2,14 +2,16 @@ module github.com/astra-go/astra/config/vault
 
 go 1.25.1
 
-require github.com/hashicorp/vault/api v1.15.0
+require (
+	github.com/hashicorp/go-cleanhttp v0.5.2
+	github.com/hashicorp/vault/api v1.15.0
+)
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
@@ -28,7 +30,5 @@ require (
 	golang.org/x/time v0.11.0 // indirect
 )
 
-replace (
-	// pquerna/otp v1.4.1 does not exist; redirect to v1.4.0
-	github.com/pquerna/otp v1.4.1 => github.com/pquerna/otp v1.4.0
-)
+// pquerna/otp v1.4.1 does not exist; redirect to v1.4.0
+replace github.com/pquerna/otp v1.4.1 => github.com/pquerna/otp v1.4.0

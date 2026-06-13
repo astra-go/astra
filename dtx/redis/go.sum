@@ -1,9 +1,9 @@
-github.com/astra-go/astra v0.1.0 h1:vV6RVYd5InQnjFM26K39wEReJJA0d04TG1JMO9CdiWU=
-github.com/astra-go/astra v0.1.0/go.mod h1:HT8LoeNQX/RIE59A3anPzimTdviZgpqjV3q11BvZPrQ=
-github.com/astra-go/astra/cache v0.1.0 h1:u/b5bKrIFGkRint0S6NZ2fzGJQ3AYaWFrtx3R+8RrpE=
-github.com/astra-go/astra/cache v0.1.0/go.mod h1:u3pF4dBULg83EJbsTG0eeOVwx6Uc9wBO9pmpx6rCvBU=
-github.com/astra-go/astra/testutil v0.1.0 h1:gsGiE3Uwad3LArjEsPNd672JRhTY0T8sK3pg1OxffO0=
-github.com/astra-go/astra/testutil v0.1.0/go.mod h1:t6lNZTno5PvEDg0w1r8+7Uw8LZZ3WLIqg76RlyP6XJI=
+github.com/astra-go/astra v1.0.4 h1:yIF69r/9bebuPjefISO39mCwDllE74PhAgT69V2RJ0k=
+github.com/astra-go/astra v1.0.4/go.mod h1:iwg3fHQB1a+PN4xwYoVJDus/rumgPqx42cg5wE6F5v0=
+github.com/astra-go/astra/cache v1.0.2 h1:S8+EAIcdyEr0e7/9PJ+xZXGHNAGwDXutyNfMw0XHWx4=
+github.com/astra-go/astra/cache v1.0.2/go.mod h1:4pshMfZrJLqu4PhiXLwNJMm4vw8U1+9uNb+fDgkL6kY=
+github.com/astra-go/astra/testutil v1.0.2 h1:ekze6kts+eKFHgZZlPQtKm5TNRtnrocZcOdfKKQhLeU=
+github.com/astra-go/astra/testutil v1.0.2/go.mod h1:brhfDCCIEy/KRfOVlqy2HJlW2gWRCApsqzhZS6bn79k=
 github.com/bsm/ginkgo/v2 v2.12.0 h1:Ny8MWAHyOepLGlLKYmXG4IEkioBysk6GpaRTLC8zwWs=
 github.com/bsm/ginkgo/v2 v2.12.0/go.mod h1:SwYbGRRDovPVboqFv0tPTcG1sN61LM1Z4ARdbAV9g4c=
 github.com/bsm/gomega v1.27.10 h1:yeMWxP2pV2fG3FgAODIY8EiRE3dy0aeFYt4l7wh6yKA=
