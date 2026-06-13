@@ -166,6 +166,17 @@ func (p *NATSProducer) Close() error {
 	return nil
 }
 
+// Conn returns the underlying *nats.Conn for advanced usage.
+// Use with caution — prefer NATSProducer methods when possible.
+func (p *NATSProducer) Conn() *nats.Conn {
+	return p.conn
+}
+
+// JetStream returns the JetStream context if enabled, nil otherwise.
+func (p *NATSProducer) JetStream() nats.JetStreamContext {
+	return p.js
+}
+
 // Compile-time assertion.
 var _ Producer = (*NATSProducer)(nil)
 
