@@ -42,8 +42,8 @@ type App struct {
 // Placing each counter on its own line eliminates false sharing when multiple
 // goroutines increment different counters concurrently.
 type poolCounter struct {
-	v   atomic.Int64
-	_   [56]byte // pad to 64 bytes (cache line size on x86-64 and ARM64)
+	v atomic.Int64
+	_ [56]byte // pad to 64 bytes (cache line size on x86-64 and ARM64)
 }
 
 // PoolStat holds a snapshot of the Ctx pool counters.
