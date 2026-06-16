@@ -39,6 +39,11 @@ type ServerConfig struct {
 	// Default: 60s.
 	ReaperInterval time.Duration
 
+	// DefaultTimeout is the default timeout for task execution.
+	// Used for cron jobs and other task executions.
+	// Default: 5m.
+	DefaultTimeout time.Duration
+
 	// Logger overrides the default slog.Default() logger.
 	Logger *slog.Logger
 }
@@ -58,6 +63,9 @@ func (c *ServerConfig) setDefaults() {
 	}
 	if c.ReaperInterval <= 0 {
 		c.ReaperInterval = 60 * time.Second
+	}
+	if c.DefaultTimeout <= 0 {
+		c.DefaultTimeout = 5 * time.Minute
 	}
 	if c.Logger == nil {
 		c.Logger = slog.Default()

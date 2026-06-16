@@ -6,6 +6,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/astra-go/astra)](https://goreportcard.com/report/github.com/astra-go/astra)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/astra-go/astra)](go.mod)
+[![Version: v1.0.5](https://img.shields.io/badge/version-v1.0.5-blue.svg)](https://github.com/astra-go/astra/releases/tag/v1.0.5)
 
 Astra 是一个**现代化、高性能**的 Go Web 框架，凝聚了 Gin、Echo、go-zero、Beego 和 Kratos 的最佳实践，具有轻量核心和丰富的扩展生态。
 
@@ -22,6 +23,36 @@ Astra 是一个**现代化、高性能**的 Go Web 框架，凝聚了 Gin、Echo
 - **🔒 企业级安全** — JWT 认证（含撤销）、API Key、签名校验、多级缓存
 - **🌐 多协议支持** — HTTP/1.1、HTTP/2、HTTP/3（QUIC）、WebSocket、gRPC
 - **📝 约定优于配置 → 可扩展** — 零配置默认，开箱即用，按需开启高级特性
+
+---
+
+## 📦 安装指南
+
+### 快速安装（推荐）
+
+```bash
+# 安装最新版本
+go get github.com/astra-go/astra@v1.0.5
+
+# 或安装指定模块
+go get github.com/astra-go/astra/cache@v1.0.5
+go get github.com/astra-go/astra/orm@v1.0.5
+```
+
+### 版本信息
+
+| 组件 | 版本 | 安装命令 |
+|--------|------|----------|
+| **核心** | `v1.0.5` | `go get github.com/astra-go/astra@v1.0.5` |
+| **缓存** | `v1.0.5` | `go get github.com/astra-go/astra/cache@v1.0.5` |
+| **ORM** | `v1.0.5` | `go get github.com/astra-go/astra/orm@v1.0.5` |
+| **所有模块** | `v1.0.5` | 参见 [docs/installation.md](docs/installation.md) |
+
+> 💡 **提示：** 所有子模块独立版本管理。使用 `@v1.0.5` 确保 monorepo 版本一致。
+
+---
+
+## 🚀 快速开始
 
 ## 🏗️ 项目结构
 
