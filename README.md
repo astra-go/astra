@@ -6,6 +6,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/astra-go/astra)](https://goreportcard.com/report/github.com/astra-go/astra)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/astra-go/astra)](go.mod)
+[![Version: v1.0.5](https://img.shields.io/badge/version-v1.0.5-blue.svg)](https://github.com/astra-go/astra/releases/tag/v1.0.5)
 
 Astra is a **modern, high-performance** Go Web framework that distills the best practices from Gin, Echo, go-zero, Beego, and Kratos, featuring a lightweight core with a rich extensions ecosystem.
 
@@ -22,6 +23,36 @@ Astra is a **modern, high-performance** Go Web framework that distills the best 
 - **🔒 Enterprise Security** — JWT auth (with revocation), API Key, signature verification, multi-level cache
 - **🌐 Multi-Protocol** — HTTP/1.1, HTTP/2, HTTP/3 (QUIC), WebSocket, gRPC
 - **📝 Convention Over Config → Extensible** — Zero-config defaults, optional advanced features when needed
+
+---
+
+## 📦 Installation
+
+### Quick Install (Recommended)
+
+```bash
+# Install latest version
+go get github.com/astra-go/astra@v1.0.5
+
+# Or install specific module
+go get github.com/astra-go/astra/cache@v1.0.5
+go get github.com/astra-go/astra/orm@v1.0.5
+```
+
+### Version Information
+
+| Component | Version | Install Command |
+|-----------|---------|----------------|
+| **Core** | `v1.0.5` | `go get github.com/astra-go/astra@v1.0.5` |
+| **Cache** | `v1.0.5` | `go get github.com/astra-go/astra/cache@v1.0.5` |
+| **ORM** | `v1.0.5` | `go get github.com/astra-go/astra/orm@v1.0.5` |
+| **All Modules** | `v1.0.5` | See [docs/installation.md](docs/installation.md) |
+
+> 💡 **Tip:** All sub-modules are versioned independently. Use `@v1.0.5` to ensure consistent versions across the monorepo.
+
+---
+
+## 🚀 Quick Start
 
 ## 🏗️ Project Structure
 

@@ -1,0 +1,102 @@
+name: Auto Tag Sub-Modules
+
+# Trigger on new GitHub Release
+on:
+  release:
+    types: [published]
+
+# Permissions needed to push tags
+permissions:
+  contents: write
+
+jobs:
+  tag-submodules:
+    name: Create Sub-Module Tags
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history and tags
+
+      - name: Extract version from release tag
+        id: version
+        run: |
+          # Get the release tag (e.g., v1.0.5)
+          RELEASE_TAG="${{ github.event.release.tag_name }}"
+          echo "Release tag: $RELEASE_TAG"
+          
+          # Extract version number (remove 'v' prefix)
+          VERSION="${RELEASE_TAG#v}"
+          echo "Version: $VERSION"
+          
+          # Validate version format (should be like 1.0.5)
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version format: $VERSION"
+            echo "Expected format: v1.0.5"
+            exit 1
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Find all sub-modules
+        id: modules
+        run: |
+          # Find all go.mod files (excluding vendor and examples)
+          MODULES=""
+          while IFS= read -r -d '' file; do
+            dir=$(dirname "$file")
+            module=$(grep "^module" "$file" | awk '{print $2}')
+            
+            # Skip if not astra module
+            if [[ ! "$module" =~ github\.com/astra-go/astra ]]; then
+              continue
+            fi
+            
+            # Extract sub-module path
+            if [[ "$module" == "github.com/astra-go/astra" ]]; then
+              tag="v${{ steps.version.outputs.version }}"
+            else
+              submodule=$(echo "$module" | sed 's|github.com/astra-go/astra/||')
+              tag="$submodule/v${{ steps.version.outputs.version }}"
+            fi
+            
+            MODULES="$MODULES $tag"
+            echo "  ✅ Found: $module → tag: $tag"
+          done < <(find . -name "go.mod" -type f -print0 | grep -v "/vendor/" | grep -v "/examples/")
+          
+          echo "modules=$MODULES" >> $GITHUB_OUTPUT
+
+      - name: Create sub-module tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Get the commit SHA of the release tag
+          RELEASE_SHA=$(git rev-parse "${{ steps.version.outputs.release_tag }}")
+          echo "Release commit: $RELEASE_SHA"
+          
+          # Create tags for all sub-modules
+          for tag in ${{ steps.modules.outputs.modules }}; do
+            echo "Creating tag: $tag"
+            git tag -f "$tag" "$RELEASE_SHA"
+          done
+          
+          # Push all tags
+          echo "Pushing tags to remote..."
+          git push origin --tags
+          
+          echo "✅ Successfully created and pushed $(echo "${{ steps.modules.outputs.modules }}" | wc -w) tags"
+
+      - name: Summary
+        run: |
+          echo "## 🎉 Auto Tagging Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release:** ${{ steps.version.outputs.release_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Sub-Module Tags Created:**" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.modules.outputs.modules }}" | tr ' ' '\n' | sed 's/^/- `/' | sed 's/$/`/' >> $GITHUB_STEP_SUMMARY
