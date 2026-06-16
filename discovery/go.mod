@@ -1,6 +1,6 @@
 module github.com/astra-go/astra/discovery
 
-go 1.25.8
+go 1.25.1
 
 require (
 	github.com/astra-go/astra/testutil v1.0.5
