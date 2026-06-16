@@ -110,4 +110,3 @@ require (
 )
 
 // consul/proto-public v0.8.0 requires go 1.25.8; pin to v0.6.5 which requires go 1.25.0.
-replace github.com/hashicorp/consul/proto-public v0.8.0 => github.com/hashicorp/consul/proto-public v0.6.5

@@ -1,76 +1,76 @@
-# Astra 示例
+# Astra Examples
 
-按以下路径逐步学习，每个示例都可以直接 `go run` 运行。
+Learn step by step through the following paths; every example can be run directly with `go run`.
 
-## 学习路径
+## Learning Path
 
 ```
-① hello      — 18 行，验证安装（5 分钟）
+① hello      — 18 lines, verify installation (5 min)
       ↓
-② basic      — 路由组、中间件、请求绑定与校验（15 分钟）
+② basic      — Route groups, middleware, request binding and validation (15 min)
       ↓
-③ jwt        — JWT 认证保护路由（10 分钟）
+③ jwt        — JWT auth protecting routes (10 min)
       ↓
-④ crud       — 完整 CRUD + 数据库（30 分钟）
+④ crud       — Complete CRUD + database (30 min)
       ↓
-⑤ orm        — GORM 集成，Repository 模式（20 分钟）
+⑤ orm        — GORM integration, Repository pattern (20 min)
       ↓
-⑥ mq         — 消息队列，生产者 + 消费者（20 分钟）
+⑥ mq         — Message queue, producer + consumer (20 min)
       ↓
-⑦ showcase   — 生产级完整示例（参考）
+⑦ showcase   — Production-grade complete example (reference)
 ```
 
 ---
 
-## 各示例说明
+## Example Descriptions
 
-### ① hello — 最小模板
+### ① hello — Minimal Template
 
 ```bash
 cd hello && go run main.go
 curl http://localhost:8080/hello/world
 ```
 
-演示：`astra.New()` + 路由 + `app.Run()`。和 Gin/Echo 写法完全一致，无任何额外概念。
+Demonstrates: `astra.New()` + routing + `app.Run()`. Gin/Echo-compatible API, no extra concepts.
 
 ---
 
-### ② basic — 核心特性
+### ② basic — Core Features
 
 ```bash
 cd basic && go run main.go
 ```
 
-演示：
-- 全局中间件（Recovery / Logger / RequestID / CORS / Timeout）
-- 路由组（`app.Group`）
-- 路径参数、查询参数
-- JSON 请求绑定与校验（`c.BindJSON` + `validate` 标签）
-- 生命周期钩子（`app.OnStart` / `app.OnStop`）
+Demonstrates:
+- Global middleware (Recovery / Logger / RequestID / CORS / Timeout)
+- Route groups (`app.Group`)
+- Path params, query params
+- JSON request binding and validation (`c.BindJSON` + `validate` tag)
+- Lifecycle hooks (`app.OnStart` / `app.OnStop`)
 
 ---
 
-### ③ jwt — JWT 认证
+### ③ jwt — JWT Authentication
 
 ```bash
 cd jwt && go run main.go
-# 登录获取 token
+# Login to get token
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"secret"}'
-# 使用 token 访问受保护路由
+# Use token to access protected route
 curl http://localhost:8080/api/v1/profile \
   -H "Authorization: Bearer <token>"
 ```
 
-演示：
-- `middleware.JWT` 保护路由组
-- 登录 handler 生成 JWT
-- 公开路由与受保护路由分组
+Demonstrates:
+- `middleware.JWT` protecting route groups
+- Login handler generating JWT
+- Public and protected route groups
 
 ---
 
-### ④ crud — 完整 CRUD
+### ④ crud — Complete CRUD
 
 ```bash
 cd crud && go run main.go
@@ -80,76 +80,76 @@ curl -X POST http://localhost:8080/api/v1/items \
 curl http://localhost:8080/api/v1/items
 ```
 
-演示：
-- RESTful CRUD 接口（GET / POST / PUT / DELETE）
-- 请求绑定与校验
-- 统一错误处理
-- 内存 Store（可替换为真实数据库）
+Demonstrates:
+- RESTful CRUD interfaces (GET / POST / PUT / DELETE)
+- Request binding and validation
+- Unified error handling
+- In-memory Store (replaceable with real database)
 
 ---
 
-### ⑤ orm — GORM 集成
+### ⑤ orm — GORM Integration
 
 ```bash
 cd orm && go run main.go
 ```
 
-演示：
-- `astra/orm` 模块集成 GORM
-- 泛型 `Repository[T]` 模式
-- 事务辅助函数 `RunTx`
-- Module 系统组织代码
+Demonstrates:
+- `astra/orm` module integrating GORM
+- Generic `Repository[T]` pattern
+- Transaction helper `RunTx`
+- Module system organizing code
 
-> 需要 PostgreSQL，连接字符串通过环境变量 `DATABASE_URL` 配置。
+> Requires PostgreSQL; connection string configured via `DATABASE_URL` env var.
 
 ---
 
-### ⑥ mq — 消息队列
+### ⑥ mq — Message Queue
 
 ```bash
 cd mq && go run main.go
 ```
 
-演示：
-- `astra/mq` 统一接口
-- 生产者发送消息
-- 消费者处理消息
-- 优雅关闭
+Demonstrates:
+- `astra/mq` unified interface
+- Producer sending messages
+- Consumer processing messages
+- Graceful shutdown
 
-> 默认使用 NATS，需要本地运行 `docker run -p 4222:4222 nats`。
-
----
-
-### ⑦ showcase — 生产级示例
-
-完整的生产级应用，包含：
-- Module + DI 容器组织依赖
-- OTel 分布式追踪
-- Prometheus 指标
-- gRPC 双栈
-- 自适应熔断器
-- 健康检查（K8s / Istio）
-
-适合作为新项目的参考模板。
+> Uses NATS by default; requires local `docker run -p 4222:4222 nats`.
 
 ---
 
-## 快速生成项目骨架
+### ⑦ showcase — Production-Grade Example
 
-使用 `astractl` CLI 可以快速生成可运行的项目骨架：
+Complete production-grade application including:
+- Module + DI container organizing dependencies
+- OTel distributed tracing
+- Prometheus metrics
+- gRPC dual-stack
+- Adaptive circuit breaker
+- Health checks (K8s / Istio)
+
+Suitable as reference template for new projects.
+
+---
+
+## Quick Project Scaffold Generation
+
+Use `astractl` CLI to quickly generate runnable project scaffold:
 
 ```bash
-# 安装 CLI
+# Install CLI
 go install github.com/astra-go/astra/cmd/astractl@latest
 
-# 生成新项目
+# Generate new project
 astractl new myapp
 
-# 生成 CRUD handler
+# Generate CRUD handler
 astractl gen crud User --with-service
 
-# 从 proto 文件生成 handler
+# Generate handler from proto file
 astractl gen proto api/user.proto
 ```
 
-详见 [astractl 文档](../docs/getting-started/quickstart.md#astractl-cli)。
+See [astractl docs](../docs/getting-started/quickstart.md#astractl-cli) for details.

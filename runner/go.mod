@@ -5,8 +5,8 @@ go 1.25.1
 
 // Standalone task-runner module — unified scheduler interface with four backends.
 require (
-	github.com/astra-go/astra v1.0.5
-	github.com/astra-go/astra/taskqueue v1.0.5
+	github.com/astra-go/astra v0.0.0-00010101000000-000000000000 
+	github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 
 	github.com/go-co-op/gocron/v2 v2.11.0
 )
 
@@ -59,6 +59,4 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./..
 
-replace github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 => ../taskqueue

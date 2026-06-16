@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const zeroVer = "v0.0.0-00010101000000-000000000000"
+const zeroVer = "v1.0.5"
 
 // SyncReplaces syncs intra-workspace replace directives across all go.mod files.
 // Only adds replace directives for modules that are actually required (not all

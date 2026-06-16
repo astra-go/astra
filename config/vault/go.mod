@@ -31,4 +31,3 @@ require (
 )
 
 // pquerna/otp v1.4.1 does not exist; redirect to v1.4.0
-replace github.com/pquerna/otp v1.4.1 => github.com/pquerna/otp v1.4.0

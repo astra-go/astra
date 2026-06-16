@@ -8,8 +8,6 @@ require github.com/astra-go/astra v1.0.5
 
 require github.com/astra-go/astra/cache v1.0.5
 
-replace github.com/astra-go/astra/cache v1.0.5 => ../cache
-
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.1 // indirect

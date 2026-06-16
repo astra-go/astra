@@ -1,376 +1,149 @@
-# Discovery Module
+# Discovery — Service Registration and Discovery
 
-服务发现模块，支持多种服务注册中心后端。
+Service registration and discovery abstraction supporting multiple registries (Consul, etcd, Kubernetes, Nacos).
 
-## 特性
+## Features
 
-- 🎯 **统一接口**：所有后端实现相同的 `Registry` 接口
-- 🔌 **可插拔后端**：支持 Consul、etcd、Kubernetes、Nacos
-- 🏷️ **按需编译**：使用 build tags 控制编译哪些后端
-- 🔄 **实时监听**：通过 `Watch` 方法实时获取服务变更
-- 🔒 **并发安全**：所有实现都是线程安全的
+- **Unified Abstraction**: Registrar and Resolver are both plugin-based
+- **Instance Metadata**: Supports tags, weight, health check info
+- **In-Memory Registry**: `NewInMemoryRegistry` suitable for local development and small-scale deployments
+- **Kubernetes Resolver**: Discovers Pod endpoints via API Server
+- **Nacos**: Supports both service registration and discovery
 
-## 支持的后端
+## Quick Start
 
-| 后端       | Build Tag | 特点                          |
-|-----------|-----------|-------------------------------|
-| Consul    | `consul`  | 成熟稳定，支持健康检查、KV 存储 |
-| etcd      | `etcd`    | 强一致性，自动过期（TTL）      |
-| Kubernetes| `k8s`     | 云原生，与 K8s 生态深度集成    |
-| Nacos     | `nacos`   | 阿里开源，支持配置管理         |
-
-## 快速开始
-
-### 安装
-
-```bash
-go get github.com/astra-go/astra/discovery@v2.0.0
-```
-
-### 基本用法
-
-所有后端都实现了相同的接口：
+### In-Memory Registry (Dev/Testing)
 
 ```go
-type Registry interface {
-    Register(ctx context.Context, instance *ServiceInstance) error
-    Deregister(ctx context.Context, instanceID string) error
-    Discover(ctx context.Context, serviceName string) ([]*ServiceInstance, error)
-    Watch(ctx context.Context, serviceName string) (<-chan []*ServiceInstance, error)
-    Close() error
-}
+reg := discovery.NewInMemoryRegistry()
+reg.Register(ctx, &discovery.ServiceInstance{
+    Name:    "user-svc",
+    Address: "10.0.0.1",
+    Port:    8080,
+    Weight:  100,
+})
 ```
 
-### Consul 示例
+### Consul Registration and Discovery
 
 ```go
-package main
+// Register service
+registrar := discovery.NewConsulRegistrar(consul.Config{
+    Address: "localhost:8500",
+    Service: "user-svc",
+    Address: "10.0.0.1",
+    Port:    8080,
+})
+registrar.Register(ctx)
 
-import (
-    "context"
-    "github.com/astra-go/astra/discovery"
-    "github.com/hashicorp/consul/api"
-)
-
-func main() {
-    // 创建 Consul 客户端
-    cfg := api.DefaultConfig()
-    cfg.Address = "localhost:8500"
-    
-    // 创建注册中心
-    reg, err := discovery.NewConsulRegistryFromConfig(cfg)
-    if err != nil {
-        panic(err)
-    }
-    defer reg.Close()
-    
-    ctx := context.Background()
-    
-    // 注册服务实例
-    err = reg.Register(ctx, &discovery.ServiceInstance{
-        ID:      "user-svc-1",
-        Name:    "user-svc",
-        Address: "10.0.0.1:8080",
-        Scheme:  "http",
-        Weight:  1,
-        Metadata: map[string]string{
-            "version": "v1.0.0",
-            "region":  "us-west-1",
-        },
-    })
-    
-    // 发现服务
-    instances, err := reg.Discover(ctx, "user-svc")
-    for _, inst := range instances {
-        fmt.Printf("Found: %s at %s\n", inst.ID, inst.Address)
-    }
-    
-    // 监听服务变更
-    ch, err := reg.Watch(ctx, "user-svc")
-    for instances := range ch {
-        fmt.Printf("Service updated: %d instances\n", len(instances))
-    }
-}
+// Discover service
+resolver := discovery.NewConsulResolver(consul.Config{Address: "localhost:8500"})
+instances, _ := resolver.Resolve(ctx, "user-svc")
 ```
 
-### etcd 示例
+### etcd Registration and Discovery
 
 ```go
-package main
+registrar := discovery.NewEtcdRegistrar(etcd.Config{
+    Addr: []string{"localhost:2379"},
+})
+registrar.Register(ctx)
 
-import (
-    "context"
-    "time"
-    "github.com/astra-go/astra/discovery"
-    clientv3 "go.etcd.io/etcd/client/v3"
-)
-
-func main() {
-    // 创建 etcd 客户端
-    cli, err := clientv3.New(clientv3.Config{
-        Endpoints:   []string{"localhost:2379"},
-        DialTimeout: 5 * time.Second,
-    })
-    if err != nil {
-        panic(err)
-    }
-    
-    // 创建注册中心（使用 /services 作为前缀）
-    reg := discovery.NewEtcdRegistry(cli, "/services")
-    defer reg.Close()
-    
-    ctx := context.Background()
-    
-    // 注册服务（自动续约）
-    err = reg.Register(ctx, &discovery.ServiceInstance{
-        ID:      "api-svc-1",
-        Name:    "api-svc",
-        Address: "192.168.1.10:8080",
-    })
-}
+resolver := discovery.NewEtcdResolver(etcd.Config{
+    Addr: []string{"localhost:2379"},
+})
+instances, _ := resolver.Resolve(ctx, "user-svc")
 ```
 
-### Kubernetes 示例
+### Nacos Registration and Discovery
 
 ```go
-package main
+registrar := discovery.NewNacosRegistrar(nacos.Config{
+    Address: "localhost:8848",
+    Namespace: "public",
+})
+registrar.Register(ctx)
 
-import (
-    "context"
-    "github.com/astra-go/astra/discovery"
-)
-
-func main() {
-    // In-cluster 模式（Pod 内运行）
-    reg, err := discovery.NewK8sRegistry(discovery.K8sConfig{
-        Namespace: "production",
-        InCluster: true,
-    })
-    if err != nil {
-        panic(err)
-    }
-    defer reg.Close()
-    
-    ctx := context.Background()
-    
-    // 发现服务（通过 Endpoints）
-    instances, err := reg.Discover(ctx, "my-service")
-    for _, inst := range instances {
-        fmt.Printf("Pod: %s at %s\n", inst.ID, inst.Address)
-    }
-}
+resolver := discovery.NewNacosResolver(nacos.Config{
+    Address: "localhost:8848",
+})
+instances, _ := resolver.Resolve(ctx, "user-svc")
 ```
 
-### Nacos 示例
+## API
 
-```go
-package main
-
-import (
-    "context"
-    "github.com/astra-go/astra/discovery"
-    "github.com/nacos-group/nacos-sdk-go/v2/clients"
-    "github.com/nacos-group/nacos-sdk-go/v2/common/constant"
-    "github.com/nacos-group/nacos-sdk-go/v2/vo"
-)
-
-func main() {
-    // 创建 Nacos 客户端
-    sc := []constant.ServerConfig{{
-        IpAddr: "127.0.0.1",
-        Port:   8848,
-    }}
-    cc := constant.NewClientConfig(
-        constant.WithNamespaceId("public"),
-        constant.WithTimeoutMs(5000),
-    )
-    
-    namingClient, err := clients.NewNamingClient(vo.NacosClientParam{
-        ClientConfig:  cc,
-        ServerConfigs: sc,
-    })
-    if err != nil {
-        panic(err)
-    }
-    
-    // 创建注册中心
-    reg := discovery.NewNacosRegistry(namingClient)
-    defer reg.Close()
-    
-    ctx := context.Background()
-    
-    // 注册服务
-    err = reg.Register(ctx, &discovery.ServiceInstance{
-        ID:      "order-svc-1",
-        Name:    "order-svc",
-        Address: "172.16.0.10:8080",
-    })
-}
-```
-
-## 编译标签
-
-使用 build tags 控制编译哪些后端，减少二进制体积：
-
-```bash
-# 编译所有后端
-go build -tags=alltags
-
-# 仅编译 Consul
-go build -tags=consul
-
-# 编译多个后端
-go build -tags="consul,etcd,k8s"
-```
-
-## 测试
-
-```bash
-# 测试所有后端
-go test -tags=alltags ./...
-
-# 测试特定后端
-go test -tags=consul ./...
-```
-
-## ServiceInstance 结构
+### ServiceInstance Structure
 
 ```go
 type ServiceInstance struct {
-    ID       string            // 实例唯一标识
-    Name     string            // 服务名称
-    Address  string            // 地址（host:port）
-    Scheme   string            // 协议（http/https/grpc）
-    Weight   int               // 负载均衡权重
-    Metadata map[string]string // 自定义元数据
+    Name      string            // Service name (must be globally unique)
+    Address   string            // IP or domain
+    Port      int               // Port
+    Weight    int               // Weight (for weighted load balancing)
+    Enable    bool              // Whether enabled
+    Healthy   bool              // Health status
+    Metadata  map[string]string // Additional metadata (e.g., version, region)
 }
 ```
 
-## 错误处理
+### Registrar Interface
 
 ```go
-import "errors"
-
-// 服务未找到
-if errors.Is(err, discovery.ErrNotFound) {
-    // 处理服务不存在的情况
-}
-
-// 实例 ID 为空
-if errors.Is(err, discovery.ErrInstanceIDEmpty) {
-    // 处理 ID 校验失败
+type Registrar interface {
+    Register(ctx context.Context, instance *ServiceInstance) error
+    Deregister(ctx context.Context, instanceID string) error
 }
 ```
 
-## 最佳实践
-
-### 1. 使用 Context 控制超时
+### Resolver Interface
 
 ```go
-ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-defer cancel()
-
-instances, err := reg.Discover(ctx, "my-service")
+type Resolver interface {
+    Resolve(ctx context.Context, name string) ([]*ServiceInstance, error)
+}
 ```
 
-### 2. 优雅关闭
+### Registry Interface (In-Memory)
 
 ```go
-defer reg.Close()
-
-// 注销服务
-if err := reg.Deregister(ctx, instanceID); err != nil {
-    log.Printf("Failed to deregister: %v", err)
+type Registry interface {
+    Registrar
+    Resolver
+    // Service instance management
+    ListServices(ctx context.Context) ([]*ServiceInstance, error)
 }
 ```
 
-### 3. Watch 监听服务变更
+## Config
 
-```go
-ch, err := reg.Watch(ctx, "my-service")
-if err != nil {
-    return err
-}
+### ConsulConfig
 
-for {
-    select {
-    case instances := <-ch:
-        // 更新本地缓存
-        updateCache(instances)
-    case <-ctx.Done():
-        return ctx.Err()
-    }
-}
-```
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Address` | `string` | — | Consul Agent address |
+| `Service` | `string` | — | Service name |
+| `Address` | `string` | — | Instance address |
+| `Port` | `int` | — | Instance port |
+| `Check` | `*CheckConfig` | — | Health check config |
 
-### 4. 健康检查与自动续约
+### NacosConfig
 
-大多数后端会自动处理心跳/续约：
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Address` | `string` | — | Nacos Server address |
+| `Namespace` | `string` | `public` | Namespace |
+| `Group` | `string` | `DEFAULT_GROUP` | Group |
 
-- **Consul**: 使用 TTL 健康检查，后台自动续约
-- **etcd**: 使用 Lease + KeepAlive 机制
-- **Nacos**: 支持临时实例（Ephemeral），自动心跳
-- **Kubernetes**: 依赖 Endpoints 控制器
+## Module Dependencies
 
-### 5. 元数据的合理使用
+| Sub-package | Dependency |
+|-------------|-----------|
+| `discovery/consul` | `github.com/hashicorp/consul/api` |
+| `discovery/etcd` | `go.etcd.io/etcd/client/v3` |
+| `discovery/nacos` | `github.com/nacos-group/nacos-sdk-go` |
 
-```go
-instance := &discovery.ServiceInstance{
-    ID:      "svc-1",
-    Name:    "user-svc",
-    Address: "10.0.0.1:8080",
-    Metadata: map[string]string{
-        "version":     "v1.2.3",
-        "datacenter":  "us-west-1",
-        "environment": "production",
-        "protocol":    "grpc",
-    },
-}
-```
+## Notes
 
-## 性能考虑
-
-### 二进制体积
-
-使用 build tags 可以显著减少二进制体积：
-
-| 后端组合        | 增加体积（大致）|
-|----------------|----------------|
-| Consul only    | +5.2 MB        |
-| etcd only      | +7.1 MB        |
-| K8s only       | +10.3 MB       |
-| Nacos only     | +4.1 MB        |
-| All backends   | +22.7 MB       |
-
-### 并发性能
-
-所有实现都是线程安全的，支持高并发调用：
-
-```go
-var wg sync.WaitGroup
-for i := 0; i < 100; i++ {
-    wg.Add(1)
-    go func(id int) {
-        defer wg.Done()
-        reg.Register(ctx, &discovery.ServiceInstance{
-            ID:   fmt.Sprintf("inst-%d", id),
-            Name: "svc",
-        })
-    }(i)
-}
-wg.Wait()
-```
-
-## 迁移指南
-
-如果你从 v1.x 迁移到 v2.x，请参考 [迁移指南](../docs/migration-guide-discovery-v2.md)。
-
-## 相关文档
-
-- [ADR-005: 子模块数量上限策略](../docs/adr/ADR-005-module-count-limit.md)
-- [P1-3 完整技术分析](../docs/analysis-p1-3-discovery-consolidation.md)
-- [API 文档](https://pkg.go.dev/github.com/astra-go/astra/discovery)
-
-## 许可证
-
-MIT
+- Production recommends Consul/etcd for high availability registries
+- On service deregistration, call `Deregister` to actively unregister to avoid heartbeat expiry delay causing requests to hit already-down instances
+- `Metadata` can store service version and region info, enabling more granular routing strategies

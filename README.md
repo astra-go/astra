@@ -1,151 +1,250 @@
-# Astra
+# ⭐ Astra — Go Web Framework for the Stars
 
-A high-performance Go microservice framework with modular design.
+> **Astra** — A next-generation Go Web framework built for the stars.
 
-## 📦 Install
+[![Go Reference](https://pkg.go.dev/badge/github.com/astra-go/astra.svg)](https://pkg.go.dev/github.com/astra-go/astra)
+[![Go Report Card](https://goreportcard.com/badge/github.com/astra-go/astra)](https://goreportcard.com/report/github.com/astra-go/astra)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/astra-go/astra)](go.mod)
 
-### Prerequisites
+Astra is a **modern, high-performance** Go Web framework that distills the best practices from Gin, Echo, go-zero, Beego, and Kratos, featuring a lightweight core with a rich extensions ecosystem.
 
-- Go 1.21+ ([install go](https://go.dev/doc/install))
-- Set GOPROXY (for China users):
+---
 
-```bash
-go env -w GOPROXY=https://goproxy.cn,direct
-go env -w GOPRIVATE=github.com/astra-go/astra
+## ✨ Core Features
+
+- **🚀 High Performance** — radix-tree router, zero-allocation Context pool, optimized JSON serialization (Sonic)
+- **🧩 Component Architecture** — Unified `Component` interface, modules plug-and-play
+- **🔧 Rich Built-in Middleware** — CORS, CSRF, Recovery, Logger, Compress, RateLimit, JWT, API Key, IP Filter, and more
+- **📦 Full-Featured Extensions** — ORM, cache, message queue, config center, service discovery, gRPC, session, distributed lock, storage, and more
+- **🔌 Plugin Ecosystem** — Prometheus metrics, OpenTelemetry, health checks, distributed transactions (Saga/TCC)
+- **⚙️ Flexible Configuration** — Multi-source config (file, env, etcd, Nacos, Apollo), hot reload support
+- **🔒 Enterprise Security** — JWT auth (with revocation), API Key, signature verification, multi-level cache
+- **🌐 Multi-Protocol** — HTTP/1.1, HTTP/2, HTTP/3 (QUIC), WebSocket, gRPC
+- **📝 Convention Over Config → Extensible** — Zero-config defaults, optional advanced features when needed
+
+## 🏗️ Project Structure
+
 ```
-
-### Quick Install
-
-```bash
-# Install core module
-go get github.com/astra-go/astra@v1.0.0
-
-# Install specific sub-modules
-go get github.com/astra-go/astra/orm@v1.0.0
-go get github.com/astra-go/astra/cache@v1.0.0
-go get github.com/astra-go/astra/grpc@v1.0.0
+astra/
+├── 📄 app.go           # Core App — routing, middleware, lifecycle
+├── 📄 router.go         # radix-tree router
+├── 📄 context.go        # Request context (zero-allocation design)
+├── 📄 group.go          # Route groups
+├── 📄 module.go         # Component registration system (v1 compatible)
+├── 📄 lifecycle.go      # Start/stop hooks
+├── 📄 options.go        # App configuration options
+├── 📄 errors.go         # HTTP errors and business errors
+│
+├── 🧩 middleware/       # Built-in middleware
+│   ├── cors.go          # Cross-origin
+│   ├── csrf.go          # CSRF protection
+│   ├── recovery.go      # Panic recovery
+│   ├── logger.go        # Access log
+│   ├── compress.go      # Gzip compression
+│   ├── secure.go        # Security headers
+│   ├── csp.go           # Content Security Policy
+│   ├── timeout.go       # Request timeout
+│   ├── requestid.go     # Request ID
+│   ├── sanitize.go      # Input sanitization
+│   ├── marketplace/     # Middleware marketplace
+│   └── security/        # Security middleware (JWT/APIKey/RateLimit/Tenant/etc.)
+│
+├── 📦 cache/            # Cache abstraction (memory/redis/memcached)
+├── 📦 orm/              # GORM integration (read-write separation, sharding, transaction propagation)
+├── 📦 mq/               # Message queue (Kafka/RabbitMQ/RocketMQ/MQTT/NATS/Pulsar)
+├── 📦 config/           # Config management (yaml/env/etcd/nacos/apollo)
+├── 📦 session/          # Session management (Redis)
+├── 📦 auth/             # Auth (OAuth2, RBAC)
+├── 📦 storage/          # Object storage (S3/OSS/COS)
+├── 📦 discovery/        # Service discovery (consul/etcd/k8s/nacos)
+├── 📦 grpc/             # gRPC integration
+├── 📦 notify/           # Notifications (email/SMS/push)
+├── 📦 search/           # Search (Elasticsearch)
+├── 📦 client/           # HTTP/gRPC client
+├── 📦 taskqueue/        # Task queue
+├── 📦 dtx/              # Distributed transactions (Saga/TCC)
+├── 📦 lock/             # Distributed lock (etcd/redis)
+├── 📦 loadbalance/      # Load balancing
+├── 📦 runner/           # Background task scheduling (cron/dagu/gocron)
+├── 📦 stream/           # Streaming processing
+├── 📦 rule/             # Rule engine (Lua)
+├── 📦 health/           # Health checks
+├── 📦 metrics/          # Prometheus metrics
+├── 📦 otel/             # OpenTelemetry
+├── 📦 cron/             # Scheduled tasks
+├── 📦 di/               # Dependency injection
+├── 📦 alert/            # Alerting system
+├── 📦 contract/         # Interface contracts
+├── 📦 binding/          # Request binding
+├── 📦 pagination/       # Pagination
+├── 📦 render/           # Template rendering
+├── 📦 validate/         # Data validation
+├── 📦 websocket/        # WebSocket
+├── 📦 quic/             # QUIC/HTTP3
+├── 📦 log/              # Logging
+├── 📦 i18n/             # Internationalization
+├── 📦 upload/           # File upload
+├── 📦 mongodb/          # MongoDB integration
+├── 📦 netengine/        # Network engine
+│
+├── 📂 examples/         # Example projects
+├── 📂 deploy/           # Deployment configs (Docker/Helm/Kustomize)
+├── 📂 docs/             # Documentation
+└── 📂 scripts/          # Build scripts
 ```
-
-### Available Modules
-
-| Module | Import Path | Description |
-|--------|-------------|-------------|
-| **core** | `github.com/astra-go/astra` | Core framework |
-| **orm** | `github.com/astra-go/astra/orm` | ORM (GORM + drivers) |
-| **cache** | `github.com/astra-go/astra/cache` | Cache (Redis + in-memory) |
-| **grpc** | `github.com/astra-go/astra/grpc` | gRPC server/client |
-| **auth** | `github.com/astra-go/astra/auth` | Authentication (JWT + OAuth2) |
-| **config** | `github.com/astra-go/astra/config` | Configuration management |
-| **discovery** | `github.com/astra-go/astra/discovery` | Service discovery (Consul/etcd/K8s/Nacos) |
-| **mq** | `github.com/astra-go/astra/mq` | Message queue (Kafka/RabbitMQ/NATS) |
-| **observability** | `github.com/astra-go/astra/observability` | Metrics/tracing/logging |
-| **testutil** | `github.com/astra-go/astra/testutil` | Testing utilities |
-
-> See [docs/modules.md](docs/modules.md) for the full list.
 
 ## 🚀 Quick Start
+
+### Installation
+
+```bash
+go get github.com/astra-go/astra@latest
+```
+
+### Minimal Example
 
 ```go
 package main
 
 import (
+    "log"
     "github.com/astra-go/astra"
-    "github.com/astra-go/astra/orm"
-    "gorm.io/driver/mysql"
 )
 
 func main() {
-    // Initialize ORM
-    db, _ := orm.Open(mysql.Open("user:pass@/dbname"), &orm.Config{})
-    
-    // Start server
     app := astra.New()
-    app.GET("/ping", func(ctx *astra.Context) {
-        ctx.JSON(200, map[string]string{"message": "pong"})
+
+    app.GET("/hello/:name", func(c *astra.Ctx) error {
+        return c.JSON(200, astra.Map{
+            "message": "Hello, " + c.Param("name"),
+        })
     })
-    app.Run(":8080")
+
+    log.Fatal(app.Run(":8080"))
 }
 ```
 
-## 📚 Documentation
-
-- [Getting Started](docs/getting-started.md)
-- [Module Reference](docs/modules.md)
-- [Examples](examples/)
-- [Contributing](CONTRIBUTING.md)
-
-## 🛠️ Development Setup
+Run it:
 
 ```bash
-# Clone the monorepo
-git clone https://github.com/astra-go/astra.git
-cd astra
-
-# Install dependencies (uses go.work for local development)
-go work sync
-
-# Run tests
-go test ./...
-
-# Build all modules
-make build
+go run main.go
+# Visit http://localhost:8080/hello/Astra
+# Output: {"message":"Hello, Astra"}
 ```
 
-### Local Development with `replace` Directives
+### Full Application
 
-This monorepo uses `replace` directives for local development. After cloning:
+```go
+package main
 
-```bash
-# No manual setup needed — go.work is already configured
-go work sync
+import (
+    "log"
+    "github.com/astra-go/astra"
+    "github.com/astra-go/astra/middleware"
+)
+
+func main() {
+    // Create app
+    app := astra.New()
+
+    // Global middleware
+    app.Use(middleware.Logger())
+    app.Use(middleware.Recovery())
+    app.Use(middleware.CORS("https://example.com"))
+
+    // Route groups
+    api := app.Group("/api/v1")
+    {
+        api.GET("/users", listUsers)
+        api.POST("/users", createUser)
+        api.GET("/users/:id", getUser)
+    }
+
+    // Static files
+    app.Static("/static", "./public")
+
+    // Start server (graceful shutdown supported)
+    log.Fatal(app.Run(":8080"))
+}
+
+func listUsers(c *astra.Ctx) error {
+    return c.JSON(200, astra.Map{"users": []string{"Alice", "Bob"}})
+}
+
+func createUser(c *astra.Ctx) error {
+    var user struct {
+        Name  string `json:"name" validate:"required"`
+        Email string `json:"email" validate:"required,email"`
+    }
+    if err := c.BindJSON(&user); err != nil {
+        return err
+    }
+    return c.JSON(201, astra.Map{"id": 1, "name": user.Name})
+}
+
+func getUser(c *astra.Ctx) error {
+    id := c.Param("id")
+    return c.JSON(200, astra.Map{"id": id, "name": "Alice"})
+}
 ```
 
-To publish a new version:
+## 📘 Documentation
 
-```bash
-# 1. Clean replace directives
-bash scripts/drop-intra-replaces.sh
+Full documentation and tutorials are in the [`docs/`](docs/) directory:
 
-# 2. Commit clean state
-git add -A && git commit -m "chore: clean go.mod for release"
+| Document | Description |
+|----------|-------------|
+| [Installation Guide](docs/getting-started.md) | Installation and version selection |
+| [Quick Start](docs/quick-start.md) | Three steps to get started |
+| [Core Concepts](docs/core-concepts.md) | App, Context, routing, middleware |
+| [Configuration](docs/configuration.md) | Config management and hot reload |
+| [Middleware](docs/middleware.md) | Built-in and custom middleware |
+| [Database ORM](docs/database-orm.md) | GORM integration, read-write separation, transactions |
+| [Caching](docs/caching.md) | Unified multi-backend cache interface |
+| [Message Queue](docs/message-queue.md) | Multi-broker message middleware |
+| [Microservices](docs/microservices.md) | Service discovery, gRPC, distributed transactions |
+| [Deployment](docs/deployment.md) | Docker, K8s, Helm |
+| [Best Practices](docs/best-practices.md) | Engineering recommendations |
 
-# 3. Release
-VERSION=v1.0.0 make release
+## 📦 Sub-Module Overview
 
-# 4. Restore replace directives
-bash scripts/sync-intra-replaces.sh
-```
+Each sub-module is an independent Go module with its own version:
 
-## 🤝 Contributing
-
-Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## 🌍 Community & Feedback
-
-We're actively gathering community feedback to shape Astra's future!
-
-| Channel | Link | Best For |
-|---------|------|----------|
-| 🐛 Bug Reports | [New Bug Report](https://github.com/astra-go/astra/issues/new?template=bug_report.yml) | Broken behavior, crashes |
-| 💡 Feature Requests | [New Feature Request](https://github.com/astra-go/astra/issues/new?template=feature_request.yml) | New capabilities |
-| ❓ Questions | [New Question](https://github.com/astra-go/astra/issues/new?template=question.yml) | How-to, usage help |
-| 📝 Feedback | [Share Feedback](https://github.com/astra-go/astra/issues/new?template=feedback.yml) | DX, docs, experience |
-| 💬 Discussions | [GitHub Discussions](https://github.com/astra-go/astra/discussions) | Open-ended conversations, show-and-tell |
-
-### Version Guide
-
-- **Stable**: `v1.0.x` — Production-ready, full compatibility promise
-- **Preview**: `v1.0.x-beta.x` — New features, APIs may change
-- **Dev**: `main` branch — Latest, potentially unstable
+| Module | Path | Description |
+|--------|------|-------------|
+| **cache** | `astra/cache` | Cache abstraction: memory/redis/memcached |
+| **orm** | `astra/orm` | GORM integration: read-write separation, sharding, transactions |
+| **mq** | `astra/mq` | Message queue: Kafka/RabbitMQ/RocketMQ/MQTT/NATS/Pulsar |
+| **config** | `astra/config` | Config management: file/env/etcd/Nacos/Apollo |
+| **session** | `astra/session` | Session management (Redis backend) |
+| **auth** | `astra/auth` | Authentication: OAuth2, RBAC |
+| **storage** | `astra/storage` | Object storage: S3/OSS/COS |
+| **discovery** | `astra/discovery` | Service discovery: Consul/etcd/K8s/Nacos |
+| **grpc** | `astra/grpc` | gRPC server/client |
+| **notify** | `astra/notify` | Notifications: email/SMS/push |
+| **search** | `astra/search` | Search: Elasticsearch |
+| **client** | `astra/client` | HTTP/gRPC client |
+| **taskqueue** | `astra/taskqueue` | Task queue |
+| **dtx** | `astra/dtx` | Distributed transactions: Saga/TCC |
+| **lock** | `astra/lock` | Distributed lock: etcd/redis |
+| **loadbalance** | `astra/loadbalance` | Load balancing |
+| **runner** | `astra/runner` | Background task scheduling |
+| **stream** | `astra/stream` | Stream processing |
+| **rule** | `astra/rule` | Rule engine (Lua) |
+| **health** | `astra/health` | Health checks |
+| **metrics** | `astra/metrics` | Prometheus metrics |
+| **otel** | `astra/otel` | OpenTelemetry |
+| **cron** | `astra/cron` | Scheduled tasks |
+| **di** | `astra/di` | Dependency injection |
+| **alert** | `astra/alert` | Alerting system |
+| **mongodb** | `astra/mongodb` | MongoDB integration |
+| **netengine** | `astra/netengine` | Network engine |
 
 ## 📄 License
 
-Apache License 2.0
+[MIT License](LICENSE)
 
-## 🔗 Links
+---
 
-- **GitHub**: https://github.com/astra-go/astra
-- **Documentation**: https://astra-go.github.io/docs
-- **Examples**: [examples/](examples/)
-- **Issue Tracker**: https://github.com/astra-go/astra/issues
-- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
+**Astra** — Built for the stars. ⭐

@@ -54,10 +54,12 @@ require (
 require (
 	github.com/bytedance/sonic v1.15.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
+	github.com/lib/pq v1.12.3
 )
 
 require (
 	github.com/astra-go/astra/cache v1.0.5 // indirect
+	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -65,14 +67,19 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
-	github.com/kr/pretty v0.3.1 // indirect
+	github.com/kr/text v0.2.0 // indirect
+	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/prometheus/client_golang v1.20.5 // indirect
+	github.com/prometheus/client_model v0.6.1 // indirect
+	github.com/prometheus/common v0.62.0 // indirect
+	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/redis/go-redis/v9 v9.20.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+	google.golang.org/protobuf v1.36.1 // indirect
 	modernc.org/libc v1.72.5 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
@@ -83,3 +90,95 @@ replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ./
 replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ./middleware/security
 
 replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ./testutil
+
+replace github.com/astra-go/astra/taskqueue v1.0.5 => ./taskqueue
+
+replace github.com/astra-go/astra/middleware/security v1.0.5 => ./middleware/security
+
+replace github.com/astra-go/astra/notify v1.0.5 => ./notify
+
+replace github.com/astra-go/astra/loadbalance v1.0.5 => ./loadbalance
+
+replace github.com/astra-go/modproxy v1.0.5 => ./tools/modproxy
+
+replace github.com/astra-go/astra/cache v1.0.5 => ./cache
+
+replace github.com/astra-go/astra/grpc v1.0.5 => ./grpc
+
+replace github.com/astra-go/astra/config v1.0.5 => ./config
+
+replace github.com/astra-go/astra/config/vault v1.0.5 => ./config/vault
+
+replace github.com/astra-go/astra/auth v1.0.5 => ./auth
+
+replace github.com/astra-go/astra/alert v1.0.5 => ./alert
+
+replace github.com/astra-go/astra/runner v1.0.5 => ./runner
+
+replace github.com/astra-go/astra/stream v1.0.5 => ./stream
+
+replace github.com/astra-go/astra/discovery v1.0.5 => ./discovery
+
+replace github.com/astra-go/astra/lock v1.0.5 => ./lock
+
+replace github.com/astra-go/astra/otel v1.0.5 => ./otel
+
+replace github.com/astra-go/astra/mongodb v1.0.5 => ./mongodb
+
+replace github.com/astra-go/astra/storage v1.0.5 => ./storage
+
+replace github.com/astra-go/astra/rule v1.0.5 => ./rule
+
+replace github.com/astra-go/astra/search v1.0.5 => ./search
+
+replace github.com/astra-go/astra/magefiles v1.0.5 => ./magefiles
+
+replace github.com/astra-go/astra/dtx/redis v1.0.5 => ./dtx/redis
+
+replace github.com/astra-go/astra/dtx/orm v1.0.5 => ./dtx/orm
+
+replace github.com/astra-go/astra/examples/jwt v1.0.5 => ./examples/jwt
+
+replace github.com/astra-go/astra/examples/websocket v1.0.5 => ./examples/websocket
+
+replace github.com/astra-go/astra/examples/cache v1.0.5 => ./examples/cache
+
+replace example/wasm v1.0.5 => ./examples/wasm
+
+replace github.com/astra-go/astra/examples/basic v1.0.5 => ./examples/basic
+
+replace github.com/astra-go/astra/examples/techempower v1.0.5 => ./examples/techempower
+
+replace github.com/astra-go/astra/examples/reference-blog v1.0.5 => ./examples/reference-blog
+
+replace github.com/astra-go/astra/examples/quickstart v1.0.5 => ./examples/quickstart
+
+replace example/crud v1.0.5 => ./examples/crud
+
+replace example/orm v1.0.5 => ./examples/orm
+
+replace github.com/astra-go/astra/examples/showcase v1.0.5 => ./examples/showcase
+
+replace github.com/astra-go/astra/examples/quic v1.0.5 => ./examples/quic
+
+replace github.com/astra-go/astra/benchmarks v1.0.5 => ./benchmarks
+
+replace github.com/astra-go/astra/mq v1.0.5 => ./mq
+
+replace github.com/astra-go/astra/orm/clickhouse v1.0.5 => ./orm/clickhouse
+
+replace github.com/astra-go/astra/orm v1.0.5 => ./orm
+
+replace github.com/astra-go/astra/e2e v1.0.5 => ./e2e
+
+replace github.com/astra-go/astra/e2e/search v1.0.5 => ./e2e/search
+
+replace github.com/astra-go/astra/e2e/orm v1.0.5 => ./e2e/orm
+
+replace github.com/astra-go/astra/testutil v1.0.5 => ./testutil
+
+replace github.com/astra-go/astra/client v1.0.5 => ./client
+
+replace github.com/astra-go/astra/quic v1.0.5 => ./quic
+
+replace github.com/astra-go/astra/session v1.0.5 => ./session

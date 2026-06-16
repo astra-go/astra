@@ -39,8 +39,5 @@ require (
 	google.golang.org/protobuf v1.36.1 // indirect
 )
 
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..
 
-replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../../cache
 
-replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../../testutil

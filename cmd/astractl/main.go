@@ -26,6 +26,8 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"os"
@@ -36,9 +38,12 @@ import (
 	"sync"
 	"time"
 
+	_ "github.com/lib/pq" // PostgreSQL driver
+
 	"github.com/astra-go/astra/cmd/astractl/internal/cli"
 	"github.com/astra-go/astra/cmd/astractl/internal/doctor"
 	"github.com/astra-go/astra/cmd/astractl/internal/fsutil"
+	"github.com/astra-go/astra/migrate"
 	gencontainer "github.com/astra-go/astra/cmd/astractl/internal/gen/container"
 	gencrud "github.com/astra-go/astra/cmd/astractl/internal/gen/crud"
 	generrors "github.com/astra-go/astra/cmd/astractl/internal/gen/errors"
@@ -340,11 +345,11 @@ func cmdMigrate(args []string) error {
 		}
 		return cmdMigrateCreate(desc)
 	case "up":
-		printMigrateNotice("up")
+		return cmdMigrateUp()
 	case "down":
-		printMigrateNotice("down")
+		return cmdMigrateDown()
 	case "status":
-		printMigrateNotice("status")
+		return cmdMigrateStatus()
 	default:
 		return &cli.CLIError{
 			Msg:     fmt.Sprintf("unknown migrate subcommand: %q", args[0]),
@@ -389,6 +394,114 @@ func cmdMigrateCreate(name string) error {
 	fmt.Printf("Migration created: %s\n", file)
 	fmt.Println("\nRemember to register it in your migration list:")
 	fmt.Printf("  m.Register(migrations.Migration%s)\n", goID)
+	return nil
+}
+
+// cmdMigrateUp applies all pending migrations
+func cmdMigrateUp() error {
+	return runMigrations("up")
+}
+
+// cmdMigrateDown rolls back the latest applied migration
+func cmdMigrateDown() error {
+	return runMigrations("down")
+}
+
+// cmdMigrateStatus prints the status of all migrations
+func cmdMigrateStatus() error {
+	return runMigrations("status")
+}
+
+// runMigrations is a helper that reads config, connects to DB, and runs migrations
+func runMigrations(subcmd string) error {
+	// Read config file
+	configPath := "config/dev.yaml"
+	if os.Getenv("ASTRA_ENV") == "prod" {
+		configPath = "config/prod.yaml"
+	}
+
+	// TODO: Parse config file to get DSN
+	// For now, read from environment variable or use default
+	dsn := os.Getenv("DATABASE_DSN")
+	if dsn == "" {
+		// Try to read from config file
+		configData, err := os.ReadFile(configPath)
+		if err == nil {
+			// Simple parsing for database.dsn
+			lines := strings.Split(string(configData), "\n")
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "dsn:") {
+					dsn = strings.TrimSpace(line[4:])
+					dsn = strings.Trim(dsn, "\"")
+					break
+				}
+			}
+		}
+	}
+
+	if dsn == "" {
+		return &cli.CLIError{
+			Msg:  "cannot determine database DSN",
+			Hint: "set DATABASE_DSN environment variable or configure config/dev.yaml",
+		}
+	}
+
+	// Connect to database
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return &cli.CLIError{Msg: fmt.Sprintf("connect to database: %v", err)}
+	}
+	defer db.Close()
+
+	// Ping database
+	if err := db.Ping(); err != nil {
+		return &cli.CLIError{Msg: fmt.Sprintf("ping database: %v", err)}
+	}
+
+	// Create migrator
+	m := migrate.New(db)
+
+	// Register migrations from migrations/ directory
+	// TODO: automatically discover and register migrations
+	// For now, print a notice
+	fmt.Println("NOTICE: You need to register your migrations in the code.")
+	fmt.Println("Edit cmd/migrate/main.go or add registration to your application.")
+
+	ctx := context.Background()
+
+	switch subcmd {
+	case "up":
+		if err := m.Up(ctx); err != nil {
+			return &cli.CLIError{Msg: fmt.Sprintf("migration up failed: %v", err)}
+		}
+		fmt.Println("Migrations applied successfully.")
+
+	case "down":
+		if err := m.Down(ctx); err != nil {
+			return &cli.CLIError{Msg: fmt.Sprintf("migration down failed: %v", err)}
+		}
+		fmt.Println("Migration rolled back successfully.")
+
+	case "status":
+		statuses, err := m.Status(ctx)
+		if err != nil {
+			return &cli.CLIError{Msg: fmt.Sprintf("migration status failed: %v", err)}
+		}
+		fmt.Println("Migration status:")
+		for _, s := range statuses {
+			mark := " "
+			if s.Applied {
+				mark = "✓"
+			}
+			timeStr := "not applied"
+			if !s.AppliedAt.IsZero() {
+				timeStr = s.AppliedAt.Format("2006-01-02 15:04:05")
+			}
+			fmt.Printf("  [%s] %s  (applied at: %s)\n", mark, s.ID, timeStr)
+		}
+	}
+
 	return nil
 }
 

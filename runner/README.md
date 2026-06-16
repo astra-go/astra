@@ -1,180 +1,142 @@
-# Runner Module
+# Runner — Background Task Scheduler
 
-任务运行模块，支持多种任务调度后端。
+Background task runner supporting Cron, GoCron, DAG workflow, and task queue scheduling engines.
 
-## 特性
+## Features
 
-- 🎯 **统一接口**：所有后端实现相同的 `Runner` 接口
-- 🔌 **可插拔后端**：支持 Cron、Dagu、Gocron、TaskQueue
-- 🏷️ **按需编译**：使用 build tags 控制编译哪些后端
-- 🔒 **并发安全**：所有实现都是线程安全的
+- **Cron Engine**: Standard Cron expression scheduling based on `robfig/cron/v3`
+- **GoCron Engine**: More flexible Cron expression support
+- **DAG Engine (Dagu)**: Directed acyclic graph workflow, supports task dependencies
+- **TaskQueue Engine**: Task queue consumption based on `taskqueue` module
 
-## 支持的后端
+## Quick Start
 
-| 后端     | Build Tag  | 特点                           |
-|---------|-----------|-------------------------------|
-| Cron    | `cron`    | 标准 crontab 表达式，轻量级     |
-| Dagu    | `dagu`    | DAG 工作流引擎，支持复杂依赖   |
-| Gocron  | `gocron`  | Go 原生调度器，无需外部依赖    |
-| TaskQueue| `tqrunner` | 基于消息队列的分布式任务执行  |
-
-## 快速开始
-
-### 安装
-
-```bash
-go get github.com/astra-go/astra/runner@v2.0.0
-```
-
-### 基本用法
-
-所有后端都实现了相同的接口：
+### Cron Engine (Recommended)
 
 ```go
-type Runner interface {
-    Start(ctx context.Context) error
-    Stop(ctx context.Context) error
-    Schedule(job *Job) error
-    Remove(jobID string) error
+import "github.com/astra-go/astra/runner"
+
+r := runner.New(runner.Config{Engine: runner.EngineCron})
+
+// Cron expression scheduling
+r.Add("*/5 * * * *", "cache-warmup", func(ctx context.Context) error {
+    return warmCache(ctx)
+})
+
+// Fixed interval
+r.Add("@every 5m", "heartbeat", func(ctx context.Context) error {
+    return sendHeartbeat(ctx)
+})
+
+r.Start(ctx)
+```
+
+### DAG Workflow
+
+```go
+import "github.com/astra-go/astra/runner"
+
+r := runner.New(runner.Config{Engine: runner.EngineDAG})
+
+r.AddTask("fetch-data", func(ctx context.Context) error {
+    return fetchData(ctx)
+}).Then("process-data", func(ctx context.Context) error {
+    return processData(ctx)
+}).Then("notify", func(ctx context.Context) error {
+    return notifyUser(ctx)
+})
+
+r.Start(ctx)
+```
+
+## API
+
+### New
+
+```go
+func New(cfg Config) *Runner
+
+type Config struct {
+    Engine string // "cron" | "gocron" | "dag" | "taskqueue"
 }
 ```
 
-### Cron 示例
+### runner.Add
 
 ```go
-package main
-
-import (
-    "context"
-    "github.com/astra-go/astra/runner"
-)
-
-func main() {
-    r := runner.NewCronRunner()
-    
-    ctx := context.Background()
-    
-    // 注册定时任务
-    err := r.Schedule(&runner.Job{
-        ID:      "cleanup",
-        Spec:    "0 3 * * *", // 每天凌晨 3 点
-        Handler: func(ctx context.Context) error {
-            // 清理过期数据
-            return nil
-        },
-    })
-    
-    r.Start(ctx)
-}
+func (r *Runner) Add(schedule, name string, fn func(context.Context) error) *Runner
 ```
 
-### Dagu 示例
+`schedule` supports Cron expressions or predefined values (`@every 5m`).
+
+### DAG Task Chain
 
 ```go
-package main
+r.AddTask("step1", fn1).Then("step2", fn2).Then("step3", fn3)
+// step2 depends on step1; step3 depends on step2 (sequential)
 
-import (
-    "context"
-    "github.com/astra-go/astra/runner"
-)
-
-func main() {
-    r := runner.NewDaguRunner(runner.DaguConfig{
-        DAGsDir: "./dags",
-    })
-    
-    ctx := context.Background()
-    r.Start(ctx)
-}
+// Parallel execution
+r.AddTask("job1", fn1).And("job2", fn2).Then("job3", fn3)
+// job1 and job2 run in parallel; job3 runs after both complete
 ```
 
-### Gocron 示例
+### runner.Start / runner.Shutdown
 
 ```go
-package main
-
-import (
-    "context"
-    "github.com/astra-go/astra/runner"
-)
-
-func main() {
-    r := runner.NewGocronRunner()
-    
-    ctx := context.Background()
-    
-    err := r.Schedule(&runner.Job{
-        ID:      "report",
-        Spec:    "@hourly",
-        Handler: func(ctx context.Context) error {
-            // 生成报表
-            return nil
-        },
-    })
-    
-    r.Start(ctx)
-}
+r.Start(ctx)
+r.Shutdown(ctx) // Graceful stop, wait for running tasks to complete
 ```
 
-### TaskQueue 示例
+## Config
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Engine` | `string` | `"cron"` | Scheduler engine type |
+| `Concurrency` | `int` | `1` | Max concurrent tasks |
+
+## Complete Example
 
 ```go
 package main
 
 import (
     "context"
+    "fmt"
     "github.com/astra-go/astra/runner"
+    "time"
 )
 
 func main() {
-    r := runner.NewTaskqueueRunner(runner.TaskqueueConfig{
-        BrokerURL: "redis://localhost:6379",
+    r := runner.New(runner.Config{Engine: runner.EngineCron})
+
+    r.Add("*/5 * * * *", "heartbeat", func(ctx context.Context) error {
+        fmt.Println("heartbeat at", time.Now().Format(time.DateTime))
+        return nil
     })
-    
+
+    r.Add("@every 1m", "report", func(ctx context.Context) error {
+        fmt.Println("generating report...")
+        return nil
+    })
+
     ctx := context.Background()
     r.Start(ctx)
+
+    // Simulate running for 3 minutes
+    time.Sleep(3 * time.Minute)
+    r.Shutdown(ctx)
 }
 ```
 
-## 编译标签
+## Module Dependencies
 
-使用 build tags 控制编译哪些后端，减少二进制体积：
+| Sub-package | Dependency |
+|-------------|-----------|
+| `EngineCron` | `github.com/robfig/cron/v3` |
+| `EngineDAG` | `github.com/yohamta/dagu` |
 
-```bash
-# 编译所有后端
-go build -tags=alltags
+## Notes
 
-# 仅编译 Cron
-go build -tags=cron
-
-# 编译多个后端
-go build -tags="cron,gocron"
-```
-
-## 测试
-
-```bash
-# 测试所有后端
-go test -tags=alltags ./...
-
-# 测试特定后端
-go test -tags=cron ./...
-```
-
-## 构造器列表
-
-| 构造器 | Build Tag | 说明 |
-|--------|-----------|------|
-| `NewCronRunner()` | `cron` | 标准 crontab 调度器 |
-| `NewDaguRunner(cfg)` | `dagu` | DAG 工作流引擎 |
-| `NewGocronRunner()` | `gocron` | Go 原生调度器 |
-| `NewTaskqueueRunner(cfg)` | `tqrunner` | 分布式任务队列 |
-
-## 相关文档
-
-- [ADR-005: 子模块数量上限策略](../docs/adr/ADR-005-module-count-limit.md)
-- [架构优化路线图](../docs/architecture-optimization-roadmap.md)
-
-## 许可证
-
-MIT
+- DAG workflow tasks don't auto-retry on failure; implement retry logic in handler function
+- When task function returns error in `runner.Add`, it's treated as failure; can pair with logging/alerting
+- On `Shutdown` graceful stop, running tasks receive ctx cancel signal
