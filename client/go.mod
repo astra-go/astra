@@ -75,6 +75,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -135,7 +136,12 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
+replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./..
 
+replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache
 
+replace github.com/astra-go/astra/discovery v0.0.0-00010101000000-000000000000 => ../discovery
 
+replace github.com/astra-go/astra/loadbalance v0.0.0-00010101000000-000000000000 => ../loadbalance
 
+replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ../testutil
