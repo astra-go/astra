@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/hashicorp/golang-lru/v2"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 // regexpCache is an LRU cache mapping anchored pattern strings ("^(?:<pattern>)$")
