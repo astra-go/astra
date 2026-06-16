@@ -1,9 +1,9 @@
-github.com/astra-go/astra v1.0.4 h1:yIF69r/9bebuPjefISO39mCwDllE74PhAgT69V2RJ0k=
-github.com/astra-go/astra v1.0.4/go.mod h1:iwg3fHQB1a+PN4xwYoVJDus/rumgPqx42cg5wE6F5v0=
-github.com/astra-go/astra/cache v1.0.4 h1:tcvafgTWt8PT2zmkvEYT23g7uHpgVg1i8CRv7LPVwo8=
-github.com/astra-go/astra/cache v1.0.4/go.mod h1:tzb3B5Ph+qD/jcsG8DDA8q0e4kwpfmhm0LLl5EDf6/I=
-github.com/astra-go/astra/testutil v1.0.4 h1:Yrr+0ufAXpj+du0cvVAUruFxvdQKmLeQub23MmiOHd0=
-github.com/astra-go/astra/testutil v1.0.4/go.mod h1:LTT+SUuL3Ubo8m+Qh0ezcMOcjzpeCOn0U8iwBjQAVJM=
+github.com/astra-go/astra v1.0.5 h1:CWRFKZGdDH9RoB2qNcf3w5Gy7OwL/YVlUXbAuUJRQ9Y=
+github.com/astra-go/astra v1.0.5/go.mod h1:BAOBTCJwstoQno/1GIJUSCoKeIXsz9vSPKONuQ8eg/I=
+github.com/astra-go/astra/cache v1.0.5 h1:pTAstR+T+RX46AT2X3wI1mfu6oFb3cpTq8FXbEb5t2Y=
+github.com/astra-go/astra/cache v1.0.5/go.mod h1:3GOCdA5rndd2oyGSoBsTmy3/q8hkuNnygKNVwnatHh0=
+github.com/astra-go/astra/testutil v1.0.5 h1:6OB/St5V2ngKvaAu11bAX9sj6Q4Fz5llOsmqpphrKvc=
+github.com/astra-go/astra/testutil v1.0.5/go.mod h1:REeDlZ/Lki0hWq29uSH0XiyFMGZ3kTYYqp3c35oEQXk=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/bsm/ginkgo/v2 v2.12.0 h1:Ny8MWAHyOepLGlLKYmXG4IEkioBysk6GpaRTLC8zwWs=
@@ -40,6 +40,8 @@ github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63Y
 github.com/golang-jwt/jwt/v5 v5.3.1/go.mod h1:fxCRLWMO43lRc8nhHWY6LGqRcf+1gQWArsqaEUEa5bE=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
+github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
+github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/klauspost/compress v1.17.9 h1:6KIumPrER1LHsvBVuDa0r5xaG0Es51mhhB9BQB2qeMA=
 github.com/klauspost/compress v1.17.9/go.mod h1:Di0epgTjJY877eYKx5yC51cX2A2Vl2ibi7bDH9ttBbw=
 github.com/klauspost/cpuid/v2 v2.2.10 h1:tBs3QSyvjDyFTq3uoc/9xFpCuOsJQFNPiAhYdw2skhE=
