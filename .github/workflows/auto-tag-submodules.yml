@@ -43,7 +43,7 @@ jobs:
       - name: Find all sub-modules
         id: modules
         run: |
-          # Find all go.mod files (excluding vendor and examples)
+          # Find all go.mod files (excluding vendor)
           MODULES=""
           while IFS= read -r -d '' file; do
             dir=$(dirname "$file")
@@ -64,9 +64,12 @@ jobs:
             
             MODULES="$MODULES $tag"
             echo "  ✅ Found: $module → tag: $tag"
-          done < <(find . -name "go.mod" -type f -print0 | grep -v "/vendor/" | grep -v "/examples/")
+          done < <(find . -name "go.mod" -type f -print0 | grep -v "/vendor/")
           
+          # Remove leading space and set output
+          MODULES=$(echo "$MODULES" | xargs)
           echo "modules=$MODULES" >> $GITHUB_OUTPUT
+          echo "Found $(echo "$MODULES" | wc -w) sub-modules"
 
       - name: Create sub-module tags
         env:
