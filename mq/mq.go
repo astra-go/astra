@@ -66,6 +66,16 @@ type Message struct {
 
 	// TraceID is the distributed tracing ID, auto-injected if empty.
 	TraceID string
+
+	// RetryCount is the number of times this message has been retried.
+	// Populated by the consumer on redelivery; not set by the producer.
+	RetryCount int
+
+	// Priority is the message priority level.
+	// Backends that support priority will use this value;
+	// backends that don't will ignore it.
+	// Typical values: 0=default, 1=low, 2=normal, 3=high.
+	Priority int
 }
 
 // Handler processes a received message.
@@ -117,6 +127,12 @@ func (m *Message) WithRetryMax(n int) *Message {
 // WithTraceID sets the distributed tracing ID for the message.
 func (m *Message) WithTraceID(traceID string) *Message {
 	m.TraceID = traceID
+	return m
+}
+
+// WithPriority sets the priority level for the message.
+func (m *Message) WithPriority(p int) *Message {
+	m.Priority = p
 	return m
 }
 

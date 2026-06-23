@@ -82,14 +82,25 @@ func KafkaCapabilities() Capabilities {
 }
 
 // RabbitMQCapabilities returns the capabilities of RabbitMQ.
-// RabbitMQ supports: priority queues, DLQ (DLX), multi consumer group
-// (vhost). It does NOT support: arbitrary delay, NAK delay,
-// native idempotent delivery, ordered delivery, retry, tx, batch.
+// RabbitMQ supports: priority queues (CapPriority), DLQ via DLX (CapDLQ),
+// multi consumer group (CapMultiGroup), arbitrary delay via the
+// x-delayed-message plugin (CapArbitraryDelay), idempotent
+// deduplication via the IdempCache interface (CapIdempotency),
+// staircase retry via RetryPolicy (CapRetry), ordered delivery
+// within a single queue (CapOrdered), AMQP transactions (CapTx),
+// and client-side batch publishing (CapBatch).
 func RabbitMQCapabilities() Capabilities {
 	return Capabilities{
-		CapPriority:   true,
-		CapDLQ:        true,
-		CapMultiGroup: true,
+		CapArbitraryDelay: true,
+		CapIdempotency:    true,
+		CapPriority:       true,
+		CapOrdered:        true,
+		CapDLQ:            true,
+		CapRetry:          true,
+		CapMultiGroup:     true,
+		CapTx:             true,
+		CapBatch:          true,
+		CapNakDelay:       true, // republish + x-delay is semantically equivalent
 	}
 }
 
