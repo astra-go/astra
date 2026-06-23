@@ -158,3 +158,11 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ./cache
+
+replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ./middleware/security
+
+replace github.com/astra-go/astra/mq v0.0.0-00010101000000-000000000000 => ./mq
+
+replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ./testutil
