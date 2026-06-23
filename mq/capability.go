@@ -71,13 +71,23 @@ func (c Capabilities) Has(cap Capability) bool {
 
 // KafkaCapabilities returns the capabilities of Apache Kafka.
 // Kafka supports: ordered delivery (partition), multi consumer group,
-// batch sending. It does NOT support: arbitrary delay, fixed delay,
-// NAK delay, native idempotent delivery, priority, DLQ, retry, tx.
+// batch sending, idempotent delivery (via EnableIdempotent),
+// transactional messages (via EnableTx), arbitrary delay (via republish),
+// NAK delay (via NakWithDelay), DLQ (via DLQTopic), retry (via RetryPolicy),
+// priority (via priority sorting within Subscribe).
+// It does NOT support: fixed delay levels (Kafka has no concept of fixed delay levels).
 func KafkaCapabilities() Capabilities {
 	return Capabilities{
-		CapOrdered:    true,
-		CapMultiGroup: true,
-		CapBatch:      true,
+		CapArbitraryDelay: true,
+		CapNakDelay:       true,
+		CapIdempotency:    true,
+		CapPriority:       true,
+		CapOrdered:        true,
+		CapDLQ:            true,
+		CapRetry:          true,
+		CapMultiGroup:     true,
+		CapTx:             true,
+		CapBatch:          true,
 	}
 }
 
@@ -106,14 +116,19 @@ func RabbitMQCapabilities() Capabilities {
 
 // RocketMQCapabilities returns the capabilities of Apache RocketMQ v5.
 // RocketMQ supports: arbitrary delay (v5), fixed delay (v4), DLQ,
-// retry, ordered delivery, multi consumer group, tx, batch.
+// retry, ordered delivery, multi consumer group, tx, batch,
+// priority queues (via PriorityTopics + sortViewsByPriority),
+// and NAK delay (via ChangeInvisibleDuration).
 func RocketMQCapabilities() Capabilities {
 	return Capabilities{
 		CapArbitraryDelay: true,
 		CapFixedDelay:     true,
+		CapNakDelay:       true,
+		CapIdempotency:    true,
+		CapPriority:       true,
+		CapOrdered:        true,
 		CapDLQ:            true,
 		CapRetry:          true,
-		CapOrdered:        true,
 		CapMultiGroup:     true,
 		CapTx:             true,
 		CapBatch:          true,
