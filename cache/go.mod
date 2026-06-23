@@ -4,7 +4,7 @@ go 1.25.1
 
 require (
 	github.com/bradfitz/gomemcache v0.0.0-20250403215159-8d39553ac7cf
-	github.com/redis/go-redis/v9 v9.20.0
+	github.com/redis/go-redis/v9 v9.21.0
 )
 
 require github.com/astra-go/astra/testutil v1.0.5

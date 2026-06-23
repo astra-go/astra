@@ -247,3 +247,7 @@ func maxOrDefault(v, def int) int {
 	}
 	return v
 }
+
+// Capabilities returns the capabilities of Apache Kafka.
+func (p *KafkaProducer) Capabilities() Capabilities { return KafkaCapabilities() }
+func (c *KafkaConsumer) Capabilities() Capabilities { return KafkaCapabilities() }

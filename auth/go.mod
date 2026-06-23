@@ -8,7 +8,7 @@ go 1.25.1
 //   auth/oauth2 — OAuth2/OIDC authorization-code flow with PKCE
 require (
 	github.com/astra-go/astra v1.0.5
-	github.com/casbin/casbin/v2 v2.119.0
+	github.com/casbin/casbin/v2 v2.135.0
 	golang.org/x/oauth2 v0.36.0
 )
 
@@ -28,6 +28,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.3 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/golang/mock v1.6.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
@@ -40,5 +41,3 @@ require (
 )
 
 replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./..
-
-replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ../cache

@@ -330,3 +330,7 @@ func natsMessageToMessage(natsMsg *nats.Msg) *Message {
 		},
 	}
 }
+
+// Capabilities returns the capabilities of NATS JetStream.
+func (p *NATSProducer) Capabilities() Capabilities { return NatsCapabilities() }
+func (c *NATSConsumer) Capabilities() Capabilities { return NatsCapabilities() }

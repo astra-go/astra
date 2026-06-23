@@ -45,7 +45,7 @@ type ConsumerOptions struct {
 }
 
 // NewProducer creates a producer for the specified MQ type.
-// Supported types: "kafka", "rabbitmq", "nats", "mqtt", "pulsar", "rocketmq".
+// Supported types: "memory", "kafka", "rabbitmq", "nats", "mqtt", "pulsar", "rocketmq".
 //
 // Example:
 //
@@ -54,6 +54,8 @@ type ConsumerOptions struct {
 //	})
 func NewProducer(typ string, opts ProducerOptions) (Producer, error) {
 	switch typ {
+	case "memory":
+		return newMemoryProducerFromOptions(opts)
 	case "kafka":
 		return newKafkaProducerFromOptions(opts)
 	case "rabbitmq":
@@ -72,7 +74,7 @@ func NewProducer(typ string, opts ProducerOptions) (Producer, error) {
 }
 
 // NewConsumer creates a consumer for the specified MQ type.
-// Supported types: "kafka", "rabbitmq", "nats", "mqtt", "pulsar", "rocketmq".
+// Supported types: "memory", "kafka", "rabbitmq", "nats", "mqtt", "pulsar", "rocketmq".
 //
 // Example:
 //
@@ -82,6 +84,8 @@ func NewProducer(typ string, opts ProducerOptions) (Producer, error) {
 //	})
 func NewConsumer(typ string, opts ConsumerOptions) (Consumer, error) {
 	switch typ {
+	case "memory":
+		return newMemoryConsumerFromOptions(opts)
 	case "kafka":
 		return newKafkaConsumerFromOptions(opts)
 	case "rabbitmq":
@@ -212,4 +216,13 @@ func newRocketMQConsumerFromOptions(opts ConsumerOptions) (Consumer, error) {
 		Endpoint:      endpoint,
 		ConsumerGroup: opts.Group,
 	})
+}
+
+
+func newMemoryProducerFromOptions(opts ProducerOptions) (Producer, error) {
+	return NewMemoryProducer(opts.Topic), nil
+}
+
+func newMemoryConsumerFromOptions(opts ConsumerOptions) (Consumer, error) {
+	return NewMemoryConsumer(opts.Subscription), nil
 }

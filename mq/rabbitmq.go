@@ -366,3 +366,7 @@ func deliveryToMessage(d amqp.Delivery, queue string) *Message {
 		},
 	}
 }
+
+// Capabilities returns the capabilities of RabbitMQ.
+func (p *RabbitMQProducer) Capabilities() Capabilities { return RabbitMQCapabilities() }
+func (c *RabbitMQConsumer) Capabilities() Capabilities { return RabbitMQCapabilities() }

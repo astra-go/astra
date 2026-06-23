@@ -52,127 +52,109 @@ require (
 )
 
 require (
+	github.com/astra-go/astra/mq v1.0.5
 	github.com/bytedance/sonic v1.15.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/lib/pq v1.12.3
 )
 
 require (
+	contrib.go.opencensus.io/exporter/ocagent v0.7.0 // indirect
+	dario.cat/mergo v1.0.2 // indirect
+	github.com/AthenZ/athenz v1.12.13 // indirect
+	github.com/DataDog/zstd v1.5.0 // indirect
+	github.com/RoaringBitmap/roaring/v2 v2.8.0 // indirect
+	github.com/apache/pulsar-client-go v0.19.0 // indirect
+	github.com/apache/rocketmq-clients/golang/v5 v5.1.3 // indirect
+	github.com/ardielle/ardielle-go v1.5.2 // indirect
 	github.com/astra-go/astra/cache v1.0.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bits-and-blooms/bitset v1.12.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/containerd/errdefs v1.0.0 // indirect
+	github.com/dchest/siphash v1.2.3 // indirect
+	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/eclipse/paho.mqtt.golang v1.5.1 // indirect
+	github.com/emirpasic/gods v1.18.1 // indirect
+	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
+	github.com/golang/mock v1.6.0 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/google/gofuzz v1.2.0 // indirect
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.1 // indirect
+	github.com/hamba/avro/v2 v2.29.0 // indirect
+	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
-	github.com/kr/text v0.2.0 // indirect
+	github.com/magiconair/properties v1.8.10 // indirect
+	github.com/moby/go-archive v0.2.0 // indirect
+	github.com/moby/moby/api v1.55.0 // indirect
+	github.com/moby/moby/client v0.5.0 // indirect
+	github.com/moby/patternmatcher v0.6.1 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.20.5 // indirect
-	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/prometheus/common v0.62.0 // indirect
-	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/redis/go-redis/v9 v9.20.0 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	github.com/natefinch/lumberjack v2.0.0+incompatible // indirect
+	github.com/nats-io/nats.go v1.52.0 // indirect
+	github.com/nats-io/nkeys v0.4.15 // indirect
+	github.com/nats-io/nuid v1.0.1 // indirect
+	github.com/opencontainers/image-spec v1.1.1 // indirect
+	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
+	github.com/pierrec/lz4/v4 v4.1.26 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
+	github.com/prometheus/client_golang v1.23.2 // indirect
+	github.com/prometheus/client_model v0.6.2 // indirect
+	github.com/prometheus/common v0.68.0 // indirect
+	github.com/prometheus/procfs v0.20.1 // indirect
+	github.com/rabbitmq/amqp091-go v1.11.0 // indirect
+	github.com/redis/go-redis/v9 v9.21.0 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.5 // indirect
+	github.com/sirupsen/logrus v1.9.4 // indirect
+	github.com/spaolacci/murmur3 v1.1.0 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
+	github.com/twmb/franz-go v1.21.2 // indirect
+	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
+	github.com/valyala/fastrand v1.1.0 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
+	go.opencensus.io v0.24.0 // indirect
+	go.opentelemetry.io/otel/metric v1.44.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
+	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	google.golang.org/protobuf v1.36.1 // indirect
+	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	google.golang.org/api v0.230.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
+	google.golang.org/grpc v1.79.3 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
+	gopkg.in/inf.v0 v0.9.1 // indirect
+	k8s.io/apimachinery v0.32.3 // indirect
+	k8s.io/client-go v0.32.3 // indirect
+	k8s.io/klog/v2 v2.130.1 // indirect
+	k8s.io/utils v0.0.0-20250321185631-1f6e0b77f77e // indirect
 	modernc.org/libc v1.72.5 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
+	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
+	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-replace github.com/astra-go/astra/taskqueue v1.0.5 => ./taskqueue
-
-replace github.com/astra-go/astra/middleware/security v1.0.5 => ./middleware/security
-
-replace github.com/astra-go/astra/notify v1.0.5 => ./notify
-
-replace github.com/astra-go/astra/loadbalance v1.0.5 => ./loadbalance
-
-replace github.com/astra-go/modproxy v1.0.5 => ./tools/modproxy
-
-replace github.com/astra-go/astra/cache v1.0.5 => ./cache
-
-replace github.com/astra-go/astra/grpc v1.0.5 => ./grpc
-
-replace github.com/astra-go/astra/config v1.0.5 => ./config
-
-replace github.com/astra-go/astra/config/vault v1.0.5 => ./config/vault
-
-replace github.com/astra-go/astra/auth v1.0.5 => ./auth
-
-replace github.com/astra-go/astra/alert v1.0.5 => ./alert
-
-replace github.com/astra-go/astra/runner v1.0.5 => ./runner
-
-replace github.com/astra-go/astra/stream v1.0.5 => ./stream
-
-replace github.com/astra-go/astra/discovery v1.0.5 => ./discovery
-
-replace github.com/astra-go/astra/lock v1.0.5 => ./lock
-
-replace github.com/astra-go/astra/otel v1.0.5 => ./otel
-
-replace github.com/astra-go/astra/mongodb v1.0.5 => ./mongodb
-
-replace github.com/astra-go/astra/storage v1.0.5 => ./storage
-
-replace github.com/astra-go/astra/rule v1.0.5 => ./rule
-
-replace github.com/astra-go/astra/search v1.0.5 => ./search
-
-replace github.com/astra-go/astra/magefiles v1.0.5 => ./magefiles
-
-replace github.com/astra-go/astra/dtx/redis v1.0.5 => ./dtx/redis
-
-replace github.com/astra-go/astra/dtx/orm v1.0.5 => ./dtx/orm
-
-replace github.com/astra-go/astra/examples/jwt v1.0.5 => ./examples/jwt
-
-replace github.com/astra-go/astra/examples/websocket v1.0.5 => ./examples/websocket
-
-replace github.com/astra-go/astra/examples/cache v1.0.5 => ./examples/cache
-
-replace example/wasm v1.0.5 => ./examples/wasm
-
-replace github.com/astra-go/astra/examples/basic v1.0.5 => ./examples/basic
-
-replace github.com/astra-go/astra/examples/techempower v1.0.5 => ./examples/techempower
-
-replace github.com/astra-go/astra/examples/reference-blog v1.0.5 => ./examples/reference-blog
-
-replace github.com/astra-go/astra/examples/quickstart v1.0.5 => ./examples/quickstart
-
-replace example/crud v1.0.5 => ./examples/crud
-
-replace example/orm v1.0.5 => ./examples/orm
-
-replace github.com/astra-go/astra/examples/showcase v1.0.5 => ./examples/showcase
-
-replace github.com/astra-go/astra/examples/quic v1.0.5 => ./examples/quic
-
-replace github.com/astra-go/astra/benchmarks v1.0.5 => ./benchmarks
-
-replace github.com/astra-go/astra/mq v1.0.5 => ./mq
-
-replace github.com/astra-go/astra/orm/clickhouse v1.0.5 => ./orm/clickhouse
-
-replace github.com/astra-go/astra/orm v1.0.5 => ./orm
-
-replace github.com/astra-go/astra/e2e v1.0.5 => ./e2e
-
-replace github.com/astra-go/astra/e2e/search v1.0.5 => ./e2e/search
-
-replace github.com/astra-go/astra/e2e/orm v1.0.5 => ./e2e/orm
-
-replace github.com/astra-go/astra/testutil v1.0.5 => ./testutil
-
-replace github.com/astra-go/astra/client v1.0.5 => ./client
-
-replace github.com/astra-go/astra/quic v1.0.5 => ./quic
-
-replace github.com/astra-go/astra/session v1.0.5 => ./session

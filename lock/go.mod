@@ -8,7 +8,7 @@ go 1.25.1
 
 // Standalone distributed-lock module — Redis (SET NX + Lua CAS) and etcd backends.
 require (
-	github.com/redis/go-redis/v9 v9.20.0
+	github.com/redis/go-redis/v9 v9.21.0
 	go.etcd.io/etcd/client/v3 v3.6.10
 )
 

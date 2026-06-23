@@ -15,7 +15,7 @@ require (
 	github.com/apache/rocketmq-clients/golang/v5 v5.1.3
 	github.com/google/uuid v1.6.0
 	github.com/rabbitmq/amqp091-go v1.11.0
-	github.com/redis/go-redis/v9 v9.20.0
+	github.com/redis/go-redis/v9 v9.21.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/twmb/franz-go v1.21.2
 	go.mongodb.org/mongo-driver/v2 v2.5.1

@@ -270,3 +270,7 @@ func (c *MQTTConsumer) Close() error {
 	c.client.Disconnect(500)
 	return nil
 }
+
+// Capabilities returns the capabilities of MQTT.
+func (p *MQTTProducer) Capabilities() Capabilities { return MqttCapabilities() }
+func (c *MQTTConsumer) Capabilities() Capabilities { return MqttCapabilities() }

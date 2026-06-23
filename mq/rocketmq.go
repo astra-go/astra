@@ -281,3 +281,7 @@ func fromMessageView(view *rmq.MessageView) *Message {
 		},
 	}
 }
+
+// Capabilities returns the capabilities of Apache RocketMQ.
+func (p *RocketMQProducer) Capabilities() Capabilities { return RocketMQCapabilities() }
+func (c *RocketMQConsumer) Capabilities() Capabilities { return RocketMQCapabilities() }

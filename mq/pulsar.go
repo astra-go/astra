@@ -263,3 +263,7 @@ func (c *PulsarConsumer) Close() error {
 
 // Compile-time assertion.
 var _ Consumer = (*PulsarConsumer)(nil)
+
+// Capabilities returns the capabilities of Apache Pulsar.
+func (p *PulsarProducer) Capabilities() Capabilities { return PulsarCapabilities() }
+func (c *PulsarConsumer) Capabilities() Capabilities { return PulsarCapabilities() }

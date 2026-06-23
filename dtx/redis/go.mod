@@ -6,7 +6,7 @@ go 1.25.1
 // Provides a dtx.StateStore and dtx.Recovery backed by Redis.
 require (
 	github.com/astra-go/astra v1.0.5
-	github.com/redis/go-redis/v9 v9.20.0
+	github.com/redis/go-redis/v9 v9.21.0
 )
 
 require (
@@ -14,5 +14,3 @@ require (
 	github.com/stretchr/testify v1.11.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 )
-
-replace github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ../..

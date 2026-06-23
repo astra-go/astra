@@ -1,7 +1,7 @@
 github.com/astra-go/astra v1.0.5 h1:CWRFKZGdDH9RoB2qNcf3w5Gy7OwL/YVlUXbAuUJRQ9Y=
 github.com/astra-go/astra v1.0.5/go.mod h1:BAOBTCJwstoQno/1GIJUSCoKeIXsz9vSPKONuQ8eg/I=
-github.com/astra-go/astra/cache v1.0.5 h1:pTAstR+T+RX46AT2X3wI1mfu6oFb3cpTq8FXbEb5t2Y=
-github.com/astra-go/astra/cache v1.0.5/go.mod h1:3GOCdA5rndd2oyGSoBsTmy3/q8hkuNnygKNVwnatHh0=
+github.com/astra-go/astra/cache v1.0.5 h1:iSjmqGIve0Z1Ewvf16e1gvfngQ4+175Z6l5FW/HJmww=
+github.com/astra-go/astra/cache v1.0.5/go.mod h1:QOgwyb4ZCSzw2yFs9YBAUPbbq0aQEsBPIoD9sw/xtSs=
 github.com/astra-go/astra/testutil v1.0.5 h1:6OB/St5V2ngKvaAu11bAX9sj6Q4Fz5llOsmqpphrKvc=
 github.com/astra-go/astra/testutil v1.0.5/go.mod h1:REeDlZ/Lki0hWq29uSH0XiyFMGZ3kTYYqp3c35oEQXk=
 github.com/bytedance/gopkg v0.1.3 h1:TPBSwH8RsouGCBcMBktLt1AymVo2TVsBVCY4b6TnZ/M=
