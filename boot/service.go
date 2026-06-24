@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/astra-go/astra"
+	"github.com/astra-go/astra/backend"
 	"github.com/astra-go/astra/config"
 	"github.com/astra-go/astra/middleware"
 )
@@ -78,8 +79,10 @@ type Options struct {
 	extraSources []config.Source   // 额外配置源
 	noConfig     bool              // true = 跳过配置加载，仅用默认值
 	noHealth     bool              // true = 不注册 health 端点
-	noDefaultMW  bool              // true = 不注册默认中间件（Recovery/RequestID）
-	noLoggerInit bool              // true = 跳过自动 Logger 初始化
+	noDefaultMW    bool                     // true = 不注册默认中间件（Recovery/RequestID）
+	noLoggerInit   bool                     // true = 跳过自动 Logger 初始化
+	backendName    string                   // 强制后端名，空=按环境选择
+	backendMapping map[string]string        // 自定义 env→backend 映射
 }
 
 // Option 是 boot.New 的函数式参数。
@@ -150,16 +153,41 @@ func WithoutConfigWatch() Option {
 	return func(o *Options) {}
 }
 
+// WithBackend 强制使用特定后端实现，忽略环境选择。
+// 等价于显式配置 StorageBackend 字段，跳过 env→backend 映射。
+//
+//	svc := boot.New("order-svc", boot.WithBackend("sql-redis"))
+//	repo := svc.Backend().MustSelect(cfg.Mode) // 总是返回 sql-redis
+func WithBackend(name string) Option {
+	return func(o *Options) { o.backendName = name }
+}
+
+// WithBackendMapping 设置自定义 env→backend 映射。
+// 合并到默认映射（dev→memory, prod→sql-redis），相同 key 覆盖。
+//
+//	svc := boot.New("my-svc", boot.WithBackendMapping(map[string]string{
+//	    "dev":     "sqlite",
+//	    "ci":      "memory",
+//	    "staging": "mysql",
+//	}))
+func WithBackendMapping(mapping map[string]string) Option {
+	return func(o *Options) { o.backendMapping = mapping }
+}
+
 // ============================================================================
 // Service — 启动脚手架核心
 // ============================================================================
 
-// Service 封装 Astra App、配置和日志。
+// Service 封装 Astra App、配置、日志和多环境后端选择器。
 // 提供 Use / Router / Run 链式启动流程。
 type Service struct {
 	app    *astra.App
 	cfg    *Config
 	logger *slog.Logger
+
+	// backend 是按环境选择实现后端的 Provider 选择器。
+	// 通过 WithBackend / WithBackendMapping 在 New 时配置。
+	backend *backend.BackendSelector
 }
 
 // New 创建 Service 实例。
@@ -211,15 +239,29 @@ func New(name string, opts ...Option) *Service {
 		app.Use(middleware.RequestID())
 	}
 
-	// ---- 4. Health 端点 ----
+	// ---- 4. 多环境后端选择器 ----
+	var be *backend.BackendSelector
+	if o.backendName != "" || len(o.backendMapping) > 0 {
+		beOpts := make([]backend.Option, 0, 2)
+		if o.backendName != "" {
+			beOpts = append(beOpts, backend.WithBackend(o.backendName))
+		}
+		if len(o.backendMapping) > 0 {
+			beOpts = append(beOpts, backend.WithMapping(o.backendMapping))
+		}
+		be = backend.New(name, beOpts...)
+	}
+
+	// ---- 5. Health 端点 ----
 	if !o.noHealth {
 		registerHealthEndpoints(app, &cfg.Health)
 	}
 
 	return &Service{
-		app:    app,
-		cfg:    cfg,
-		logger: logger,
+		app:     app,
+		cfg:     cfg,
+		logger:  logger,
+		backend: be,
 	}
 }
 
@@ -229,6 +271,11 @@ func New(name string, opts ...Option) *Service {
 
 // App 返回底层 Astra App 实例。
 func (s *Service) App() *astra.App { return s.app }
+
+// Backend 返回按环境选择实现后端的 Provider 选择器。
+// 在 New 时通过 WithBackend / WithBackendMapping 配置。
+// 未配置时返回 nil。
+func (s *Service) Backend() *backend.BackendSelector { return s.backend }
 
 // Cfg 返回运行时配置（只读，线程安全由 config.Config 保证）。
 func (s *Service) Cfg() *Config { return s.cfg }
