@@ -36,6 +36,11 @@ type App struct {
 	poolHit    poolCounter
 	poolMiss   poolCounter
 	poolActive poolCounter
+
+	// routeMeta stores per-route metadata and tags for runtime introspection.
+	// Keys are "METHOD:fullPath" strings; values carry Metadata map and Tags slice.
+	// Populated during route registration; read-only during request handling.
+	routeMeta map[string]routeMetaEntry
 }
 
 // poolCounter is an atomic.Int64 padded to a full 64-byte cache line.
