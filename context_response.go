@@ -374,6 +374,23 @@ func (c *Ctx) Stream(code int, contentType string, r io.Reader) error {
 	return err
 }
 
+// SendError writes err as a standardized JSON error response.
+// It handles *AppError (structured with code/message/trace_id/service),
+// *HTTPError (simple status+message), and generic errors (500).
+//
+// Use this in handlers for direct error output:
+//
+//	if err != nil {
+//	    return c.SendError(err)
+//	}
+func (c *Ctx) SendError(err error) error {
+	if err == nil {
+		return nil
+	}
+	c.app.options.ErrorHandler(c, err)
+	return nil
+}
+
 // writeFlusher is a minimal interface combining Write and Flush,
 // satisfied by *bufio.Writer, http.ResponseWriter (when Flusher), etc.
 type writeFlusher interface {

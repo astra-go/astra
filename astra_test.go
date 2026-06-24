@@ -309,15 +309,18 @@ func TestErrorHandler_AppError(t *testing.T) {
 		return userNotFound
 	})
 	srv := testutil.NewServer(t, app)
-	var body struct {
+	type errorBody struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
+	}
+	var body struct {
+		Error errorBody `json:"error"`
 	}
 	srv.GET("/user").
 		AssertStatus(http.StatusNotFound).
 		AssertJSON(&body)
-	testutil.AssertEqual(t, "USER_NOT_FOUND", body.Code)
-	testutil.AssertEqual(t, "user not found", body.Message)
+	testutil.AssertEqual(t, "USER_NOT_FOUND", body.Error.Code)
+	testutil.AssertEqual(t, "user not found", body.Error.Message)
 }
 
 func TestErrorHandler_ProdMode_Masks5xx(t *testing.T) {

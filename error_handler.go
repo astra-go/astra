@@ -3,6 +3,7 @@ package astra
 import (
 	"errors"
 	"net/http"
+	"time"
 )
 
 // Sentinel errors for the two most common failure paths.
@@ -28,6 +29,38 @@ func writePrebuiltError(ctx *Ctx, code int, body []byte) {
 	h["Content-Length"] = contentLengthSlice(len(body))
 	ctx.writer.WriteHeader(code)
 	ctx.writer.Write(body) //nolint:errcheck
+}
+
+// injectErrorContext enriches an *AppError with trace/request IDs and service
+// name from the request context.  Returns the error unchanged if it is not
+// an *AppError, making it safe to call on any error type.
+func injectErrorContext(c *Ctx, err error) error {
+	ae, ok := err.(*AppError)
+	if !ok {
+		return err
+	}
+	clone := *ae
+	if clone.TraceID == "" {
+		if tid, exists := c.Get("trace_id"); exists {
+			if s, ok := tid.(string); ok {
+				clone.TraceID = s
+			}
+		}
+	}
+	if clone.RequestID == "" {
+		clone.RequestID = c.GetString("requestID")
+	}
+	if clone.Service == "" {
+		if svc, exists := c.Get("service"); exists {
+			if s, ok := svc.(string); ok {
+				clone.Service = s
+			}
+		}
+	}
+	if clone.Timestamp.IsZero() {
+		clone.Timestamp = time.Now().UTC()
+	}
+	return &clone
 }
 
 // defaultErrorHandler writes a structured JSON error response.
@@ -56,6 +89,11 @@ func defaultErrorHandler(c *Ctx, err error) {
 
 	isProdLike := c.app.options.Mode == ModeProd || c.app.options.Mode == ModeStaging
 
+	// Inject context metadata (trace_id, request_id, service) into AppError.
+	if _, ok := err.(*AppError); ok {
+		err = injectErrorContext(c, err)
+	}
+
 	// Business-layer error: structured response with Code + Message.
 	if ae, ok := err.(*AppError); ok {
 		status := ae.HTTPStatus
@@ -75,7 +113,27 @@ func defaultErrorHandler(c *Ctx, err error) {
 		if ae.Data != nil && status < 500 {
 			body["data"] = ae.Data
 		}
-		_ = c.JSON(status, body)
+		if len(ae.Details) > 0 && status < 500 {
+			body["details"] = ae.Details
+		}
+		if ae.TraceID != "" {
+			body["trace_id"] = ae.TraceID
+		}
+		if ae.RequestID != "" {
+			body["request_id"] = ae.RequestID
+		}
+		if ae.Service != "" {
+			body["service"] = ae.Service
+		}
+		if !ae.Timestamp.IsZero() {
+			body["timestamp"] = ae.Timestamp.Format(time.RFC3339)
+		}
+		// Only include message_i18n in non-prod or 4xx responses
+		if len(ae.MessageI18n) > 0 && (!isProdLike || status < 500) {
+			body["message_i18n"] = ae.MessageI18n
+		}
+		// Wrap in "error" envelope for standardized format
+		_ = c.JSON(status, Map{"error": body})
 		return
 	}
 

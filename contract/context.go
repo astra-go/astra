@@ -142,6 +142,13 @@ type Context interface {
 	UserAgent() string
 	IsWebsocket() bool
 
+	// ─── Error response ─────────────────────────────────────────────────
+
+	// SendError writes err as a standardized JSON error response.
+	// Handles *AppError (structured error with code/message/trace_id/etc.),
+	// *HTTPError (simple status+message), and generic errors (500).
+	SendError(err error) error
+
 	// ─── SSE ──────────────────────────────────────────────────────────────
 
 	SSEvent(event, data string) error
