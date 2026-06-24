@@ -71,6 +71,16 @@ type KafkaProducerConfig struct {
 	// DelayTopic is the topic used for delayed message delivery.
 	// If empty, delayed messages are not supported.
 	DelayTopic string
+
+	// FixedDelayLevels defines predefined fixed-delay levels (in milliseconds).
+	// When non-empty, FixedDelay() will publish to per-level delay topics.
+	// A background consumer forwards messages to the real topic after TTL expires.
+	// Default: []int64{60000, 300000, 600000, 1800000, 3600000} (1m/5m/10m/30m/1h)
+	FixedDelayLevels []int64
+
+	// FixedDelayTopicPrefix is the prefix for fixed-delay topics.
+	// Default: "delay-fixed-" (e.g., delay-fixed-1, delay-fixed-2)
+	FixedDelayTopicPrefix string
 }
 
 // KafkaProducer publishes records to Kafka.
@@ -143,6 +153,58 @@ func (p *KafkaProducer) PublishBatch(ctx context.Context, msgs []*Message) error
 		records[i] = msgToRecord(m)
 	}
 	return p.client.ProduceSync(ctx, records...).FirstErr()
+}
+
+// FixedDelay sends a message with a fixed-delay level.
+// The message is published to a delay topic. A background consumer
+// forwards it to the real topic after the TTL expires.
+//
+// Implementation: per-level delay topic + background forwarding consumer.
+//
+// Example FixedDelayLevels: []int64{60000, 300000, 600000} (1m / 5m / 10m)
+// Level 1 → delay-fixed-1 topic (1 min TTL) → forward to real topic after expiry
+func (p *KafkaProducer) FixedDelay(ctx context.Context, msg *Message, level int) error {
+	levels := p.cfg.FixedDelayLevels
+	if len(levels) == 0 {
+		levels = []int64{60000, 300000, 600000, 1800000, 3600000}
+	}
+
+	if level < 1 || level > len(levels) {
+		return fmt.Errorf("kafka: invalid fixed-delay level %d (valid: 1-%d)", level, len(levels))
+	}
+
+	prefix := p.cfg.FixedDelayTopicPrefix
+	if prefix == "" {
+		prefix = "delay-fixed-"
+	}
+
+	record := &kgo.Record{
+		Topic: fmt.Sprintf("%s%d", prefix, level),
+		Value: msg.Payload,
+	}
+	if len(msg.Key) > 0 {
+		record.Key = msg.Key
+	}
+	// Store the real destination topic in the record header
+	record.Headers = append(record.Headers, kgo.RecordHeader{
+		Key:   "x-original-topic",
+		Value: []byte(msg.Topic),
+	})
+	record.Headers = append(record.Headers, kgo.RecordHeader{
+		Key:   "x-delay-level",
+		Value: []byte(fmt.Sprintf("%d", level)),
+	})
+
+	if err := p.client.ProduceSync(ctx, record).FirstErr(); err != nil {
+		return fmt.Errorf("kafka: fixed-delay produce level %d: %w", level, err)
+	}
+
+	slog.Debug("kafka: fixed-delay published",
+		slog.String("topic", msg.Topic),
+		slog.Int("level", level),
+		slog.Int64("delay_ms", levels[level-1]),
+	)
+	return nil
 }
 
 // ─── Transaction Methods ─────────────────────────────────────────────────────

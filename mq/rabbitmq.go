@@ -176,6 +176,16 @@ type RabbitMQConfig struct {
 
 	// RetryDelay is the base delay for exponential backoff. Default: 1s.
 	RetryDelay time.Duration
+
+	// FixedDelayLevels defines predefined fixed-delay levels (in milliseconds).
+	// When non-empty, FixedDelay() will route messages to delay queues.
+	// Implementation: per-level delay queue with x-message-ttl → DLX → real queue.
+	// Default: []int64{60000, 300000, 600000, 1800000, 3600000} (1m/5m/10m/30m/1h)
+	FixedDelayLevels []int64
+
+	// FixedDelayExchange is the exchange used for fixed-delay routing.
+	// Default: "astra.delay" (auto-created as x-delayed-message if EnableDelay=true)
+	FixedDelayExchange string
 }
 
 func (c *RabbitMQConfig) setDefaults() {
@@ -225,6 +235,15 @@ func NewRabbitMQProducer(cfg RabbitMQConfig) (*RabbitMQProducer, error) {
 	if err := p.connect(); err != nil {
 		return nil, err
 	}
+
+	// Initialize fixed-delay queues
+	if len(cfg.FixedDelayLevels) > 0 {
+		if err := p.initFixedDelayQueues(); err != nil {
+			p.conn.Close()
+			return nil, fmt.Errorf("rabbitmq producer: init fixed-delay queues: %w", err)
+		}
+	}
+
 	return p, nil
 }
 
@@ -271,6 +290,129 @@ func (p *RabbitMQProducer) connect() error {
 	p.conn = conn
 	p.ch = ch
 	p.mu.Unlock()
+	return nil
+}
+
+// initFixedDelayQueues creates per-level delay queues with TTL → DLX routing.
+// Architecture:
+//   DelayQueue_N ──TTL=Ns──► Default Exchange (DLX) ──routing-key=real_topic──► Real Queue
+func (p *RabbitMQProducer) initFixedDelayQueues() error {
+	levels := p.cfg.FixedDelayLevels
+	if len(levels) == 0 {
+		levels = []int64{60000, 300000, 600000, 1800000, 3600000} // 1m/5m/10m/30m/1h
+	}
+
+	// Declare the fixed-delay exchange (using x-delayed-message if available)
+	delayExchange := p.cfg.FixedDelayExchange
+	if delayExchange == "" {
+		delayExchange = "astra.delay"
+	}
+
+	// Determine exchange type: use x-delayed-message if the main exchange uses it
+	exchangeType := "direct"
+	var args amqp.Table
+	if p.cfg.ExchangeType == "x-delayed-message" {
+		exchangeType = "x-delayed-message"
+		args = amqp.Table{"x-delayed-type": "direct"}
+	}
+
+	if err := p.ch.ExchangeDeclare(
+		delayExchange, exchangeType,
+		p.cfg.Durable, false, false, false, args,
+	); err != nil {
+		return fmt.Errorf("rabbitmq: declare delay exchange %q: %w", delayExchange, err)
+	}
+
+	// Create per-level delay queues
+	for i, delayMs := range levels {
+		delayQueue := fmt.Sprintf("delay.level.%d", i+1)
+
+		// Delay queue: messages sit here for delayMs, then expire (TTL) → go to DLX
+		_, err := p.ch.QueueDeclare(
+			delayQueue,
+			p.cfg.Durable, // durable
+			false,         // autoDelete
+			false,         // exclusive
+			false,         // noWait
+			amqp.Table{
+				"x-message-ttl":             delayMs,
+				"x-dead-letter-exchange":    p.cfg.Exchange,   // DLX → main exchange
+				"x-dead-letter-routing-key": "",              // use the message's original routing key (Topic)
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("rabbitmq: declare delay queue %q: %w", delayQueue, err)
+		}
+
+		// Bind delay queue to delay exchange
+		if err := p.ch.QueueBind(
+			delayQueue,
+			fmt.Sprintf("delay.%d", i+1), // routing key: delay.1, delay.2, ...
+			delayExchange,
+			false, nil,
+		); err != nil {
+			return fmt.Errorf("rabbitmq: bind delay queue %q: %w", delayQueue, err)
+		}
+	}
+
+	slog.Info("rabbitmq: fixed-delay queues initialized",
+		"levels", len(levels),
+		"exchange", delayExchange,
+	)
+	return nil
+}
+
+// FixedDelay sends a message with a fixed-delay level.
+// It routes the message to the per-level delay queue (TTL → DLX → real topic).
+//
+// Example FixedDelayLevels: []int64{60000, 300000, 600000} (1m / 5m / 10m)
+// Level 1 → delay.1 routing key (1 min TTL) → real topic after expiry
+func (p *RabbitMQProducer) FixedDelay(ctx context.Context, msg *Message, level int) error {
+	levels := p.cfg.FixedDelayLevels
+	if len(levels) == 0 {
+		levels = []int64{60000, 300000, 600000, 1800000, 3600000}
+	}
+
+	if level < 1 || level > len(levels) {
+		return fmt.Errorf("rabbitmq: invalid fixed-delay level %d (valid: 1-%d)", level, len(levels))
+	}
+
+	delayExchange := p.cfg.FixedDelayExchange
+	if delayExchange == "" {
+		delayExchange = "astra.delay"
+	}
+
+	publishing := amqp.Publishing{
+		ContentType:  "application/json",
+		Body:         msg.Payload,
+		DeliveryMode: amqp.Persistent,
+		Timestamp:    time.Now(),
+		Headers:      make(amqp.Table),
+	}
+	if len(msg.Key) > 0 {
+		publishing.MessageId = string(msg.Key)
+	}
+	// Store the real topic in header so DLX can route correctly after TTL expiry
+	publishing.Headers["x-original-topic"] = msg.Topic
+
+	// Route to delay exchange with delay.N routing key
+	routingKey := fmt.Sprintf("delay.%d", level)
+	if err := p.ch.PublishWithContext(
+		ctx,
+		delayExchange,
+		routingKey,
+		false, // mandatory
+		false, // immediate
+		publishing,
+	); err != nil {
+		return fmt.Errorf("rabbitmq: fixed-delay publish level %d: %w", level, err)
+	}
+
+	slog.Debug("rabbitmq: fixed-delay published",
+		slog.String("topic", msg.Topic),
+		slog.Int("level", level),
+		slog.Int64("delay_ms", levels[level-1]),
+	)
 	return nil
 }
 

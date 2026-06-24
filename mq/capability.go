@@ -79,6 +79,7 @@ func (c Capabilities) Has(cap Capability) bool {
 func KafkaCapabilities() Capabilities {
 	return Capabilities{
 		CapArbitraryDelay: true,
+		CapFixedDelay:     true, // via per-level delay topics + forwarding consumer
 		CapNakDelay:       true,
 		CapIdempotency:    true,
 		CapPriority:       true,
@@ -94,23 +95,24 @@ func KafkaCapabilities() Capabilities {
 // RabbitMQCapabilities returns the capabilities of RabbitMQ.
 // RabbitMQ supports: priority queues (CapPriority), DLQ via DLX (CapDLQ),
 // multi consumer group (CapMultiGroup), arbitrary delay via the
-// x-delayed-message plugin (CapArbitraryDelay), idempotent
-// deduplication via the IdempCache interface (CapIdempotency),
-// staircase retry via RetryPolicy (CapRetry), ordered delivery
-// within a single queue (CapOrdered), AMQP transactions (CapTx),
-// and client-side batch publishing (CapBatch).
+// x-delayed-message plugin (CapArbitraryDelay), fixed delay via per-level
+// delay queues (CapFixedDelay), idempotent deduplication via the
+// IdempCache interface (CapIdempotency), staircase retry via RetryPolicy
+// (CapRetry), ordered delivery within a single queue (CapOrdered),
+// AMQP transactions (CapTx), and client-side batch publishing (CapBatch).
 func RabbitMQCapabilities() Capabilities {
 	return Capabilities{
 		CapArbitraryDelay: true,
-		CapIdempotency:    true,
-		CapPriority:       true,
-		CapOrdered:        true,
-		CapDLQ:            true,
-		CapRetry:          true,
-		CapMultiGroup:     true,
-		CapTx:             true,
-		CapBatch:          true,
-		CapNakDelay:       true, // republish + x-delay is semantically equivalent
+		CapFixedDelay:     true, // via per-level delay queues (TTL → DLX)
+		CapIdempotency:   true,
+		CapPriority:      true,
+		CapOrdered:       true,
+		CapDLQ:           true,
+		CapRetry:         true,
+		CapMultiGroup:    true,
+		CapTx:            true,
+		CapBatch:         true,
+		CapNakDelay:      true, // republish + x-delay is semantically equivalent
 	}
 }
 
@@ -136,52 +138,77 @@ func RocketMQCapabilities() Capabilities {
 }
 
 // NatsCapabilities returns the capabilities of NATS JetStream.
-// NATS supports: NAK delay, multi consumer group.
-// It does NOT support: arbitrary delay, fixed delay, priority,
-// ordered delivery, DLQ, retry, tx, batch.
+// NATS supports: NAK delay, multi consumer group, batch,
+// DLQ (via MaxDeliver + DeliverSubject), retry (via MaxDeliver),
+// ordered delivery (via OrderedConsumer), and idempotent delivery
+// (via JetStream KV).
+// It does NOT support: arbitrary delay, fixed delay, priority, tx.
+// NatsCapabilities returns the capabilities of NATS.
+// NATS (JetStream) supports: NAK delay (CapNakDelay), multi consumer group
+// (CapMultiGroup), batch (CapBatch), DLQ via DLQSubject (CapDLQ), retry via
+// MaxDeliver (CapRetry), ordered delivery (CapOrdered), idempotency via
+// KV bucket (CapIdempotency), fixed delay via JetStream scheduled delivery
+// (CapFixedDelay), arbitrary delay via client-side re-publisher (CapArbitraryDelay),
+// and priority via multi-subject routing (CapPriority).
 func NatsCapabilities() Capabilities {
 	return Capabilities{
-		CapNakDelay:   true,
-		CapMultiGroup: true,
+		CapFixedDelay:     true, // via JetStream scheduled delivery (PublishAsync + WithNextTime)
+		CapArbitraryDelay: true, // via client-side re-publisher goroutine
+		CapNakDelay:       true,
+		CapMultiGroup:     true,
+		CapBatch:          true,
+		CapDLQ:            true,
+		CapRetry:          true,
+		CapOrdered:        true,
+		CapIdempotency:    true,
+		CapPriority:       true, // via multi-subject routing (topic.p0..pN) + heap
 	}
 }
 
 // PulsarCapabilities returns the capabilities of Apache Pulsar.
 // Pulsar supports: arbitrary delay (DeliverAfter), priority,
-// ordered delivery (partition), multi consumer group, tx, batch, DLQ.
+// ordered delivery (partition), multi consumer group, tx, batch, DLQ,
+// idempotent delivery (via IdempCache), retry (via RetryPolicy),
+// fixed delay (via DeliverAfter mapped to nearest level),
+// and NAK delay (via republish with delay).
 func PulsarCapabilities() Capabilities {
 	return Capabilities{
 		CapArbitraryDelay: true,
+		CapFixedDelay:     true, // via DeliverAfter() (maps to nearest level)
+		CapNakDelay:       true, // via republish with delay
+		CapIdempotency:    true, // via IdempCache + SequenceID
 		CapPriority:       true,
 		CapOrdered:        true,
+		CapDLQ:            true,
+		CapRetry:          true, // via RetryPolicy
 		CapMultiGroup:     true,
 		CapTx:             true,
 		CapBatch:          true,
-		CapDLQ:            true,
 	}
 }
 
 // MqttCapabilities returns the capabilities of MQTT.
-// MQTT has very limited capabilities (no delay, no priority, no order,
-// no DLQ, no retry, no tx, no batch).
+// MQTT (v5.0) supports: multi consumer group via shared subscriptions
+// (CapMultiGroup), batch via client-side aggregation (CapBatch), retry via
+// MQTT v5.0 Retry flag (CapRetry), DLQ via DLQTopic forwarding (CapDLQ),
+// idempotency via client-side IdempKey tracking (CapIdempotency), ordered
+// delivery within a single topic (CapOrdered), NAK delay via retry topic
+// + Message Expiry Interval (CapNakDelay), fixed delay via topic-level routing
+// (CapFixedDelay), and arbitrary delay via expiry interval + re-publisher
+// (CapArbitraryDelay).
 func MqttCapabilities() Capabilities {
-	return Capabilities{}
-}
-
-// MemoryCapabilities returns the capability set for the in-process memory broker.
-// Supports: arbitrary delay (timer), ordered delivery (FIFO channel).
-// Does not support: idempotency, priority, DLQ, retry, transactions, or batching.
-// Suitable for testing and local development only.
-func MemoryCapabilities() Capabilities {
 	return Capabilities{
-		CapArbitraryDelay: true,
-		CapIdempotency:    false,
-		CapPriority:       false,
-		CapOrdered:        true,
-		CapDLQ:            false,
-		CapRetry:          false,
-		CapMultiGroup:     false,
-		CapTx:             false,
-		CapBatch:          false,
+		CapArbitraryDelay: true, // via Message Expiry Interval + re-publisher goroutine
+		CapFixedDelay:     true, // via topic-level routing (topic.level.N) + expiry interval
+		CapNakDelay:       true, // via retry topic + expiry interval + MaxRetries
+		CapMultiGroup:     true, // via shared subscriptions ($share/group/topic)
+		CapBatch:          true, // client-side aggregation
+		CapRetry:          true, // via Retry flag (MQTT v5.0)
+		CapDLQ:            true, // via DLQTopic forwarding after MaxRetries
+		CapIdempotency:    true, // client-side IdempKey deduplication
+		CapOrdered:        true, // single-topic ordering is naturally preserved
 	}
 }
+
+
+

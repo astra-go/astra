@@ -31,6 +31,7 @@ package mq
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
 	"log/slog"
 	"time"
@@ -53,6 +54,27 @@ type PulsarConfig struct {
 	// OperationTimeout is the timeout for producer/consumer operations.
 	// Default: 5s.
 	OperationTimeout time.Duration
+
+	// EnableDelay enables arbitrary-delay message delivery (DeliverAfter/DeliverAt).
+	// Default: false.
+	EnableDelay bool
+
+	// IdempCache is the idempotency cache implementation.
+	// If non-nil, messages with IdempKey will be deduplicated.
+	IdempCache IdempCache
+
+	// RetryPolicy defines the retry behavior for failed messages.
+	// If non-nil, failed messages will be retried according to this policy.
+	RetryPolicy *RetryPolicy
+
+	// DLQTopic is the dead-letter queue topic for failed messages.
+	// If empty, a default DLQ topic will be used.
+	DLQTopic string
+
+	// FixedDelayLevels defines predefined fixed-delay levels (in milliseconds).
+	// When non-empty, FixedDelay() will route messages to the nearest level.
+	// Default: []int64{60000, 300000, 600000, 1800000, 3600000} (1m/5m/10m/30m/1h)
+	FixedDelayLevels []int64
 }
 
 func (c *PulsarConfig) clientOptions() gopulsar.ClientOptions {
@@ -88,7 +110,7 @@ type PulsarProducer struct {
 	cfg       PulsarConfig
 }
 
-// NewProducer creates a Pulsar Producer.
+// NewPulsarProducer creates a Pulsar Producer.
 func NewPulsarProducer(cfg PulsarConfig) (*PulsarProducer, error) {
 	client, err := gopulsar.NewClient(cfg.clientOptions())
 	if err != nil {
@@ -114,15 +136,39 @@ func (p *PulsarProducer) Publish(ctx context.Context, msg *Message) error {
 	if len(msg.Key) > 0 {
 		pm.Key = string(msg.Key)
 	}
-	for k, v := range msg.Headers {
-		pm.Properties = map[string]string{}
-		pm.Properties[k] = v
+	if len(msg.Headers) > 0 {
+		pm.Properties = make(map[string]string, len(msg.Headers))
+		for k, v := range msg.Headers {
+			pm.Properties[k] = v
+		}
+	}
+
+	// ── 延迟投递 ──
+	if p.cfg.EnableDelay && msg.Delay > 0 {
+		pm.DeliverAfter = msg.Delay
+	}
+
+	// ── 幂等去重 ──
+	if p.cfg.IdempCache != nil && msg.IdempKey != "" {
+		if p.cfg.IdempCache.IsProcessed(msg.IdempKey) {
+			slog.Warn("pulsar: duplicate message, skipping", "idemp_key", msg.IdempKey)
+			return nil // 幂等去重：已处理过，直接返回成功
+		}
+		// 设置 SequenceID 用于 Pulsar 服务端去重
+		seqID := hashIdempKey(msg.IdempKey)
+		pm.SequenceID = &seqID
 	}
 
 	_, err = prod.Send(ctx, pm)
 	if err != nil {
 		return fmt.Errorf("pulsar: publish to %s: %w", msg.Topic, err)
 	}
+
+	// 发送成功后标记幂等 key 已处理
+	if p.cfg.IdempCache != nil && msg.IdempKey != "" {
+		p.cfg.IdempCache.MarkProcessed(msg.IdempKey, msg.TTL)
+	}
+
 	return nil
 }
 
@@ -133,6 +179,57 @@ func (p *PulsarProducer) PublishBatch(ctx context.Context, msgs []*Message) erro
 			return err
 		}
 	}
+	return nil
+}
+
+// FixedDelay sends a message with a fixed-delay level.
+// It routes the message to the nearest predefined delay level.
+// Pulsar implements this by wrapping the native DeliverAfter() API.
+//
+// FixedDelayLevels example: []int64{60000, 300000, 600000} (1m / 5m / 10m)
+// Level 1 → 1 min delay, Level 2 → 5 min, Level 3 → 10 min.
+func (p *PulsarProducer) FixedDelay(ctx context.Context, msg *Message, level int) error {
+	levels := p.cfg.FixedDelayLevels
+	if len(levels) == 0 {
+		levels = []int64{60000, 300000, 600000, 1800000, 3600000} // 1m/5m/10m/30m/1h
+	}
+
+	if level < 1 || level > len(levels) {
+		return fmt.Errorf("pulsar: invalid fixed-delay level %d (valid: 1-%d)", level, len(levels))
+	}
+
+	delayMs := levels[level-1]
+	delay := time.Duration(delayMs) * time.Millisecond
+
+	prod, err := p.getProducer(msg.Topic)
+	if err != nil {
+		return err
+	}
+
+	pm := &gopulsar.ProducerMessage{
+		Payload:    msg.Payload,
+		DeliverAfter: delay,
+	}
+	if len(msg.Key) > 0 {
+		pm.Key = string(msg.Key)
+	}
+	if len(msg.Headers) > 0 {
+		pm.Properties = make(map[string]string, len(msg.Headers))
+		for k, v := range msg.Headers {
+			pm.Properties[k] = v
+		}
+	}
+
+	_, err = prod.Send(ctx, pm)
+	if err != nil {
+		return fmt.Errorf("pulsar: fixed-delay publish to %s: %w", msg.Topic, err)
+	}
+
+	slog.Debug("pulsar: fixed-delay published",
+		slog.String("topic", msg.Topic),
+		slog.Int("level", level),
+		slog.Int64("delay_ms", delayMs),
+	)
 	return nil
 }
 
@@ -157,6 +254,17 @@ func (p *PulsarProducer) getProducer(topic string) (gopulsar.Producer, error) {
 	}
 	p.producers[topic] = prod
 	return prod, nil
+}
+
+// hashIdempKey converts an idempotency key string to int64 for Pulsar SequenceID.
+func hashIdempKey(key string) int64 {
+	h := md5.Sum([]byte(key))
+	// Take first 8 bytes as int64
+	var id int64
+	for i := 0; i < 8; i++ {
+		id = (id << 8) | int64(h[i])
+	}
+	return id
 }
 
 // Compile-time assertion.
@@ -186,7 +294,7 @@ type PulsarConsumer struct {
 	cfg    PulsarConsumerConfig
 }
 
-// NewConsumer creates a Pulsar Consumer.
+// NewPulsarConsumer creates a Pulsar Consumer.
 func NewPulsarConsumer(cfg PulsarConsumerConfig) (*PulsarConsumer, error) {
 	client, err := gopulsar.NewClient(cfg.PulsarConfig.clientOptions())
 	if err != nil {
@@ -215,9 +323,9 @@ func (c *PulsarConsumer) Subscribe(ctx context.Context, topics []string, group s
 	}
 
 	consumer, err := c.client.Subscribe(gopulsar.ConsumerOptions{
-		Topics:            topics,
-		SubscriptionName:  sub,
-		Type:              c.cfg.SubscriptionType,
+		Topics:           topics,
+		SubscriptionName: sub,
+		Type:             c.cfg.SubscriptionType,
 		ReceiverQueueSize: maxPending,
 	})
 	if err != nil {
@@ -246,10 +354,26 @@ func (c *PulsarConsumer) Subscribe(ctx context.Context, topics []string, group s
 			msg.Headers = props
 		}
 
-		if err := handler(ctx, msg); err != nil {
-			slog.Warn("pulsar: handler error", "topic", pMsg.Topic(), "err", err)
-			consumer.Nack(pMsg)
+		// 调用 handler
+		handlerErr := handler(ctx, msg)
+
+		if handlerErr != nil {
+			// 检查是否为 *MQError
+			if IsPermanent(handlerErr) {
+				// 永久错误 → ACK（进入 DLQ）
+				consumer.Ack(pMsg)
+				slog.Error("pulsar: permanent error, acked", "topic", pMsg.Topic(), "err", handlerErr)
+			} else if IsRetry(handlerErr) {
+				// 重试错误 → NAK（重新投递）
+				consumer.Nack(pMsg)
+				slog.Warn("pulsar: retry error, nack", "topic", pMsg.Topic(), "err", handlerErr)
+			} else {
+				// 其他错误 → NAK（重新投递）
+				consumer.Nack(pMsg)
+				slog.Warn("pulsar: handler error, nack", "topic", pMsg.Topic(), "err", handlerErr)
+			}
 		} else {
+			// 成功 → ACK
 			consumer.Ack(pMsg)
 		}
 	}

@@ -68,8 +68,10 @@ func NewProducer(typ string, opts ProducerOptions) (Producer, error) {
 		return newPulsarProducerFromOptions(opts)
 	case "rocketmq":
 		return newRocketMQProducerFromOptions(opts)
+	case "redis":
+		return newRedisProducerFromOptions(opts)
 	default:
-		return nil, fmt.Errorf("mq: unsupported producer type %q (supported: kafka, rabbitmq, nats, mqtt, pulsar, rocketmq)", typ)
+		return nil, fmt.Errorf("mq: unsupported producer type %q (supported: kafka, rabbitmq, nats, mqtt, pulsar, rocketmq, redis)", typ)
 	}
 }
 
@@ -98,6 +100,8 @@ func NewConsumer(typ string, opts ConsumerOptions) (Consumer, error) {
 		return newPulsarConsumerFromOptions(opts)
 	case "rocketmq":
 		return newRocketMQConsumerFromOptions(opts)
+	case "redis":
+		return newRedisConsumerFromOptions(opts)
 	default:
 		return nil, fmt.Errorf("mq: unsupported consumer type %q", typ)
 	}
@@ -225,4 +229,27 @@ func newMemoryProducerFromOptions(opts ProducerOptions) (Producer, error) {
 
 func newMemoryConsumerFromOptions(opts ConsumerOptions) (Consumer, error) {
 	return NewMemoryConsumer(opts.Subscription), nil
+}
+
+func newRedisProducerFromOptions(opts ProducerOptions) (Producer, error) {
+	addr := "localhost:6379"
+	if len(opts.Brokers) > 0 {
+		addr = opts.Brokers[0]
+	}
+	return NewRedisProducer(RedisProducerConfig{
+		Addr:  addr,
+		Stream: opts.Topic,
+	}), nil
+}
+
+func newRedisConsumerFromOptions(opts ConsumerOptions) (Consumer, error) {
+	addr := "localhost:6379"
+	if len(opts.Brokers) > 0 {
+		addr = opts.Brokers[0]
+	}
+	return NewRedisConsumer(RedisConsumerConfig{
+		Addr:          addr,
+		Stream:        opts.Subscription,
+		ConsumerGroup: opts.Group,
+	})
 }
