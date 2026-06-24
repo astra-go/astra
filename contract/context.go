@@ -16,6 +16,7 @@
 package contract
 
 import (
+	"context"
 	"mime/multipart"
 	"net/http"
 )
@@ -135,6 +136,15 @@ type Context interface {
 	GetString(key string) string
 	GetInt(key string) int
 	GetBool(key string) bool
+
+	// ─── Context propagation ───────────────────────────────────────────────
+
+	// RequestContext returns a context.Context that includes all Astra per-request
+	// metadata (request_id, trace_id, client_ip, etc.) in the value chain.
+	// Use this instead of c.Request().Context() when passing context to downstream
+	// calls (database queries, gRPC calls, etc.) so that observability metadata
+	// propagates automatically.
+	RequestContext() context.Context
 
 	// ─── Client info ──────────────────────────────────────────────────────
 
