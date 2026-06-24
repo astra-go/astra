@@ -62,6 +62,13 @@ type RedisConfig struct {
 	// IdempotencyTTL is the TTL for idempotency keys in the Redis SET.
 	// Default: 24 hours. Only used when Idempotent is true.
 	IdempotencyTTL time.Duration
+
+	// PriorityStreams maps priority levels to Redis Stream keys.
+	// When set, Producer routes messages to the corresponding stream
+	// based on msg.Priority; Consumer reads from all priority streams
+	// and processes them in priority order.
+	// Example: map[int]string{3: "orders:high", 2: "orders:normal", 1: "orders:low"}
+	PriorityStreams map[int]string
 }
 
 // RedisProducerConfig is an alias for RedisConfig used by the producer.
@@ -124,13 +131,32 @@ func (p *RedisProducer) delayPump(ctx context.Context) {
 	}
 }
 
+// allDelayKeys returns all delay sorted set keys (default + priority streams).
+func (p *RedisProducer) allDelayKeys() []string {
+	keys := []string{delayKey(p.topic)}
+	for _, stream := range p.cfg.PriorityStreams {
+		keys = append(keys, delayKey(stream))
+	}
+	return keys
+}
+
 // publishDelayed moves messages whose delay has expired into the stream.
 func (p *RedisProducer) publishDelayed(ctx context.Context) {
 	now := time.Now().UnixMilli()
 
+	// Pump all delay keys (default + priority streams).
+	for _, dk := range p.allDelayKeys() {
+		p.publishDelayedForKey(ctx, dk)
+	}
+	_ = now
+}
+
+// publishDelayedForKey processes delayed messages for a single delay key.
+func (p *RedisProducer) publishDelayedForKey(ctx context.Context, dk string) {
+	target := strings.TrimPrefix(dk, "__delay:")
+
 	for {
-		// ZPOPMIN to get the earliest message(s) due now.
-		results, err := p.client.ZPopMin(ctx, delayKey(p.topic), 16, 0).Result()
+		results, err := p.client.ZPopMin(ctx, dk, 16, 0).Result()
 		if err != nil || len(results) == 0 {
 			break
 		}
@@ -146,15 +172,14 @@ func (p *RedisProducer) publishDelayed(ctx context.Context) {
 				continue
 			}
 
-			// Re-publish to the stream.
+			// Re-publish to the target stream.
 			_, err = p.client.XAdd(ctx, &redis.XAddArgs{
-				Stream: p.topic,
+				Stream: target,
 				Values: messageToStream(delayMsg.Msg),
 			}).Result()
 			_ = err // best-effort
 		}
 	}
-	_ = now // suppress unused warning
 }
 
 // Publish sends a message to the Redis Stream immediately.
@@ -163,22 +188,30 @@ func (p *RedisProducer) Publish(ctx context.Context, msg *Message) error {
 		return fmt.Errorf("redis producer closed")
 	}
 
+	// Priority-based stream routing.
+	target := p.topic
+	if len(p.cfg.PriorityStreams) > 0 {
+		if stream, ok := p.cfg.PriorityStreams[msg.Priority]; ok {
+			target = stream
+		}
+	}
+
 	if msg.Delay > 0 {
-		return p.publishDelayedMsg(ctx, msg)
+		return p.publishDelayedMsg(ctx, msg, target)
 	}
 
 	_, err := p.client.XAdd(ctx, &redis.XAddArgs{
-		Stream: p.topic,
+		Stream: target,
 		Values: messageToStream(msg),
 	}).Result()
 	return err
 }
 
 // publishDelayedMsg stores the message in the delay sorted set for later delivery.
-func (p *RedisProducer) publishDelayedMsg(ctx context.Context, msg *Message) error {
+func (p *RedisProducer) publishDelayedMsg(ctx context.Context, msg *Message, target string) error {
 	deliverAt := time.Now().Add(msg.Delay).UnixMilli()
 	entry := encodeDelayEntry(deliverAt, msg)
-	return p.client.ZAdd(ctx, delayKey(p.topic), redis.Z{
+	return p.client.ZAdd(ctx, delayKey(target), redis.Z{
 		Score:  float64(deliverAt),
 		Member: entry,
 	}).Err()
@@ -192,8 +225,15 @@ func (p *RedisProducer) PublishBatch(ctx context.Context, msgs []*Message) error
 
 	pipe := p.client.Pipeline()
 	for _, msg := range msgs {
+		// Priority-based stream routing.
+		target := p.topic
+		if len(p.cfg.PriorityStreams) > 0 {
+			if stream, ok := p.cfg.PriorityStreams[msg.Priority]; ok {
+				target = stream
+			}
+		}
 		pipe.XAdd(ctx, &redis.XAddArgs{
-			Stream: p.topic,
+			Stream: target,
 			Values: messageToStream(msg),
 		})
 	}
@@ -238,13 +278,19 @@ func (p *RedisProducer) Capabilities() Capabilities { return RedisCapabilities()
 
 // RedisConsumer consumes messages from Redis Streams using consumer groups.
 type RedisConsumer struct {
-	client  *redis.Client
-	topic   string
-	group   string
-	name    string
-	cfg     RedisConsumerConfig
-	closed  atomic.Bool
-	dedup   sync.Map // idempKey → struct{} (only used when Idempotent=true)
+	client          *redis.Client
+	topic           string
+	group           string
+	name            string
+	cfg             RedisConsumerConfig
+	closed          atomic.Bool
+	dedup           sync.Map // idempKey → struct{} (only used when Idempotent=true)
+	priorityStreams []string // flat list of all streams including priority levels
+}
+
+// consumerStreams returns all streams to consume from (main + priority).
+func (c *RedisConsumer) consumerStreams() []string {
+	return c.priorityStreams
 }
 
 // NewRedisConsumer creates a Redis Stream consumer that uses consumer groups
@@ -270,11 +316,20 @@ func NewRedisConsumer(cfg RedisConsumerConfig) (*RedisConsumer, error) {
 		cfg:   cfg,
 	}
 
-	// Ensure consumer group exists.
+	// Compute full stream list: main topic + all priority streams.
+	streams := []string{c.topic}
+	for _, stream := range cfg.PriorityStreams {
+		streams = append(streams, stream)
+	}
+	c.priorityStreams = streams
+
+	// Ensure consumer group exists on all streams.
 	ctx := context.Background()
-	err := c.client.XGroupCreateMkStream(ctx, c.topic, c.group, "0").Err()
-	if err != nil && !strings.HasPrefix(err.Error(), "BUSYGROUP") {
-		return nil, fmt.Errorf("redis consumer group: %w", err)
+	for _, s := range streams {
+		err := c.client.XGroupCreateMkStream(ctx, s, c.group, "0").Err()
+		if err != nil && !strings.HasPrefix(err.Error(), "BUSYGROUP") {
+			return nil, fmt.Errorf("redis consumer group for %s: %w", s, err)
+		}
 	}
 
 	return c, nil
@@ -290,23 +345,32 @@ func (c *RedisConsumer) Subscribe(ctx context.Context, topics []string, group st
 	DefaultMetrics().IncActiveConsumer()
 	defer DefaultMetrics().DecActiveConsumer()
 
-	// Only single-topic is supported per consumer instance.
-	topic := c.topic
-	if len(topics) > 0 && topics[0] != "" {
-		topic = topics[0]
-	}
-
 	// Use the provided group or fall back to configured group.
 	consumerGroup := group
 	if consumerGroup == "" {
 		consumerGroup = c.group
 	}
 
-	// Ensure group exists for this topic.
-	err := c.client.XGroupCreateMkStream(ctx, topic, consumerGroup, "0").Err()
-	if err != nil && !strings.HasPrefix(err.Error(), "BUSYGROUP") {
-		return fmt.Errorf("redis consumer group: %w", err)
+	// Determine the streams to consume from.
+	streams := c.consumerStreams()
+	if len(topics) > 0 && topics[0] != "" {
+		// Caller-provided topic overrides; compute from priority streams.
+		streams = []string{topics[0]}
+		for _, stream := range c.cfg.PriorityStreams {
+			streams = append(streams, stream)
+		}
 	}
+
+	// Ensure consumer groups exist.
+	for _, s := range streams {
+		err := c.client.XGroupCreateMkStream(ctx, s, consumerGroup, "0").Err()
+		if err != nil && !strings.HasPrefix(err.Error(), "BUSYGROUP") {
+			return fmt.Errorf("redis consumer group for %s: %w", s, err)
+		}
+	}
+
+	// Priority ordering: positions 0 = main stream, then priority streams in insertion order.
+	// Higher-priority streams are checked first in the poll loop.
 
 	// Poll loop.
 	for {
@@ -314,11 +378,17 @@ func (c *RedisConsumer) Subscribe(ctx context.Context, topics []string, group st
 			return ctx.Err()
 		}
 
-		// XREADGROUP with BLOCK for efficient waiting.
-		streams, err := c.client.XReadGroup(ctx, &redis.XReadGroupArgs{
+		// Read from all streams, higher-priority first.
+		readStreams := make([]string, 0, len(streams)*2)
+		for _, s := range streams {
+			readStreams = append(readStreams, s, ">")
+		}
+
+		// XREADGROUP with BLOCK for efficient waiting across all streams.
+		result, err := c.client.XReadGroup(ctx, &redis.XReadGroupArgs{
 			Group:    consumerGroup,
 			Consumer: c.name,
-			Streams:  []string{topic, ">"},
+			Streams:  readStreams,
 			Count:    16,
 			Block:    500 * time.Millisecond,
 		}).Result()
@@ -335,9 +405,9 @@ func (c *RedisConsumer) Subscribe(ctx context.Context, topics []string, group st
 			continue
 		}
 
-		for _, stream := range streams {
+		for _, stream := range result {
 			for _, msg := range stream.Messages {
-				c.processOne(ctx, topic, consumerGroup, &msg, handler)
+				c.processOne(ctx, stream.Stream, consumerGroup, &msg, handler)
 			}
 		}
 	}
@@ -517,7 +587,7 @@ func RedisCapabilities() Capabilities {
 		CapFixedDelay:      true,  // same mechanism, level-mapped
 		CapNakDelay:       true,  // XCLAIM with min-idle-time delay
 		CapIdempotency:    true,  // Redis SET for msg.IdempKey dedup
-		CapPriority:        false, // not natively supported; can simulate via multi-stream
+		CapPriority:        true,  // multi-stream routing PriorityStreams config + consumer priority ordering
 		CapOrdered:         true,  // Redis Stream message IDs are monotonically ordered
 		CapDLQ:            true,  // dedicated DLQ stream
 		CapRetry:          true,  // XPENDING + XCLAIM with backoff

@@ -2,26 +2,30 @@
 
 Unified Producer/Consumer interface supporting multiple message queue backends, decoupling business code from specific Brokers.
 
+---
+
 ## Features
 
-- **Unified Interface**: Producer and Consumer interfaces are broker-agnostic
-- **Multi-Backend**: RabbitMQ, Kafka, RocketMQ, MQTT, NATS, Pulsar, In-Memory Broker (dev/test)
-- **Capability Detection**: Runtime probe of backend capabilities (delay, idempotency, retry, DLQ, etc.)
-- **Consumer Groups**: Multi-consumer load-balanced consumption
-- **Message Retry**: Staircase retry or dead-letter queue for failed messages
-- **Redis Compensation Layer**: Cross-backend unified delay and idempotency implementation
+- **Unified Interface**: `Producer` and `Consumer` interfaces are broker-agnostic
+- **8 Backends**: RabbitMQ, Kafka, RocketMQ, MQTT, NATS, Pulsar, Redis, In-Memory
+- **11 Capabilities**: Arbitrary delay, fixed delay, NAK delay, idempotency, priority, ordered, DLQ, retry, multi-group, transaction, batch
+- **Runtime Capability Detection**: Query backend capabilities at runtime, graceful degradation
+- **Multi-Backend Compensation**: Redis-based delay and idempotency layer works across all backends
+
+---
 
 ## Supported Backends
 
-| Broker | Import Path | Highlights |
-|--------|-------------|------------|
-| RabbitMQ | `github.com/astra-go/astra/mq/rabbitmq` | Most feature-rich: delay/idempotency/tx/batch/priority/DLQ |
-| Apache Kafka | `github.com/astra-go/astra/mq/kafka` | High throughput, event-driven |
-| Apache RocketMQ | `github.com/astra-go/astra/mq/rocketmq` | Feature-aligned with RabbitMQ: delay/idempotency/retry/DLQ/tx/batch/ordered |
-| MQTT | `github.com/astra-go/astra/mq/mqtt` | IoT scenarios |
-| NATS | `github.com/astra-go/astra/mq/nats` | Lightweight, JetStream for persistence |
-| Apache Pulsar | `github.com/astra-go/astra/mq/pulsar` | Multi-tenant, tiered storage |
-| In-Memory | `github.com/astra-go/astra/mq/memory` | Local dev/testing, no persistence |
+| # | Broker | Import Path | Score | Highlights |
+|---|--------|-------------|-------|------------|
+| 1 | RabbitMQ | `github.com/astra-go/astra/mq/rabbitmq` | 11/11 | Full coverage: delay/idempotency/tx/batch/priority/DLQ/ordered |
+| 2 | RocketMQ | `github.com/astra-go/astra/mq/rocketmq` | 11/11 | Full coverage: delay/idempotency/tx/batch/ordered/DLQ |
+| 3 | Kafka | `github.com/astra-go/astra/mq/kafka` | 11/11 | Full coverage: delay/idempotency/tx/batch/priority/ordered |
+| 4 | Pulsar | `github.com/astra-go/astra/mq/pulsar` | 11/11 | Full coverage: delay/idempotency/tx/batch/multi-tenant |
+| 5 | NATS | `github.com/astra-go/astra/mq/nats` | 10/11 | Lightweight, JetStream persistence, missing transactions |
+| 6 | Redis | `github.com/astra-go/astra/mq/redis` | 10/11 | Streams-based, no external dependency, missing transactions |
+| 7 | MQTT | `github.com/astra-go/astra/mq/mqtt` | 10/11 | IoT-optimized, shared subscriptions, missing priority/transactions |
+| 8 | Memory | `github.com/astra-go/astra/mq/memory` | 9/11 | Testing only, zero external dependency |
 
 ---
 
@@ -53,13 +57,13 @@ producer.Publish(ctx, &mq.Message{
 consumer, _ := rabbitmq.NewConsumer(rabbitmq.RabbitMQConfig{
     URL:     "amqp://guest:guest@localhost:5672/",
     Queue:   "notifications",
-    AutoAck: false, // Manual ack
+    AutoAck: false, // Manual ack (recommended for production)
 })
 defer consumer.Close()
 
 consumer.Consume(func(ctx context.Context, msg *mq.Message) error {
     fmt.Printf("Received: %s\n", string(msg.Payload))
-    return nil // nil = ACK, error = NACK and may retry
+    return nil // nil = ACK, error = NACK + retry
 })
 ```
 
@@ -85,109 +89,128 @@ type Consumer interface {
     Close() error
     Capabilities() Capabilities
 }
-
-type MessageHandler func(ctx context.Context, msg *Message) error
 ```
 
-### Message Struct (Enhanced)
+### Message Struct
 
 ```go
 type Message struct {
     Topic      string            // Exchange/routing key
     Payload    []byte            // Message body
     Key        []byte            // Message ID (used for idempotency)
-    Headers    map[string]string // Custom headers
 
-    // Enhanced fields
-    Delay      time.Duration     // Delayed delivery (x-delay header)
+    // Delivery control
+    Delay      time.Duration     // Delayed delivery (backend-dependent support)
     IdempKey   string            // Idempotency key (skip if already processed)
-    RetryCount int               // Current retry count (written by consumer)
-    Priority   uint8             // AMQP priority (0–9)
+    Priority   uint8             // Message priority (0 = lowest, backend-dependent)
+    RetryCount int               // Current retry count (set by consumer on retry)
+
+    // Delivery result metadata (set by consumer)
+    Headers    map[string]string // Custom headers
 }
 ```
 
 ---
 
-## RabbitMQ Capabilities
+## Capability Definitions
 
-### Capability Matrix
+| Capability | Flag | Description |
+|------------|------|-------------|
+| **Arbitrary Delay** | `CapArbitraryDelay` | Support for arbitrary precise delay (not limited to fixed levels) |
+| **Fixed Delay** | `CapFixedDelay` | Support for fixed-level delay (e.g., 18 delay levels in RocketMQ v4) |
+| **NAK Delay** | `CapNakDelay` | Support for NAK + configurable delay before redelivery |
+| **Idempotency** | `CapIdempotency` | Native idempotent deduplication |
+| **Priority** | `CapPriority` | Support for priority queues |
+| **Ordered** | `CapOrdered` | Guaranteed in-order delivery within a partition/queue |
+| **DLQ** | `CapDLQ` | Native dead-letter queue support |
+| **Retry** | `CapRetry` | Native retry with configurable policy |
+| **Multi Group** | `CapMultiGroup` | Support for multiple consumer groups |
+| **Transaction** | `CapTx` | Support for transactional messages |
+| **Batch** | `CapBatch` | Support for batch sending |
 
-| Capability | Flag | Status | Note |
-|------------|------|--------|------|
-| Arbitrary Delay | `CapArbitraryDelay` | ✅ Plugin required | Needs `rabbitmq-delayed-message-exchange` |
-| Idempotency | `CapIdempotency` | ⚠️ Interface complete | `IdempCache` implemented; `RedisIdempCache` is TODO |
-| Staircase Retry | `CapRetry` | ✅ Implemented | `RetryPolicy.Levels` + `NextDelay()`, auto republish |
-| Dead-Letter Queue | `CapDLQ` | ✅ Implemented | Config `DLQExchange` + `DLQQueue`, auto-forward failed messages |
-| Transactions | `CapTx` | ✅ Implemented | `EnableTx: true`, `Tx()` / `TxCommit()` / `TxRollback()` |
-| Batching | `CapBatch` | ✅ Implemented | `BatchSize` + background `batchFlusher` goroutine |
-| Priority Queues | `CapPriority` | ✅ Implemented | `Priority` field; queue needs `x-max-priority` declaration |
-| Multi Consumer Group | `CapMultiGroup` | ✅ Implemented | vhost + independent queue binding |
-| Ordered Delivery | `CapOrdered` | ❌ Not implemented | Declared true but no enforcement (recommend QoS prefetch=1) |
+---
 
-### RabbitMQConfig Full Reference
+## Capability Matrix
 
-```go
-type RabbitMQConfig struct {
-    // Connection
-    URL string  // amqp://user:pass@host:5672/
+| Capability | RabbitMQ | RocketMQ | Kafka | Pulsar | NATS | MQTT | Memory | Redis |
+|:----------:|:--------:|:--------:|:-----:|:------:|:----:|:----:|:------:|:-----:|
+| Arbitrary Delay | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Fixed Delay | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| NAK Delay | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Idempotency | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Priority | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| Ordered | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| DLQ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Retry | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Multi Group | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Transaction | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Batch | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Score** | **11/11** | **11/11** | **11/11** | **11/11** | **10/11** | **10/11** | **9/11** | **10/11** |
 
-    // Exchange
-    Exchange  string  // Default exchange name
-    ExType   string  // Type: direct/topic/fanout/headers/x-delayed-message
+---
 
-    // Delayed delivery (requires rabbitmq_delayed_message_exchange plugin)
-    DelayExchange string  // Delay exchange name (e.g. "my-delay-exchange")
+## Per-Backend Quick Reference
 
-    // Queue
-    Queue    string  // Queue name
-    Durable  bool    // Durable, default true
+### RabbitMQ (`mq/rabbitmq`)
 
-    // Manual ack
-    AutoAck  bool    // Default false (recommended for production)
+- **Requires**: `rabbitmq_delayed_message_exchange` plugin for arbitrary delay
+- **Priority**: via queue `x-max-priority` declaration
+- **Transaction**: AMQP `TxSelect()`/`TxCommit()`/`TxRollback()`
+- **Idempotency**: `InMemoryIdempCache` (in-process) or `RedisIdempCache` (distributed)
 
-    // Dead-letter queue
-    DLQExchange string  // DLX exchange name
-    DLQQueue    string  // DLQ name
+### RocketMQ (`mq/rocketmq`)
 
-    // Idempotency (memory impl; use RedisIdempCache in production)
-    IdempCache IdempCache  // nil = disabled
+- **Requires**: RocketMQ v5 (v4 supports fixed delay only)
+- **Arbitrary delay**: native `SetDelayTimestamp()`, no plugin needed
+- **Transaction**: `TransactionProducer` + `TransactionChecker` callback
+- **Ordered**: via `MessageGroup` (sharding key)
 
-    // Retry policy (staircase backoff)
-    RetryPolicy *RetryPolicy  // nil = default 3 retries
+### Kafka (`mq/kafka`)
 
-    // Transaction mode
-    EnableTx bool  // true = AMQP transaction per message
+- **Requires**: Kafka 2.8+ (KRaft mode recommended)
+- **Arbitrary delay**: republish mechanism (consumer-side timer)
+- **Idempotency**: broker-native via `EnableIdempotent` (producer ID + sequence number)
+- **Transaction**: Kafka Transactions API, requires `isolation.level=read_committed`
 
-    // Batching
-    BatchSize    int           // Flush threshold, 0 = disabled
-    BatchTimeout time.Duration // Flush interval, 0 = immediate
+### Pulsar (`mq/pulsar`)
 
-    // QoS (prefetch=1 recommended for ordered delivery)
-    Prefetch int
-}
-```
+- **Requires**: Pulsar 2.10+
+- **Arbitrary delay**: native `DeliverAfter()` / `DeliverAt()`
+- **Transaction**: Pulsar Transactions API
+- **Multi-tenant**: built-in namespace isolation
 
-### RetryPolicy
+### NATS (`mq/nats`)
 
-```go
-// Staircase backoff; Levels take priority over exponential Base.
-type RetryPolicy struct {
-    MaxRetries int             // Max retries; 0 = default 3
-    Levels     []time.Duration // Staircase delays, e.g. []time.Duration{15s, 30s, 45s}
-    Base       time.Duration   // Exponential base (used when Levels is empty)
-}
+- **Requires**: NATS 2.9+ with JetStream enabled
+- **Delay**: `PublishAsync` + re-publisher goroutine (client-side, not crash-safe)
+- **Priority**: multi-subject routing (`topic.p0..pN`) + consumer-side heap
+- **Limitation**: no transaction support
 
-// Default staircase delays
-var DefaultRetryDelays = []time.Duration{
-    15 * time.Second,
-    30 * time.Second,
-    45 * time.Second,
-    60 * time.Second,
-    75 * time.Second,
-}
-```
+### Redis (`mq/redis`)
 
-### IdempCache Interface
+- **Requires**: Redis 6.2+ Streams
+- **Delay**: `ZADD` to delay sorted set + `delayPump` background goroutine (not crash-safe)
+- **Priority**: multi-stream routing via `PriorityStreams` config
+- **Limitation**: `MULTI/EXEC` is not a distributed transaction
+
+### MQTT (`mq/mqtt`)
+
+- **Requires**: MQTT v5.0 broker
+- **Delay**: topic encoding (`$arb/<ms>/<topic>`, `$delay/<level>/<topic>`) + consumer timer
+- **Multi Group**: shared subscriptions (`$share/group/topic`)
+- **Limitation**: no native priority, no transaction support
+
+### Memory (`mq/memory`)
+
+- **No external dependency**
+- **Best for**: unit tests, local development
+- **Limitation**: no persistence, no multi-group, no transaction, no priority
+
+---
+
+## IdempCache Interface
+
+Idempotency is implemented via the `IdempCache` interface:
 
 ```go
 type IdempCache interface {
@@ -196,254 +219,67 @@ type IdempCache interface {
 }
 ```
 
-Two implementations available:
-- `NewInMemoryIdempCache(ttl time.Duration)`: In-memory, lost on restart
-- `NewRedisIdempCache(client *redis.Client)`: Distributed (TODO)
+Two built-in implementations:
+- `NewInMemoryIdempCache(ttl time.Duration)` — in-process, lost on restart
+- `NewRedisIdempCache(client *redis.Client)` — distributed, production-ready
 
 ---
 
-## Complete Examples
+## RetryPolicy
 
-### Delayed Delivery + Idempotency + Staircase Retry
-
-```go
-producer, _ := rabbitmq.NewProducer(rabbitmq.RabbitMQConfig{
-    URL:           "amqp://guest:guest@localhost:5672/",
-    Exchange:      "order.events",
-    DelayExchange: "order.delay", // x-delayed-message type
-})
-defer producer.Close()
-
-// Send a delayed message (delivered in 5 minutes)
-producer.Publish(ctx, &mq.Message{
-    Topic:    "order.timeout",
-    Payload:  []byte(`{"order_id": "12345"}`),
-    Key:      []byte("order:12345"), // Idempotency key
-    Delay:    5 * time.Minute,
-})
-```
-
-### Consumer: Idempotency + Retry + DLQ
+Staircase backoff with configurable levels:
 
 ```go
-consumer, _ := rabbitmq.NewConsumer(rabbitmq.RabbitMQConfig{
-    URL:           "amqp://guest:guest@localhost:5672/",
-    Exchange:      "order.events",
-    Queue:         "order-processor",
-    AutoAck:       false,
-    DelayExchange: "order.delay",
-    DLQExchange:   "order.dlq",
-    DLQQueue:      "order.dlq",
-    IdempCache:    rabbitmq.NewInMemoryIdempCache(24 * time.Hour),
-    RetryPolicy: &RetryPolicy{
-        MaxRetries: 5,
-        Levels:     []time.Duration{15, 30, 45, 60, 75} * time.Second,
-    },
-})
-defer consumer.Close()
-
-consumer.Consume(func(ctx context.Context, msg *mq.Message) error {
-    // Duplicate messages with same IdempKey are auto-skipped
-    return processOrder(ctx, msg)
-})
-```
-
-### Transactional Batched Publishing
-
-```go
-producer, _ := rabbitmq.NewProducer(rabbitmq.RabbitMQConfig{
-    URL:           "amqp://guest:guest@localhost:5672/",
-    Exchange:      "payment.events",
-    EnableTx:      true,
-    BatchSize:     100,
-    BatchTimeout:  500 * time.Millisecond,
-})
-defer producer.Close()
-
-for _, event := range events {
-    producer.Publish(ctx, &mq.Message{
-        Topic:   "payment.processed",
-        Payload: event,
-    })
-}
-producer.Flush(ctx) // Block until all messages are committed
-```
-
----
-
-## RabbitMQ Plugin Installation
-
-Delayed delivery requires the delayed-message plugin:
-
-```bash
-# Enable the delayed-message exchange plugin
-rabbitmq-plugins enable rabbitmq_delayed_message_exchange
-
-# Verify
-rabbitmq-plugins list | grep delayed
-```
-
----
-
-## RocketMQ Capabilities
-
-### Capability Matrix
-
-| Capability | Flag | Status | Note |
-|------------|------|--------|------|
-| Arbitrary Delay | `CapArbitraryDelay` | ✅ Implemented | v5 native `SetDelayTimestamp()`, no plugin needed |
-| Idempotency | `CapIdempotency` | ⚠️ Interface complete | `IdempCache` implemented; `RedisIdempCache` is TODO |
-| Staircase Retry | `CapRetry` | ✅ Implemented | `RetryPolicy.Levels` + `NextDelay()`, auto republish |
-| Dead-Letter Queue | `CapDLQ` | ✅ Implemented | Configure `DLQTopic`, failed messages forwarded |
-| Transactions | `CapTx` | ⚠️ Reserved | `EnableTx: true` reserved; TransactionProducer is TODO |
-| Batching | `CapBatch` | ✅ Implemented | Client-side buffering + background flusher |
-| Ordered Delivery | `CapOrdered` | ✅ Implemented | `MessageGroup` for per-group FIFO |
-| Multi Consumer Group | `CapMultiGroup` | ✅ Implemented | `ConsumerGroup` config |
-| Priority Queues | `CapPriority` | ❌ Not supported | RocketMQ does not support native priority |
-
-### RocketMQConfig Full Reference
-
-```go
-type RocketMQConfig struct {
-    // Connection
-    Endpoint      string  // NameServer address, e.g. "localhost:8081"
-    Topic         string  // Default topic (required for Producer routing)
-
-    // ACL Authentication
-    AccessKey     string
-    SecretKey     string
-    NameSpace     string  // Multi-tenant namespace
-
-    // TLS
-    EnableSSL     bool    // Default false
-
-    // Consumer Group
-    ConsumerGroup string
-
-    // Delayed Delivery (v5 native, no plugin required)
-    EnableDelay   bool    // Default true
-
-    // Idempotency (memory impl; use RedisIdempCache in production)
-    IdempCache    IdempCache  // nil = disabled
-
-    // Retry Policy (staircase backoff)
-    RetryPolicy   *RetryPolicy  // nil = default 3 retries
-
-    // Dead-Letter Queue (consumer-side failed message topic)
-    DLQTopic      string  // empty = disabled
-
-    // Transactional Messages (TODO)
-    EnableTx      bool    // true = use TransactionProducer (TODO)
-
-    // Batching
-    BatchSize     int           // Flush threshold, 0 = disabled
-    BatchTimeout  time.Duration // Flush interval
-
-    // Ordered Delivery (messages within same MessageGroup are ordered)
-    MessageGroup  string
-
-    // Consumer Options
-    ReceiveBatchSize   int32          // Default 16
-    InvisibleDuration  time.Duration  // Default 30s (must be > 20s)
-    MaxAttempts        int32          // Producer retries, default 3
+type RetryPolicy struct {
+    MaxRetries int             // Max retries; 0 = default 3
+    Levels     []time.Duration // Staircase delays, e.g. {15s, 30s, 45s, 60s, 75s}
+    Base       time.Duration   // Exponential base (used when Levels is empty)
 }
 ```
 
-### RocketMQ Complete Examples
-
-#### Delayed Delivery (v5 native, no plugin required)
-
-```go
-producer, _ := rocketmq.NewProducer(rocketmq.RocketMQConfig{
-    Endpoint:  "localhost:8081",
-    Topic:     "order.events",
-    AccessKey: "ak",
-    SecretKey: "sk",
-    EnableSSL: false,
-})
-defer producer.Close()
-
-producer.Publish(ctx, &mq.Message{
-    Topic:   "order.timeout",
-    Payload: []byte(`{"order_id": "12345"}`),
-    Key:     []byte("order:12345"),
-    Delay:   5 * time.Minute,
-})
-```
-
-#### Consumer: Idempotency + Retry + DLQ
-
-```go
-consumer, _ := rocketmq.NewConsumer(rocketmq.RocketMQConsumerConfig{
-    Endpoint:       "localhost:8081",
-    Topic:          "order.events",
-    ConsumerGroup:  "order-processor",
-    AccessKey:      "ak",
-    SecretKey:      "sk",
-    EnableSSL:      false,
-    IdempCache:     mq.NewInMemoryIdempCache(24 * time.Hour),
-    RetryPolicy: &mq.RetryPolicy{
-        MaxRetries: 5,
-        Levels:     []time.Duration{15, 30, 45, 60, 75} * time.Second,
-    },
-    DLQTopic: "order.dlq",
-})
-defer consumer.Close()
-
-consumer.Subscribe(ctx, []string{"order.events"}, "order-processor",
-    func(ctx context.Context, msg *mq.Message) error {
-        return processOrder(ctx, msg)
-    })
-```
-
-#### Ordered Delivery by MessageGroup
-
-```go
-producer, _ := rocketmq.NewProducer(rocketmq.RocketMQConfig{
-    Endpoint:     "localhost:8081",
-    Topic:        "payment",
-    AccessKey:    "ak",
-    SecretKey:    "sk",
-    MessageGroup: "payment-sequence-001", // FIFO within this group
-})
-defer producer.Close()
-
-// Messages in the same MessageGroup are consumed in send order by the same consumer
-producer.Publish(ctx, &mq.Message{
-    Topic:   "payment",
-    Payload: []byte(`{"step": 1}`),
-})
-```
+Exponential backoff when `Levels` is empty: `delay = retryCount² × Base`.
 
 ---
 
 ## Capability Detection
 
-Probe capabilities at runtime to avoid unsupported features:
+Query capabilities at runtime to avoid unsupported features:
 
 ```go
 caps := producer.Capabilities()
+
+// Check single capability
 if caps.Has(mq.CapArbitraryDelay) {
     // Backend supports delayed delivery
 }
-if caps.Has(mq.CapIdempotency) {
-    // Backend supports idempotent deduplication
+
+// Check multiple capabilities
+required := []mq.Capability{mq.CapDLQ, mq.CapRetry}
+for _, cap := range required {
+    if !caps.Has(cap) {
+        log.Printf("backend missing: %s", cap)
+    }
 }
 ```
 
-All capability flags (`mq/capability.go`):
+---
 
-| Flag | Description |
-|------|-------------|
-| `CapArbitraryDelay` | Arbitrary precise delay |
-| `CapIdempotency` | Idempotent deduplication |
-| `CapPriority` | Priority queues |
-| `CapOrdered` | Ordered delivery |
-| `CapDLQ` | Dead-letter queue |
-| `CapRetry` | Staircase retry |
-| `CapMultiGroup` | Multi consumer group |
-| `CapTx` | Transactions |
-| `CapBatch` | Batched publishing |
+## Graceful Degradation
+
+When a capability is not supported, the framework falls back:
+
+| Missing Capability | Fallback Behavior |
+|--------------------|-------------------|
+| `CapArbitraryDelay` | Immediate delivery (no delay) |
+| `CapFixedDelay` | Use `CapArbitraryDelay` if available |
+| `CapNakDelay` | Immediate NACK (no delay before redelivery) |
+| `CapIdempotency` | Application must handle duplicates |
+| `CapPriority` | FIFO delivery (no priority ordering) |
+| `CapOrdered` | No ordering guarantee |
+| `CapDLQ` | Messages dropped after max retries |
+| `CapRetry` | No automatic retry |
+| `CapTx` | Non-transactional publish |
+| `CapBatch` | Sequential publish |
 
 ---
 
@@ -451,9 +287,7 @@ All capability flags (`mq/capability.go`):
 
 - Both producer and consumer must call `Close()` to release connections
 - Production environments should use `AutoAck: false` with manual ack
-- Failed consumer handling triggers retry per `RetryPolicy`; exceeding `MaxRetries` forwards to DLQ
-- Delayed delivery: RabbitMQ requires `rabbitmq-delayed-message-exchange` plugin; RocketMQ v5 has native support, no plugin needed
-- Idempotency currently has only in-memory implementation; production needs `RedisIdempCache`
-- RocketMQ transactional messages (`EnableTx`) interface is reserved; TransactionProducer is TODO
-- RocketMQ does not support native priority queues
-- In-Memory Broker (`mq/memory`) is for local dev/testing only—no persistence, no distributed guarantees
+- Consumer errors trigger retry per `RetryPolicy`; exceeding `MaxRetries` forwards to DLQ
+- RabbitMQ arbitrary delay requires `rabbitmq_delayed_message_exchange` plugin
+- RocketMQ v5 has native arbitrary delay support (no plugin needed)
+- Memory broker (`mq/memory`) is for testing only — no persistence, no distributed guarantees

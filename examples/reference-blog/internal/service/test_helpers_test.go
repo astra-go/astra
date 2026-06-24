@@ -32,6 +32,8 @@ func (m *mockProducer) PublishBatch(_ context.Context, msgs []*mq.Message) error
 
 func (m *mockProducer) Close() error { return nil }
 
+func (m *mockProducer) Capabilities() mq.Capabilities { return mq.Capabilities{} }
+
 // mockSearcher implements elastic.Searcher for testing
 type mockSearcher struct{}
 
