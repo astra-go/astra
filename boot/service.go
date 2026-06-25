@@ -18,10 +18,12 @@
 package boot
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/astra-go/astra"
 	"github.com/astra-go/astra/backend"
@@ -72,17 +74,18 @@ type HealthConfig struct {
 
 // Options 控制 boot.New 的行为。
 type Options struct {
-	cfg          *Config           // 编程注入的配置（优先级最高）
-	logger       *slog.Logger      // 自定义 Logger
-	configPath   string            // YAML 配置文件路径
-	envPrefix    string            // 环境变量前缀
-	extraSources []config.Source   // 额外配置源
-	noConfig     bool              // true = 跳过配置加载，仅用默认值
-	noHealth     bool              // true = 不注册 health 端点
-	noDefaultMW    bool                     // true = 不注册默认中间件（Recovery/RequestID）
-	noLoggerInit   bool                     // true = 跳过自动 Logger 初始化
-	backendName    string                   // 强制后端名，空=按环境选择
-	backendMapping map[string]string        // 自定义 env→backend 映射
+	cfg            *Config         // 编程注入的配置（优先级最高）
+	logger         *slog.Logger    // 自定义 Logger
+	configPath     string          // YAML 配置文件路径
+	envPrefix      string          // 环境变量前缀
+	extraSources   []config.Source // 额外配置源
+	noConfig       bool            // true = 跳过配置加载，仅用默认值
+	noHealth       bool            // true = 不注册 health 端点
+	noDefaultMW    bool            // true = 不注册默认中间件（Recovery/RequestID）
+	noLoggerInit   bool            // true = 跳过自动 Logger 初始化
+	noConfigWatch  bool            // true = 禁用配置热重载
+	backendName    string          // 强制后端名，空=按环境选择
+	backendMapping map[string]string // 自定义 env→backend 映射
 }
 
 // Option 是 boot.New 的函数式参数。
@@ -147,10 +150,9 @@ func WithoutLoggerInit() Option {
 	return func(o *Options) { o.noLoggerInit = true }
 }
 
-// WithoutConfigWatch 禁止自动启动配置文件变更监听。
-// 当前版本配置热更新尚未开放，该选项为预留接口。
+// WithoutConfigWatch 禁止自动启动配置文件变更监听（禁用热重载）。
 func WithoutConfigWatch() Option {
-	return func(o *Options) {}
+	return func(o *Options) { o.noConfigWatch = true }
 }
 
 // WithBackend 强制使用特定后端实现，忽略环境选择。
@@ -181,13 +183,16 @@ func WithBackendMapping(mapping map[string]string) Option {
 // Service 封装 Astra App、配置、日志和多环境后端选择器。
 // 提供 Use / Router / Run 链式启动流程。
 type Service struct {
-	app    *astra.App
-	cfg    *Config
-	logger *slog.Logger
-
-	// backend 是按环境选择实现后端的 Provider 选择器。
-	// 通过 WithBackend / WithBackendMapping 在 New 时配置。
+	app     *astra.App
+	cfg     *Config
+	logger  *slog.Logger
 	backend *backend.BackendSelector
+
+	// 配置热重载支持
+	mgr        *config.Config
+	watchHooks []func()
+	watchMu    sync.RWMutex
+	watchOnce  sync.Once
 }
 
 // New 创建 Service 实例。
@@ -197,8 +202,9 @@ func New(name string, opts ...Option) *Service {
 
 	// ---- 1. 配置加载 ----
 	cfg := defaultConfig(name)
+	var mgr *config.Config
 	if !o.noConfig {
-		loaded, err := loadConfig(o)
+		loaded, m, err := loadConfigWithMgr(o)
 		if err != nil {
 			// 配置加载失败时使用默认值 + 警告（不阻止启动）
 			slog.Warn("boot: config loading failed, using defaults",
@@ -207,6 +213,7 @@ func New(name string, opts ...Option) *Service {
 			)
 		} else if loaded != nil {
 			cfg = loaded
+			mgr = m
 		}
 	}
 	// 编程注入的配置 > 文件/环境变量，逐字段覆盖
@@ -257,12 +264,21 @@ func New(name string, opts ...Option) *Service {
 		registerHealthEndpoints(app, &cfg.Health)
 	}
 
-	return &Service{
-		app:     app,
-		cfg:     cfg,
-		logger:  logger,
-		backend: be,
+	svc := &Service{
+		app:        app,
+		cfg:        cfg,
+		logger:     logger,
+		backend:    be,
+		mgr:        mgr,
+		watchHooks: make([]func(), 0),
 	}
+
+	// ---- 6. 配置热重载（默认启用）----
+	if !o.noConfigWatch && mgr != nil {
+		svc.startConfigWatch(context.Background())
+	}
+
+	return svc
 }
 
 // ============================================================================
@@ -349,6 +365,84 @@ func (s *Service) Run() {
 }
 
 // ============================================================================
+// 配置热重载
+// ============================================================================
+
+// Watch 注册配置变更回调。回调在配置重新加载后调用（在单独 goroutine 中）。
+// 多次调用会追加回调，回调顺序与注册顺序一致。
+//
+//	svc.Watch(func() {
+//	    slog.Info("config reloaded", "qps", svc.Cfg().RateLimitQPS)
+//	    // 重新初始化限流器、更新日志级别等
+//	})
+func (s *Service) Watch(fn func()) {
+	s.watchMu.Lock()
+	defer s.watchMu.Unlock()
+	s.watchHooks = append(s.watchHooks, fn)
+}
+
+// WatchKey 注册键级配置变更回调，仅当指定键的值变化时触发。
+// 等价于直接使用 s.mgr.WatchKey()，提供便捷访问。
+//
+//	svc.WatchKey("rate_limit.qps", func(oldVal, newVal string) {
+//	    slog.Info("rate limit changed", "old", oldVal, "new", newVal)
+//	})
+func (s *Service) WatchKey(key string, fn func(oldVal, newVal string)) {
+	if s.mgr == nil {
+		return
+	}
+	s.mgr.WatchKey(key, fn)
+}
+
+// startConfigWatch 启动配置文件监听（内部方法，仅在 New 时调用一次）
+func (s *Service) startConfigWatch(ctx context.Context) {
+	s.watchOnce.Do(func() {
+		if s.mgr == nil {
+			return
+		}
+
+		// 注册全局回调：重新加载配置并通知所有 Watcher
+		s.mgr.Watch(func() {
+			// 重新 Scan 到新的 Config
+			var newCfg Config
+			if err := s.mgr.Scan(&newCfg); err != nil {
+				s.logger.Error("boot: config reload scan failed", "error", err)
+				return
+			}
+
+			s.watchMu.Lock()
+			s.cfg = &newCfg
+			hooks := make([]func(), len(s.watchHooks))
+			copy(hooks, s.watchHooks)
+			s.watchMu.Unlock()
+
+			s.logger.Info("boot: config reloaded",
+				slog.String("name", s.cfg.Name),
+				slog.String("port", s.cfg.Port),
+				slog.String("mode", s.cfg.Mode),
+			)
+
+			// 在单独 goroutine 中调用所有回调
+			for _, fn := range hooks {
+				go fn()
+			}
+		})
+
+		// 启动底层文件监听
+		if err := s.mgr.StartWatch(ctx); err != nil {
+			s.logger.Warn("boot: failed to start config watch", "error", err)
+		}
+	})
+}
+
+// StopConfigWatch 停止配置热重载监听（通常不需要手动调用，Run() 退出时会自动停止）
+func (s *Service) StopConfigWatch() {
+	if s.mgr != nil {
+		s.mgr.StopWatch()
+	}
+}
+
+// ============================================================================
 // 内部辅助函数
 // ============================================================================
 
@@ -402,9 +496,9 @@ func overrideConfig(dst, src *Config) {
 	}
 }
 
-// loadConfig 构建配置管理器并加载到 Config 结构体。
-// 配置文件不存在时静默降级。
-func loadConfig(o *Options) (*Config, error) {
+// loadConfigWithMgr 构建配置管理器并加载到 Config 结构体。
+// 返回配置实例和管理器（用于热重载），文件不存在时静默降级。
+func loadConfigWithMgr(o *Options) (*Config, *config.Config, error) {
 	sources := make([]config.Source, 0, 3)
 
 	// 1. 配置文件（可选，不存在则跳过）
@@ -424,20 +518,20 @@ func loadConfig(o *Options) (*Config, error) {
 
 	// 4. 没有有效数据源时返回 nil，让调用方保持默认值
 	if len(sources) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	mgr, err := config.New(sources...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var cfg Config
 	if err := mgr.Scan(&cfg); err != nil {
-		return nil, fmt.Errorf("boot: scan config: %w", err)
+		return nil, nil, fmt.Errorf("boot: scan config: %w", err)
 	}
 
-	return &cfg, nil
+	return &cfg, mgr, nil
 }
 
 // initLogger 根据配置初始化 slog.Logger。
