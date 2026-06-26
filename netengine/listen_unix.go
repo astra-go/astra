@@ -63,7 +63,8 @@ func Listen(network, addr string, opts ListenOptions) (net.Listener, error) {
 					}
 				}
 				if opts.FastOpen {
-					if err := setSockOptTFO(fd, queueLen); err != nil && firstErr == nil {
+					// Inline setSockOptTFO to avoid build tag issues
+					if err := unix.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_FASTOPEN, queueLen); err != nil && firstErr == nil {
 						firstErr = fmt.Errorf("netengine: TCP_FASTOPEN: %w", err)
 					}
 				}
