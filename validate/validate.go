@@ -1,254 +1,104 @@
-// Package validate provides struct and value validation using go-playground/validator/v10.
+// Package validate provides reusable input-validation utilities for Chinese and
+// international user data: phone numbers, email addresses, passwords, ID
+// (identity) card numbers, and real names.
 //
-// The API is intentionally thin: decorate your structs with validate:"..." tags,
-// call validate.Struct (or validate.Var for a single value), and inspect the
-// returned *Errors.
+// Quick start:
 //
-// # Built-in custom validators
+//	import "github.com/astra-go/astra/validate"
 //
-// In addition to all standard validator/v10 rules, the following custom tags
-// are registered on the default Validator:
-//
-//	mobile    – matches \d{11} starting with 1[3-9] (Chinese mobile)
-//	password  – ≥8 chars with uppercase, lowercase, digit, and special character
-//	username  – [a-zA-Z0-9_]{3,32}
-//	no_html   – rejects strings containing HTML tags
-//	not_blank – rejects strings that are empty or all whitespace
-//
-// # Quick start
-//
-//	type RegisterReq struct {
-//	    Username string `json:"username" validate:"required,username"`
-//	    Email    string `json:"email"    validate:"required,email"`
-//	    Password string `json:"password" validate:"required,password"`
-//	    Mobile   string `json:"mobile"   validate:"omitempty,mobile"`
-//	    Age      int    `json:"age"      validate:"required,gte=18,lte=120"`
-//	    Role     string `json:"role"     validate:"required,oneof=admin user guest"`
+//	if !validate.IsPhone("13812345678") {
+//	    return errors.New("invalid phone")
 //	}
-//
-//	if err := validate.Struct(&req); err != nil {
-//	    var verrs validate.Errors
-//	    if errors.As(err, &verrs) {
-//	        c.JSON(400, gin.H{"errors": verrs.Map()})
-//	    }
+//	if !validate.IsStrongPassword("Abc12345") {
+//	    return errors.New("weak password")
 //	}
-//
-// # Instance-based usage
-//
-//	v := validate.New(
-//	    validate.WithAlias("strongpw", "required,min=10,max=64,password"),
-//	    validate.WithCustom("zipcode", func(fl validator.FieldLevel) bool {
-//	        return zipRegex.MatchString(fl.Field().String())
-//	    }),
-//	)
-//	if err := v.Struct(&req); err != nil { ... }
 package validate
 
 import (
-	"reflect"
 	"regexp"
 	"strings"
-	"sync"
-
-	"github.com/go-playground/validator/v10"
 )
 
-// ─── Validator ────────────────────────────────────────────────────────────────
+// compile once, use everywhere.
+var (
+	// China mobile: starts with 1, second digit 3-9, 11 digits total.
+	phoneRe = regexp.MustCompile(`^1[3-9]\d{9}$`)
 
-// Validator wraps *validator.Validate with a clean API and built-in custom validators.
-type Validator struct {
-	v *validator.Validate
+	// Minimal email: non-empty local part + @ + non-empty domain.
+	emailRe = regexp.MustCompile(`^[^@]+@[^@]+\.[^@]+$`)
+
+	// China ID card: 18 digits, last char may be X/x.
+	idCardRe = regexp.MustCompile(`^\d{17}[\dXx]$`)
+
+	// Base password: 6–32 printable ASCII characters.
+	passwordLenRe = regexp.MustCompile(`^.{6,32}$`)
+
+	// Real name characters: Chinese, Latin letters, middle dot.
+	nameRe = regexp.MustCompile(`^[\p{Han}a-zA-Z·]{2,20}$`)
+)
+
+// IsPhone reports whether s is a valid China mainland mobile number
+// (11 digits starting with 1[3-9]).
+func IsPhone(s string) bool {
+	return phoneRe.MatchString(s)
 }
 
-// Inner returns the underlying *validator.Validate for advanced operations
-// not covered by this package's API (e.g. cross-field validation, struct-level rules).
-func (val *Validator) Inner() *validator.Validate { return val.v }
-
-// ─── Options ─────────────────────────────────────────────────────────────────
-
-// Option configures a Validator.
-type Option func(*Validator)
-
-// WithTagName sets a custom function to derive the field display name from struct
-// tags. By default, the tag priority is: json > form > query > uri > Go field name.
-//
-//	validate.New(validate.WithTagName(func(f reflect.StructField) string {
-//	    return f.Tag.Get("label") // use label:"..." as the field name in errors
-//	}))
-func WithTagName(fn func(reflect.StructField) string) Option {
-	return func(val *Validator) {
-		val.v.RegisterTagNameFunc(fn)
-	}
+// IsEmail reports whether s has a basic email format (x@y.z).
+func IsEmail(s string) bool {
+	return emailRe.MatchString(s)
 }
 
-// WithCustom registers a custom validation function for the given tag name.
-//
-//	validate.New(validate.WithCustom("zipcode", func(fl validator.FieldLevel) bool {
-//	    return zipRegex.MatchString(fl.Field().String())
-//	}))
-func WithCustom(tag string, fn validator.Func, callValidationEvenIfNull ...bool) Option {
-	return func(val *Validator) {
-		callNull := len(callValidationEvenIfNull) > 0 && callValidationEvenIfNull[0]
-		_ = val.v.RegisterValidation(tag, fn, callNull)
-	}
+// IsIDCard reports whether s is a valid 18-digit China identity card number.
+func IsIDCard(s string) bool {
+	return idCardRe.MatchString(s)
 }
 
-// WithAlias registers a short alias tag that expands to a full validation chain.
-//
-//	validate.New(validate.WithAlias("strongpw", "min=10,max=64,password"))
-//	// Now: validate:"required,strongpw"
-func WithAlias(alias, tags string) Option {
-	return func(val *Validator) {
-		val.v.RegisterAlias(alias, tags)
+// IsStrongPassword reports whether s is 6–32 chars and contains at least one
+// letter and one digit.
+func IsStrongPassword(s string) bool {
+	if !passwordLenRe.MatchString(s) {
+		return false
 	}
-}
-
-// ─── Constructor ──────────────────────────────────────────────────────────────
-
-// New creates a Validator with built-in custom validators and the default tag
-// name resolution (json > form > query > uri > field name).
-func New(opts ...Option) *Validator {
-	val := &Validator{
-		v: validator.New(validator.WithRequiredStructEnabled()),
-	}
-	// Default: use json/form/query/uri tag as field name in error messages.
-	val.v.RegisterTagNameFunc(defaultTagNameFunc)
-	// Register built-in custom tags.
-	registerBuiltins(val.v)
-	// Apply caller options.
-	for _, o := range opts {
-		o(val)
-	}
-	return val
-}
-
-func defaultTagNameFunc(fld reflect.StructField) string {
-	for _, tag := range []string{"json", "form", "query", "uri"} {
-		if name := strings.SplitN(fld.Tag.Get(tag), ",", 2)[0]; name != "" && name != "-" {
-			return name
+	hasLetter := false
+	hasDigit := false
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
+			hasLetter = true
+		case r >= '0' && r <= '9':
+			hasDigit = true
 		}
 	}
-	return fld.Name
+	return hasLetter && hasDigit
 }
 
-// ─── Struct validation ────────────────────────────────────────────────────────
+// IsRealName reports whether s is 2–20 chars containing only Chinese
+// characters, Latin letters, and the middle dot (·).
+func IsRealName(s string) bool {
+	return nameRe.MatchString(s)
+}
 
-// Struct validates all exported fields of s using their validate:"..." struct tags.
-// Returns validate.Errors (which implements error) on failure, nil on success.
+// IsInRange reports whether len(s) is within [minLen, maxLen] inclusive.
+func IsInRange(s string, minLen, maxLen int) bool {
+	l := len(s)
+	return l >= minLen && l <= maxLen
+}
+
+// ClassifyContact returns whether input is a valid phone and/or email.
 //
-//	if err := v.Struct(&req); err != nil {
-//	    var errs validate.Errors
-//	    errors.As(err, &errs)   // always true when err != nil
-//	    return errs.Map()       // {"email":"请输入有效的电子邮箱地址"}
-//	}
-func (val *Validator) Struct(s any) error {
-	if err := val.v.Struct(s); err != nil {
-		return toErrors(err)
+//	ClassifyContact("13812345678") → (true, true, false)  // is valid, is phone
+//	ClassifyContact("a@b.com")     → (true, false, true)   // is valid, is email
+//	ClassifyContact("invalid")     → (false, false, false)
+func ClassifyContact(input string) (valid, phone, email bool) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return false, false, false
 	}
-	return nil
-}
-
-// Var validates a single value against the given tag string.
-//
-//	if err := v.Var(email, "required,email"); err != nil { ... }
-func (val *Validator) Var(field any, tag string) error {
-	if err := val.v.Var(field, tag); err != nil {
-		return toErrors(err)
+	if IsPhone(input) {
+		return true, true, false
 	}
-	return nil
-}
-
-// RegisterValidation adds a custom validation function.
-// Returns an error if the tag name conflicts with an existing built-in tag.
-func (val *Validator) RegisterValidation(tag string, fn validator.Func, callValidationEvenIfNull ...bool) error {
-	callNull := len(callValidationEvenIfNull) > 0 && callValidationEvenIfNull[0]
-	return val.v.RegisterValidation(tag, fn, callNull)
-}
-
-// RegisterAlias registers a tag alias.
-func (val *Validator) RegisterAlias(alias, tags string) {
-	val.v.RegisterAlias(alias, tags)
-}
-
-// ─── Default package-level validator ─────────────────────────────────────────
-
-var (
-	defaultOnce      sync.Once
-	defaultValidator *Validator
-)
-
-func getDefault() *Validator {
-	defaultOnce.Do(func() { defaultValidator = New() })
-	return defaultValidator
-}
-
-// Struct validates s using the default package-level Validator.
-func Struct(s any) error { return getDefault().Struct(s) }
-
-// Var validates a single value using the default Validator.
-func Var(field any, tag string) error { return getDefault().Var(field, tag) }
-
-// RegisterValidation adds a custom validator to the default Validator.
-func RegisterValidation(tag string, fn validator.Func) error {
-	return getDefault().RegisterValidation(tag, fn)
-}
-
-// RegisterAlias adds a tag alias to the default Validator.
-func RegisterAlias(alias, tags string) { getDefault().RegisterAlias(alias, tags) }
-
-// ─── Built-in custom validators ───────────────────────────────────────────────
-
-var (
-	// mobileRe matches Chinese mobile numbers: 1[3-9]XXXXXXXXX
-	mobileRe = regexp.MustCompile(`^1[3-9]\d{9}$`)
-
-	// usernameRe: alphanumeric + underscore, 3–32 chars
-	usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
-
-	// htmlTagRe detects any HTML tag
-	htmlTagRe = regexp.MustCompile(`<[^>]+>`)
-
-	// password strength helpers
-	pwUpper   = regexp.MustCompile(`[A-Z]`)
-	pwLower   = regexp.MustCompile(`[a-z]`)
-	pwDigit   = regexp.MustCompile(`[0-9]`)
-	pwSpecial = regexp.MustCompile(`[!@#$%^&*()\-_=+\[\]{}|;':",.<>?/\\` + "`~]")
-)
-
-func registerBuiltins(v *validator.Validate) {
-	_ = v.RegisterValidation("mobile", validateMobile)
-	_ = v.RegisterValidation("password", validatePassword)
-	_ = v.RegisterValidation("username", validateUsername)
-	_ = v.RegisterValidation("no_html", validateNoHTML)
-	_ = v.RegisterValidation("not_blank", validateNotBlank)
-}
-
-// mobile: Chinese mobile number (1[3-9]XXXXXXXXX, 11 digits).
-func validateMobile(fl validator.FieldLevel) bool {
-	return mobileRe.MatchString(fl.Field().String())
-}
-
-// password: ≥8 chars, at least one uppercase, lowercase, digit, special char.
-func validatePassword(fl validator.FieldLevel) bool {
-	s := fl.Field().String()
-	return len(s) >= 8 &&
-		pwUpper.MatchString(s) &&
-		pwLower.MatchString(s) &&
-		pwDigit.MatchString(s) &&
-		pwSpecial.MatchString(s)
-}
-
-// username: [a-zA-Z0-9_]{3,32}
-func validateUsername(fl validator.FieldLevel) bool {
-	return usernameRe.MatchString(fl.Field().String())
-}
-
-// no_html: rejects strings containing HTML tags.
-func validateNoHTML(fl validator.FieldLevel) bool {
-	return !htmlTagRe.MatchString(fl.Field().String())
-}
-
-// not_blank: rejects strings that are empty or all whitespace.
-func validateNotBlank(fl validator.FieldLevel) bool {
-	return strings.TrimSpace(fl.Field().String()) != ""
+	if IsEmail(input) {
+		return true, false, true
+	}
+	return false, false, false
 }

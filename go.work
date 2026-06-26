@@ -17,9 +17,10 @@ go 1.25.11
 use (
 	.
 	./alert
+	./audit
 	./auth
-	./boot
 	./benchmarks
+	./boot
 	./cache
 	./client
 	./config
@@ -43,6 +44,7 @@ use (
 	./grpc
 	./loadbalance
 	./lock
+	./mask
 	./middleware/security
 	./mongodb
 	./mq
@@ -59,6 +61,8 @@ use (
 	./stream
 	./taskqueue
 	./testutil
+	./token
+	./validate
 )
 
 // Intra-workspace replace directives.
@@ -67,9 +71,9 @@ use (
 replace (
 	github.com/astra-go/astra v0.0.0-00010101000000-000000000000 => ./
 	github.com/astra-go/astra/alert v0.0.0-00010101000000-000000000000 => ./alert
-	github.com/astra-go/astra/boot v0.0.0-00010101000000-000000000000 => ./boot
 	github.com/astra-go/astra/auth v0.0.0-00010101000000-000000000000 => ./auth
 	github.com/astra-go/astra/benchmarks v0.0.0-00010101000000-000000000000 => ./benchmarks
+	github.com/astra-go/astra/boot v0.0.0-00010101000000-000000000000 => ./boot
 	github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ./cache
 	github.com/astra-go/astra/client v0.0.0-00010101000000-000000000000 => ./client
 	github.com/astra-go/astra/config v0.0.0-00010101000000-000000000000 => ./config
@@ -106,6 +110,7 @@ replace (
 	github.com/astra-go/astra/stream v0.0.0-00010101000000-000000000000 => ./stream
 	github.com/astra-go/astra/taskqueue v0.0.0-00010101000000-000000000000 => ./taskqueue
 	github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ./testutil
+	github.com/astra-go/astra/token v0.0.0-00010101000000-000000000000 => ./token
 	// consul/proto-public v0.8.0 requires go 1.25.8; pin to v0.6.5 which requires go 1.25.0.
 	// config/go.mod carries the same replace for module-level builds.
 	github.com/hashicorp/consul/proto-public v0.8.0 => github.com/hashicorp/consul/proto-public v0.6.5
