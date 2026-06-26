@@ -1,13 +1,17 @@
 package boot
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/astra-go/astra"
 )
@@ -392,6 +396,147 @@ port: "2020"
 
 // ============================================================================
 // Test: Health endpoints with same live/ready paths
+// ============================================================================
+// Test: RegisterReloadable and config hot-reload triggers Reload()
+// ============================================================================
+
+func TestRegisterReloadable(t *testing.T) {
+	type testComponent struct {
+		reloaded bool
+		oldVal   string
+		newVal   string
+	}
+
+	comp := &testComponent{}
+
+	svc := New("reloadable-test",
+		WithoutConfig(),
+		WithConfig(&Config{Port: "8080"}),
+	)
+
+	var mu sync.RWMutex
+	svc.RegisterReloadable(ReloadableFunc(func(ctx context.Context, oldCfg, newCfg any) error {
+		mu.Lock()
+		defer mu.Unlock()
+		comp.reloaded = true
+		if old, ok := oldCfg.(*Config); ok {
+			comp.oldVal = old.Port
+		}
+		if nc, ok := newCfg.(*Config); ok {
+			comp.newVal = nc.Port
+		}
+		return nil
+	}))
+
+	// Simulate a config reload by calling mgr.Watch hooks
+	// The easiest way is to reload with a new value.
+	// Since we have no file watcher, we manually Load() to trigger callbacks.
+	// Actually, we need to trigger the watch hooks that were registered.
+	// The registered hook re-scans the mgr; since mgr is nil (WithoutConfig),
+	// the hook would do nothing. Let's test with a file-backed config.
+
+	// Reloadable callback on nil mgr is a no-op pass-through test:
+	_ = svc
+	_ = comp
+
+	// For a proper test, create a config with a file that we can modify.
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "test.yaml")
+	yamlContent := []byte("name: reloadable-svc\nport: \"8080\"\n")
+	if err := os.WriteFile(yamlPath, yamlContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	reloaded := make(chan struct{}, 1)
+
+	svc2 := New("reloadable-svc",
+		WithConfigPath(yamlPath),
+	)
+
+	type reloadTracker struct {
+		t    *testing.T
+		done chan struct{}
+	}
+	svc2.RegisterReloadable(ReloadableFunc(func(ctx context.Context, oldCfg, newCfg any) error {
+		oc := oldCfg.(*Config)
+		nc := newCfg.(*Config)
+		// Verify old and new are different when port changes
+		if oc.Port != nc.Port {
+			reloaded <- struct{}{}
+		}
+		return nil
+	}))
+
+	// Modify the config file
+	yamlContent = []byte("name: reloadable-svc\nport: \"9090\"\n")
+	if err := os.WriteFile(yamlPath, yamlContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for reload or timeout
+	select {
+	case <-reloaded:
+		// success
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for Reloadable to be called after config change")
+	}
+
+	svc2.StopConfigWatch()
+}
+
+// ReloadableFunc is a func adapter that implements Reloadable.
+type ReloadableFunc func(ctx context.Context, oldCfg, newCfg any) error
+
+func (f ReloadableFunc) Reload(ctx context.Context, oldCfg, newCfg any) error {
+	return f(ctx, oldCfg, newCfg)
+}
+
+// ============================================================================
+// Test: Reloadable error does not panic and is logged
+// ============================================================================
+
+func TestReloadableErrorHandling(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "test.yaml")
+	yamlContent := []byte("name: err-svc\nport: \"8080\"\n")
+	if err := os.WriteFile(yamlPath, yamlContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	svc := New("err-svc",
+		WithConfigPath(yamlPath),
+	)
+
+	reloaded := make(chan struct{}, 1)
+
+	// Register a component that always errors
+	svc.RegisterReloadable(ReloadableFunc(func(ctx context.Context, oldCfg, newCfg any) error {
+		return fmt.Errorf("simulated error")
+	}))
+
+	// Register a second component that succeeds
+	svc.RegisterReloadable(ReloadableFunc(func(ctx context.Context, oldCfg, newCfg any) error {
+		reloaded <- struct{}{}
+		return nil
+	}))
+
+	// Modify config to trigger reload
+	yamlContent = []byte("name: err-svc\nport: \"9090\"\n")
+	if err := os.WriteFile(yamlPath, yamlContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Second component should still be called despite first erroring
+	select {
+	case <-reloaded:
+		// success
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout: second component not called despite first erroring")
+	}
+
+	svc.StopConfigWatch()
+}
+
 // ============================================================================
 
 func TestHealthSamePaths(t *testing.T) {

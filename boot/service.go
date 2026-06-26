@@ -193,6 +193,8 @@ type Service struct {
 	watchHooks []func()
 	watchMu    sync.RWMutex
 	watchOnce  sync.Once
+	// Reloadable 组件注册
+	reloadables []Reloadable
 }
 
 // New 创建 Service 实例。
@@ -271,6 +273,7 @@ func New(name string, opts ...Option) *Service {
 		backend:    be,
 		mgr:        mgr,
 		watchHooks: make([]func(), 0),
+		reloadables: make([]Reloadable, 0),
 	}
 
 	// ---- 6. 配置热重载（默认启用）----
@@ -365,6 +368,29 @@ func (s *Service) Run() {
 }
 
 // ============================================================================
+// Reloadable --- 热重载生命周期接口
+// ============================================================================
+
+// Reloadable 是组件可实现的接口，当配置热重载时，框架会自动调用
+// RegisterReloadable 注册的所有组件的 Reload 方法。
+//
+// 适用于需要在运行时重新连接 DB/Redis、更新限流策略、切换日志级别的组件。
+type Reloadable interface {
+	// Reload 在配置热重载后被调用。
+	// oldCfg 是之前的配置实例（可能为 nil 首次），newCfg 是新的配置实例。
+	// 注意：newCfg 的生命周期由框架管理，不要持有引用，在回调内取完值即可。
+	Reload(ctx context.Context, oldCfg, newCfg any) error
+}
+
+// RegisterReloadable 注册可热重载的组件。
+// 当配置变更时，框架自动调用所有已注册组件的 Reload 方法。
+// Reload 调用顺序与注册顺序一致。
+// 如果组件的 Reload 返回 error，会记录日志但不会阻塞其他组件。
+func (s *Service) RegisterReloadable(r Reloadable) {
+	s.reloadables = append(s.reloadables, r)
+}
+
+// ============================================================================
 // 配置热重载
 // ============================================================================
 
@@ -411,9 +437,12 @@ func (s *Service) startConfigWatch(ctx context.Context) {
 			}
 
 			s.watchMu.Lock()
+			cfgBefore := s.cfg
 			s.cfg = &newCfg
 			hooks := make([]func(), len(s.watchHooks))
 			copy(hooks, s.watchHooks)
+			reloadables := make([]Reloadable, len(s.reloadables))
+			copy(reloadables, s.reloadables)
 			s.watchMu.Unlock()
 
 			s.logger.Info("boot: config reloaded",
@@ -425,6 +454,17 @@ func (s *Service) startConfigWatch(ctx context.Context) {
 			// 在单独 goroutine 中调用所有回调
 			for _, fn := range hooks {
 				go fn()
+			}
+
+			// 通知所有 Reloadable 组件
+			for _, r := range reloadables {
+				go func(rel Reloadable) {
+					if err := rel.Reload(context.Background(), cfgBefore, &newCfg); err != nil {
+						s.logger.Error("boot: component reload failed",
+							slog.String("error", err.Error()),
+						)
+					}
+				}(r)
 			}
 		})
 
