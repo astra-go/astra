@@ -90,12 +90,17 @@ func defaultErrorHandler(c *Ctx, err error) {
 	isProdLike := c.app.options.Mode == ModeProd || c.app.options.Mode == ModeStaging
 
 	// Inject context metadata (trace_id, request_id, service) into AppError.
-	if _, ok := err.(*AppError); ok {
+	// Use errors.As to handle embedded *AppError (e.g. *gms/pkg/errors.AppError
+	// embeds *AppError — direct type assertion would miss it).
+	var injected *AppError
+	if errors.As(err, &injected) {
 		err = injectErrorContext(c, err)
 	}
 
 	// Business-layer error: structured response with Code + Message.
-	if ae, ok := err.(*AppError); ok {
+	// Use errors.As to correctly handle embedded AppError types.
+	var ae *AppError
+	if errors.As(err, &ae) {
 		status := ae.HTTPStatus
 		if status <= 0 {
 			status = http.StatusBadRequest
