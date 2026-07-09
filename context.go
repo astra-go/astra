@@ -104,10 +104,16 @@ type Ctx struct {
 
 	// handler chain and current index.
 	// index advances through handlers in Next(); Abort() sets it to abortIndex
-	// (math.MaxInt) to stop the chain. int supports up to 9223372036854775807 handlers
-	// per chain — far beyond any practical limit.
+	// (math.MaxInt8 = 127) to stop the chain. int8 supports up to 127 handlers
+	// per chain — far beyond any practical limit (typical chains have 3-10 middleware + 1 handler).
 	handlers HandlersChain
-	index    int
+
+	// Small fields grouped together to minimize padding (memory optimization).
+	// These fit into a single 8-byte aligned slot: int8 (1) + 2*bool (2) + 5 bytes padding.
+	index    int8 // Current handler index
+	pooled   bool // True if context has been returned to pool
+	isClone  bool // True if created by Clone/CloneWithContext
+	_        [5]byte // Explicit padding to align next field
 
 	// routeKey is the matched route template (e.g. "/users/:id"), set directly
 	// by the router to avoid the string→any interface boxing that c.Set would incur.
@@ -133,13 +139,6 @@ type Ctx struct {
 
 	// reference to the app
 	app *App
-
-	// pooled is set to true the first time this Ctx is returned to the pool.
-	// Used by App.ServeHTTP to distinguish pool hits from fresh allocations.
-	pooled bool
-
-	// isClone is true when this Ctx was created by Clone or CloneWithContext.
-	isClone bool
 }
 
 // reset recycles the context for a new request (used with sync.Pool).

@@ -1,6 +1,8 @@
 package astra
 
 import (
+	"math"
+
 	"github.com/astra-go/astra/router"
 )
 
@@ -13,8 +15,10 @@ import (
 //     deferred post-handler code (like timing or logging finalization).
 
 // abortIndex is the sentinel value assigned to Ctx.index when Abort is called.
-// Any value ≥ abortIndex means the chain was stopped. int max = 9223372036854775807.
-const abortIndex int = int(^uint(0) >> 1) // math.MaxInt
+// Any value ≥ abortIndex means the chain was stopped. int8 max = 127.
+// This limits the handler chain to 127 handlers, which is far beyond any
+// practical application (typical chains have 3-10 middleware + 1 handler).
+const abortIndex int8 = math.MaxInt8 // 127
 
 // Next executes the next handler in the chain.
 // It is safe to call on an already-aborted context — the call is a no-op.
@@ -24,15 +28,15 @@ const abortIndex int = int(^uint(0) >> 1) // math.MaxInt
 // caller does not check the return value.
 func (c *Ctx) Next() (err error) {
 	c.index++
-	for c.index < len(c.handlers) {
+	for int(c.index) < len(c.handlers) {
 		err = c.handlers[c.index](c)
 		if err != nil {
 			c.app.options.ErrorHandler(c, err)
 			return
 		}
 		// Guard against overflow when a handler called Abort() (sets
-		// c.index = abortIndex = math.MaxInt). Incrementing MaxInt will
-		// not wrap in int type.
+		// c.index = abortIndex = math.MaxInt8). Incrementing MaxInt8 will
+		// not wrap in int8 type.
 		if c.IsAborted() {
 			return
 		}

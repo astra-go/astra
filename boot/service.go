@@ -10,6 +10,10 @@
 //	    svc.Use(middleware.RequestID())
 //	    svc.UseLogger()
 //
+//	    // 注册健康检查依赖
+//	    svc.RegisterHealthChecker(&boot.DBChecker{DB: db})
+//	    svc.RegisterHealthChecker(&boot.RedisChecker{Redis: redis})
+//
 //	    svc.Router(func(app *astra.App) {
 //	        // 注册业务路由
 //	    })
@@ -24,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/astra-go/astra"
 	"github.com/astra-go/astra/backend"
@@ -60,13 +65,147 @@ type Config struct {
 	Health HealthConfig `yaml:"health" json:"health"`
 }
 
-// HealthConfig 健康检查端点路径。
+// HealthConfig 健康检查端点路径和选项。
 type HealthConfig struct {
 	// LivePath 存活检查路径，默认 "/health/live"。
 	LivePath string `yaml:"live_path" json:"live_path" default:"/health/live"`
 	// ReadyPath 就绪检查路径，默认 "/health/ready"。
 	ReadyPath string `yaml:"ready_path" json:"ready_path" default:"/health/ready"`
+	// Detailed 返回详细健康信息（包含每个依赖的状态），默认 false。
+	Detailed bool `yaml:"detailed" json:"detailed" default:"false"`
+	// Timeout 每个检查项的超时时间（秒），默认 5 秒。
+	Timeout int `yaml:"timeout" json:"timeout" default:"5"`
 }
+
+// ============================================================================
+// HealthChecker — 健康检查器接口
+// ============================================================================
+
+// HealthChecker 是健康检查组件需要实现的接口。
+// 用于 /health/ready 端点的依赖检查（DB、Redis、MQ 等）。
+//
+// 用法：
+//
+//	type DBChecker struct { DB *sql.DB }
+//
+//	func (c *DBChecker) Name() string { return "mysql" }
+//	func (c *DBChecker) Check(ctx context.Context) error {
+//	    return c.DB.PingContext(ctx)
+//	}
+//
+//	svc.RegisterHealthChecker(&DBChecker{DB: db})
+type HealthChecker interface {
+	// Name 返回检查项名称，用于日志和响应中的标识。
+	Name() string
+	// Check 执行健康检查，返回 nil 表示健康，非 nil 表示不健康。
+	Check(ctx context.Context) error
+}
+
+// HealthResult 单个检查项的结果。
+type HealthResult struct {
+	Name    string `json:"name"`
+	Status  string `json:"status"`  // "ok" | "error"
+	Latency string `json:"latency,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// HealthReport 完整健康报告。
+type HealthReport struct {
+	Status   string         `json:"status"`  // "ok" | "degraded" | "error"
+	Total    int            `json:"total"`
+	Passed   int            `json:"passed"`
+	Failed   int            `json:"failed"`
+	Duration string         `json:"duration"`
+	Checks   []HealthResult `json:"checks,omitempty"`
+}
+
+// ============================================================================
+// 内置 HealthChecker 实现
+// ============================================================================
+
+// DBChecker 数据库健康检查器，支持 *sql.DB、GORM DB 和标准 database/sql
+type DBChecker struct {
+	DB interface {
+		PingContext(ctx context.Context) error
+	}
+}
+
+func (c *DBChecker) Name() string { return "database" }
+
+func (c *DBChecker) Check(ctx context.Context) error {
+	if c.DB == nil {
+		return fmt.Errorf("database not configured")
+	}
+	return c.DB.PingContext(ctx)
+}
+
+// RedisChecker Redis 健康检查器，支持 *redis.Client、*redispool.Pool
+type RedisChecker struct {
+	Client interface {
+		Ping(ctx context.Context) error
+	}
+}
+
+func (c *RedisChecker) Name() string { return "redis" }
+
+func (c *RedisChecker) Check(ctx context.Context) error {
+	if c.Client == nil {
+		return fmt.Errorf("redis not configured")
+	}
+	return c.Client.Ping(ctx)
+}
+
+// HTTPEndpointChecker HTTP 端点健康检查器
+type HTTPEndpointChecker struct {
+	NameValue string
+	URL       string
+	Client    *http.Client
+	Expected  int
+}
+
+func (c *HTTPEndpointChecker) Name() string {
+	if c.NameValue != "" {
+		return c.NameValue
+	}
+	return c.URL
+}
+
+func (c *HTTPEndpointChecker) Check(ctx context.Context) error {
+	client := c.Client
+	if client == nil {
+		client = &http.Client{Timeout: 5 * time.Second}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.URL, nil)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	expected := c.Expected
+	if expected == 0 {
+		expected = http.StatusOK
+	}
+
+	if resp.StatusCode != expected {
+		return fmt.Errorf("unexpected status: %d (expected %d)", resp.StatusCode, expected)
+	}
+	return nil
+}
+
+// CustomCheckerFunc 适配函数为 HealthChecker
+type CustomCheckerFunc struct {
+	NameValue string
+	CheckFn  func(ctx context.Context) error
+}
+
+func (f *CustomCheckerFunc) Name() string { return f.NameValue }
+func (f *CustomCheckerFunc) Check(ctx context.Context) error { return f.CheckFn(ctx) }
 
 // ============================================================================
 // Options — 函数式配置
@@ -195,6 +334,9 @@ type Service struct {
 	watchOnce  sync.Once
 	// Reloadable 组件注册
 	reloadables []Reloadable
+
+	// 健康检查器
+	healthCheckers []HealthChecker
 }
 
 // New 创建 Service 实例。
@@ -262,23 +404,28 @@ func New(name string, opts ...Option) *Service {
 	}
 
 	// ---- 5. Health 端点 ----
-	if !o.noHealth {
-		registerHealthEndpoints(app, &cfg.Health)
-	}
+	// 注意：Health 端点注册在 New 返回 Service 后调用，以便访问 healthCheckers
+	_ = app // 保存到 svc 后再注册
 
 	svc := &Service{
-		app:        app,
-		cfg:        cfg,
-		logger:     logger,
-		backend:    be,
-		mgr:        mgr,
-		watchHooks: make([]func(), 0),
-		reloadables: make([]Reloadable, 0),
+		app:            app,
+		cfg:            cfg,
+		logger:         logger,
+		backend:        be,
+		mgr:            mgr,
+		watchHooks:     make([]func(), 0),
+		reloadables:    make([]Reloadable, 0),
+		healthCheckers: make([]HealthChecker, 0),
 	}
 
 	// ---- 6. 配置热重载（默认启用）----
 	if !o.noConfigWatch && mgr != nil {
 		svc.startConfigWatch(context.Background())
+	}
+
+	// ---- 7. Health 端点注册 ----
+	if !o.noHealth {
+		svc.registerHealthEndpoints()
 	}
 
 	return svc
@@ -388,6 +535,82 @@ type Reloadable interface {
 // 如果组件的 Reload 返回 error，会记录日志但不会阻塞其他组件。
 func (s *Service) RegisterReloadable(r Reloadable) {
 	s.reloadables = append(s.reloadables, r)
+}
+
+// ============================================================================
+// 健康检查
+// ============================================================================
+
+// RegisterHealthChecker 注册健康检查依赖（DB、Redis、MQ 等）。
+// 这些检查项会在 /health/ready 端点被调用。
+//
+//	svc.RegisterHealthChecker(&boot.DBChecker{DB: db})
+//	svc.RegisterHealthChecker(&boot.RedisChecker{Redis: redis})
+//	svc.RegisterHealthChecker(&boot.HTTPEndpointChecker{Name: "user-svc", URL: "http://localhost:8081/health"})
+func (s *Service) RegisterHealthChecker(checker HealthChecker) {
+	s.healthCheckers = append(s.healthCheckers, checker)
+}
+
+// RegisterHealthCheckerFunc 注册函数形式的健康检查。
+//
+//	svc.RegisterHealthCheckerFunc("mysql", func(ctx context.Context) error {
+//	    return db.PingContext(ctx)
+//	})
+func (s *Service) RegisterHealthCheckerFunc(name string, fn func(ctx context.Context) error) {
+	s.healthCheckers = append(s.healthCheckers, &CustomCheckerFunc{
+		NameValue: name,
+		CheckFn:  fn,
+	})
+}
+
+// CheckHealth 执行所有健康检查，返回完整报告。
+func (s *Service) CheckHealth(ctx context.Context) *HealthReport {
+	start := time.Now()
+	report := &HealthReport{
+		Total: len(s.healthCheckers),
+		Checks: make([]HealthResult, 0, len(s.healthCheckers)),
+	}
+
+	for _, checker := range s.healthCheckers {
+		result := HealthResult{Name: checker.Name()}
+		checkStart := time.Now()
+
+		// 设置超时
+		timeout := time.Duration(s.cfg.Health.Timeout) * time.Second
+		if timeout <= 0 {
+			timeout = 5 * time.Second
+		}
+		checkCtx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+
+		if err := checker.Check(checkCtx); err != nil {
+			result.Status = "error"
+			result.Error = err.Error()
+			report.Failed++
+			s.logger.Debug("health check failed",
+				slog.String("checker", checker.Name()),
+				slog.String("error", err.Error()),
+			)
+		} else {
+			result.Status = "ok"
+			report.Passed++
+		}
+
+		result.Latency = time.Since(checkStart).String()
+		report.Checks = append(report.Checks, result)
+	}
+
+	// 计算总体状态
+	if report.Failed == 0 {
+		report.Status = "ok"
+	} else if report.Passed > 0 {
+		report.Status = "degraded"
+	} else {
+		report.Status = "error"
+	}
+
+	report.Duration = time.Since(start).String()
+	return report
 }
 
 // ============================================================================
@@ -615,16 +838,60 @@ func parseLogLevel(level string) slog.Level {
 }
 
 // registerHealthEndpoints 在 App 上注册健康检查端点。
-func registerHealthEndpoints(app *astra.App, hc *HealthConfig) {
+// 使用闭包捕获 Service 实例以访问健康检查器。
+func (s *Service) registerHealthEndpoints() {
+	hc := &s.cfg.Health
+
+	// Live 端点：简单存活检查
 	if hc.LivePath != "" {
-		app.GET(hc.LivePath, func(c *astra.Ctx) error {
+		s.app.GET(hc.LivePath, func(c *astra.Ctx) error {
 			return c.JSON(http.StatusOK, astra.Map{"status": "ok"})
 		})
 	}
+
+	// Ready 端点：依赖检查
 	if hc.ReadyPath != "" && hc.ReadyPath != hc.LivePath {
-		app.GET(hc.ReadyPath, func(c *astra.Ctx) error {
-			return c.JSON(http.StatusOK, astra.Map{"status": "ok"})
+		s.app.GET(hc.ReadyPath, func(c *astra.Ctx) error {
+			ctx := c.Request().Context()
+			report := s.CheckHealth(ctx)
+
+			// 根据配置决定返回内容
+			if hc.Detailed || len(s.healthCheckers) == 0 {
+				// 返回详细报告
+				switch report.Status {
+				case "ok":
+					return c.JSON(http.StatusOK, report)
+				case "degraded":
+					return c.JSON(http.StatusOK, report) // 部分降级仍返回 200
+				default:
+					return c.JSON(http.StatusServiceUnavailable, report)
+				}
+			}
+
+			// 简单模式：只返回状态
+			switch report.Status {
+			case "ok":
+				return c.JSON(http.StatusOK, astra.Map{"status": "ok"})
+			case "degraded":
+				return c.JSON(http.StatusOK, astra.Map{"status": "ok"}) // 兼容旧行为
+			default:
+				return c.JSON(http.StatusServiceUnavailable, astra.Map{"status": "error"})
+			}
+		})
+	} else if hc.ReadyPath != "" {
+		// Live 和 Ready 使用同一路径
+		s.app.GET(hc.ReadyPath, func(c *astra.Ctx) error {
+			ctx := c.Request().Context()
+			report := s.CheckHealth(ctx)
+
+			switch report.Status {
+			case "ok":
+				return c.JSON(http.StatusOK, astra.Map{"status": "ok"})
+			case "degraded":
+				return c.JSON(http.StatusOK, astra.Map{"status": "ok"})
+			default:
+				return c.JSON(http.StatusServiceUnavailable, astra.Map{"status": "error"})
+			}
 		})
 	}
-	// 当 live 和 ready 路径相同时，只注册一次
 }
