@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
-	"strings"
 	"text/template"
 	"time"
 
@@ -40,7 +39,7 @@ func RenderMakefile(d tpldata.Data) string {
 // Gitignore returns the .gitignore content.
 func Gitignore() string { return gitignoreSrc }
 
-func makefileSrc string = `BINARY := {{.NameLower}}
+const makefileSrc = `BINARY := {{.NameLower}}
 IMAGE  := {{.NameLower}}:latest
 GO     := go
 PORT   := 8080
@@ -382,255 +381,269 @@ func RenderModel(d tpldata.Data) string {
 }
 
 // RenderCRUDModel generates a GORM model with column fields.
-func RenderCRUDModel(d tpldata.Data) string {
-	return render("crudModel", crudModelSrc, d)
-}
 
 // RenderCRUDRepo generates a repository file.
-func RenderCRUDRepo(d tpldata.Data) string {
-	return render("crudRepo", crudRepoSrc, d)
-}
 
 // RenderCRUDHandler generates a CRUD handler file.
-func RenderCRUDHandler(d tpldata.Data) string {
-	return render("crudHandler", crudHandlerSrc, d)
-}
 
 // RenderCRUDService generates a service layer file.
-func RenderCRUDService(d tpldata.Data) string {
-	return render("crudService", crudServiceSrc, d)
-}
 
 // RenderDTO generates a DTO file with request/response structs.
 func RenderDTO(d tpldata.Data) string {
 	return render("dto", dtoSrc, d)
 }
 
-const serviceSrc = `package service
+const serviceSrc = "package service" +
+"" +
+"import \"context\"" +
+"" +
+"// ─── DTOs ─────────────────────────────────────────────────────────────────────" +
+"" +
+"// Create{{.Name}}Request is the input for creating a {{.NameLower}}." +
+"type Create{{.Name}}Request struct {" +
+"	// TODO: add fields" +
+"}" +
+"" +
+"// Update{{.Name}}Request is the input for updating a {{.NameLower}}." +
+"type Update{{.Name}}Request struct {" +
+"	// TODO: add fields" +
+"}" +
+"" +
+"// {{.Name}}Response is the output DTO for {{.NameLower}} operations." +
+"type {{.Name}}Response struct {" +
+"	ID int64 " +
+"\x60" +
+"json:\"id\"" +
+"\x60" +
+"	// TODO: add fields" +
+"}" +
+"" +
+"// ─── Interface ────────────────────────────────────────────────────────────────" +
+"" +
+"// {{.Name}}Service defines the business-logic interface for {{.NameLower}} operations." +
+"type {{.Name}}Service interface {" +
+"	List(ctx context.Context, page, limit int, keyword string) ([]*{{.Name}}Response, int64, error)" +
+"	Get(ctx context.Context, id int64) (*{{.Name}}Response, error)" +
+"	Create(ctx context.Context, req *Create{{.Name}}Request) (*{{.Name}}Response, error)" +
+"	Update(ctx context.Context, id int64, req *Update{{.Name}}Request) (*{{.Name}}Response, error)" +
+"	Delete(ctx context.Context, id int64) error" +
+"}" +
+"" +
+"// ─── Implementation ───────────────────────────────────────────────────────────" +
+"" +
+"// {{.Name}}ServiceImpl is the default implementation of {{.Name}}Service." +
+"type {{.Name}}ServiceImpl struct {" +
+"	// TODO: inject repository" +
+"}" +
+"" +
+"// New{{.Name}}Service creates a new {{.Name}}ServiceImpl." +
+"func New{{.Name}}Service() *{{.Name}}ServiceImpl {" +
+"	return &{{.Name}}ServiceImpl{}" +
+"}" +
+"" +
+"func (s *{{.Name}}ServiceImpl) List(ctx context.Context, page, limit int, keyword string) ([]*{{.Name}}Response, int64, error) {" +
+"	// TODO: implement" +
+"	return nil, 0, nil" +
+"}" +
+"" +
+"func (s *{{.Name}}ServiceImpl) Get(ctx context.Context, id int64) (*{{.Name}}Response, error) {" +
+"	// TODO: implement" +
+"	return nil, nil" +
+"}" +
+"" +
+"func (s *{{.Name}}ServiceImpl) Create(ctx context.Context, req *Create{{.Name}}Request) (*{{.Name}}Response, error) {" +
+"	// TODO: implement" +
+"	return nil, nil" +
+"}" +
+"" +
+"func (s *{{.Name}}ServiceImpl) Update(ctx context.Context, id int64, req *Update{{.Name}}Request) (*{{.Name}}Response, error) {" +
+"	// TODO: implement" +
+"	return nil, nil" +
+"}" +
+"" +
+"func (s *{{.Name}}ServiceImpl) Delete(ctx context.Context, id int64) error {" +
+"	// TODO: implement" +
+"	return nil" +
+"}"
 
-import "context"
+const handlerSrc = "package handler" +
+"" +
+"import (" +
+"	\"net/http\"" +
+"	\"strconv\"" +
+"" +
+"	\"github.com/astra-go/astra\"" +
+")" +
+"" +
+"// {{.Name}}Handler handles {{.NameLower}}-related HTTP requests." +
+"type {{.Name}}Handler struct {" +
+"	// TODO: inject service" +
+"	// svc {{.Name}}Service" +
+"}" +
+"" +
+"// New{{.Name}}Handler creates a new {{.Name}}Handler." +
+"func New{{.Name}}Handler() *{{.Name}}Handler {" +
+"	return &{{.Name}}Handler{}" +
+"}" +
+"" +
+"// Register mounts all {{.NameLower}} routes onto the given route group." +
+"func (h *{{.Name}}Handler) Register(g *astra.Group) {" +
+"	g.GET(\"/{{.NameLower}}s\",         h.List)" +
+"	g.POST(\"/{{.NameLower}}s\",        h.Create)" +
+"	g.GET(\"/{{.NameLower}}s/:id\",     h.Get)" +
+"	g.PUT(\"/{{.NameLower}}s/:id\",     h.Update)" +
+"	g.DELETE(\"/{{.NameLower}}s/:id\",  h.Delete)" +
+"}" +
+"" +
+"// ─── DTOs ─────────────────────────────────────────────────────────────────────" +
+"" +
+"// {{.Name}}ListQuery holds pagination and filter parameters." +
+"type {{.Name}}ListQuery struct {" +
+"	Page    int    " +
+"\x60" +
+"form:\"page\"    validate:\"min=1\"" +
+"\x60" +
+"	Limit   int    " +
+"\x60" +
+"form:\"limit\"   validate:\"min=1,max=100\"" +
+"\x60" +
+"	Keyword string " +
+"\x60" +
+"form:\"keyword\"" +
+"\x60" +
+"}" +
+"" +
+"// Create{{.Name}}Request is the request body for creating a {{.NameLower}}." +
+"type Create{{.Name}}Request struct {" +
+"	// TODO: add fields, e.g.:" +
+"	// Name string " +
+"\x60" +
+"json:\"name\" validate:\"required,min=2,max=100\"" +
+"\x60" +
+"}" +
+"" +
+"// Update{{.Name}}Request is the request body for updating a {{.NameLower}}." +
+"type Update{{.Name}}Request struct {" +
+"	// TODO: add fields" +
+"}" +
+"" +
+"// ─── Handlers ─────────────────────────────────────────────────────────────────" +
+"" +
+"// List returns a paginated list of {{.NameLower}}s." +
+"func (h *{{.Name}}Handler) List(c *astra.Ctx) error {" +
+"	var q {{.Name}}ListQuery" +
+"	if err := c.ShouldBindQuery(&q); err != nil {" +
+"		return err" +
+"	}" +
+"	if q.Page == 0 {" +
+"		q.Page = 1" +
+"	}" +
+"	if q.Limit == 0 {" +
+"		q.Limit = 20" +
+"	}" +
+"	ctx := c.Request.Context()" +
+"	_ = ctx // TODO: items, total, err := h.svc.List(ctx, q.Page, q.Limit, q.Keyword)" +
+"	return c.JSON(http.StatusOK, astra.Map{\"data\": []any{}, \"total\": 0, \"page\": q.Page, \"limit\": q.Limit})" +
+"}" +
+"" +
+"// Create creates a new {{.NameLower}}." +
+"func (h *{{.Name}}Handler) Create(c *astra.Ctx) error {" +
+"	var req Create{{.Name}}Request" +
+"	if err := c.ShouldBindJSON(&req); err != nil {" +
+"		return err" +
+"	}" +
+"	ctx := c.Request.Context()" +
+"	_ = ctx // TODO: item, err := h.svc.Create(ctx, req)" +
+"	return c.JSON(http.StatusCreated, astra.Map{\"data\": req})" +
+"}" +
+"" +
+"// Get returns a {{.NameLower}} by ID." +
+"func (h *{{.Name}}Handler) Get(c *astra.Ctx) error {" +
+"	id, err := strconv.ParseInt(c.Param(\"id\"), 10, 64)" +
+"	if err != nil {" +
+"		return astra.NewHTTPError(http.StatusBadRequest, \"invalid id\")" +
+"	}" +
+"	ctx := c.Request.Context()" +
+"	_ = ctx // TODO: item, err := h.svc.Get(ctx, id)" +
+"	return c.JSON(http.StatusOK, astra.Map{\"id\": id})" +
+"}" +
+"" +
+"// Update updates a {{.NameLower}} by ID." +
+"func (h *{{.Name}}Handler) Update(c *astra.Ctx) error {" +
+"	id, err := strconv.ParseInt(c.Param(\"id\"), 10, 64)" +
+"	if err != nil {" +
+"		return astra.NewHTTPError(http.StatusBadRequest, \"invalid id\")" +
+"	}" +
+"	var req Update{{.Name}}Request" +
+"	if err := c.ShouldBindJSON(&req); err != nil {" +
+"		return err" +
+"	}" +
+"	ctx := c.Request.Context()" +
+"	_ = ctx // TODO: item, err := h.svc.Update(ctx, id, req)" +
+"	_ = id" +
+"	return c.JSON(http.StatusOK, astra.Map{\"data\": req})" +
+"}" +
+"" +
+"// Delete removes a {{.NameLower}} by ID." +
+"func (h *{{.Name}}Handler) Delete(c *astra.Ctx) error {" +
+"	id, err := strconv.ParseInt(c.Param(\"id\"), 10, 64)" +
+"	if err != nil {" +
+"		return astra.NewHTTPError(http.StatusBadRequest, \"invalid id\")" +
+"	}" +
+"	ctx := c.Request.Context()" +
+"	_ = ctx // TODO: err := h.svc.Delete(ctx, id)" +
+"	_ = id" +
+"	return c.NoContent(http.StatusNoContent)" +
+"}"
 
-// ─── DTOs ─────────────────────────────────────────────────────────────────────
+const modelSrc = "package model" +
+"" +
+"import \"time\"" +
+"" +
+"// {{.Name}} represents a {{.NameLower}} entity." +
+"type {{.Name}} struct {" +
+"	ID        int64      " +
+"\x60" +
+"json:\"id\"                     gorm:\"primaryKey;autoIncrement\"" +
+"\x60" +
+"	CreatedAt time.Time  " +
+"\x60" +
+"json:\"created_at\"              gorm:\"autoCreateTime\"" +
+"\x60" +
+"	UpdatedAt time.Time  " +
+"\x60" +
+"json:\"updated_at\"              gorm:\"autoUpdateTime\"" +
+"\x60" +
+"	DeletedAt *time.Time " +
+"\x60" +
+"json:\"deleted_at,omitempty\"      gorm:\"index\"" +
+"\x60" +
+"	// TODO: add domain fields" +
+"}" +
+"" +
+"// TableName sets the GORM table name." +
+"func ({{.Name}}) TableName() string { return \"{{.NameLower}}s\" }"
 
-// Create{{.Name}}Request is the input for creating a {{.NameLower}}.
-type Create{{.Name}}Request struct {
-	// TODO: add fields
-}
-
-// Update{{.Name}}Request is the input for updating a {{.NameLower}}.
-type Update{{.Name}}Request struct {
-	// TODO: add fields
-}
-
-// {{.Name}}Response is the output DTO for {{.NameLower}} operations.
-type {{.Name}}Response struct {
-	ID int64 `json:"id"`
-	// TODO: add fields
-}
-
-// ─── Interface ────────────────────────────────────────────────────────────────
-
-// {{.Name}}Service defines the business-logic interface for {{.NameLower}} operations.
-type {{.Name}}Service interface {
-	List(ctx context.Context, page, limit int, keyword string) ([]*{{.Name}}Response, int64, error)
-	Get(ctx context.Context, id int64) (*{{.Name}}Response, error)
-	Create(ctx context.Context, req *Create{{.Name}}Request) (*{{.Name}}Response, error)
-	Update(ctx context.Context, id int64, req *Update{{.Name}}Request) (*{{.Name}}Response, error)
-	Delete(ctx context.Context, id int64) error
-}
-
-// ─── Implementation ───────────────────────────────────────────────────────────
-
-// {{.Name}}ServiceImpl is the default implementation of {{.Name}}Service.
-type {{.Name}}ServiceImpl struct {
-	// TODO: inject repository
-}
-
-// New{{.Name}}Service creates a new {{.Name}}ServiceImpl.
-func New{{.Name}}Service() *{{.Name}}ServiceImpl {
-	return &{{.Name}}ServiceImpl{}
-}
-
-func (s *{{.Name}}ServiceImpl) List(ctx context.Context, page, limit int, keyword string) ([]*{{.Name}}Response, int64, error) {
-	// TODO: implement
-	return nil, 0, nil
-}
-
-func (s *{{.Name}}ServiceImpl) Get(ctx context.Context, id int64) (*{{.Name}}Response, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (s *{{.Name}}ServiceImpl) Create(ctx context.Context, req *Create{{.Name}}Request) (*{{.Name}}Response, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (s *{{.Name}}ServiceImpl) Update(ctx context.Context, id int64, req *Update{{.Name}}Request) (*{{.Name}}Response, error) {
-	// TODO: implement
-	return nil, nil
-}
-
-func (s *{{.Name}}ServiceImpl) Delete(ctx context.Context, id int64) error {
-	// TODO: implement
-	return nil
-}
-`
-
-const handlerSrc = `package handler
-
-import (
-	"net/http"
-	"strconv"
-
-	"github.com/astra-go/astra"
-)
-
-// {{.Name}}Handler handles {{.NameLower}}-related HTTP requests.
-type {{.Name}}Handler struct {
-	// TODO: inject service
-	// svc {{.Name}}Service
-}
-
-// New{{.Name}}Handler creates a new {{.Name}}Handler.
-func New{{.Name}}Handler() *{{.Name}}Handler {
-	return &{{.Name}}Handler{}
-}
-
-// Register mounts all {{.NameLower}} routes onto the given route group.
-func (h *{{.Name}}Handler) Register(g *astra.Group) {
-	g.GET("/{{.NameLower}}s",         h.List)
-	g.POST("/{{.NameLower}}s",        h.Create)
-	g.GET("/{{.NameLower}}s/:id",     h.Get)
-	g.PUT("/{{.NameLower}}s/:id",     h.Update)
-	g.DELETE("/{{.NameLower}}s/:id",  h.Delete)
-}
-
-// ─── DTOs ─────────────────────────────────────────────────────────────────────
-
-// {{.Name}}ListQuery holds pagination and filter parameters.
-type {{.Name}}ListQuery struct {
-	Page    int    `form:"page"    validate:"min=1"`
-	Limit   int    `form:"limit"   validate:"min=1,max=100"`
-	Keyword string `form:"keyword"`
-}
-
-// Create{{.Name}}Request is the request body for creating a {{.NameLower}}.
-type Create{{.Name}}Request struct {
-	// TODO: add fields, e.g.:
-	// Name string `json:"name" validate:"required,min=2,max=100"`
-}
-
-// Update{{.Name}}Request is the request body for updating a {{.NameLower}}.
-type Update{{.Name}}Request struct {
-	// TODO: add fields
-}
-
-// ─── Handlers ─────────────────────────────────────────────────────────────────
-
-// List returns a paginated list of {{.NameLower}}s.
-func (h *{{.Name}}Handler) List(c *astra.Ctx) error {
-	var q {{.Name}}ListQuery
-	if err := c.ShouldBindQuery(&q); err != nil {
-		return err
-	}
-	if q.Page == 0 {
-		q.Page = 1
-	}
-	if q.Limit == 0 {
-		q.Limit = 20
-	}
-	ctx := c.Request.Context()
-	_ = ctx // TODO: items, total, err := h.svc.List(ctx, q.Page, q.Limit, q.Keyword)
-	return c.JSON(http.StatusOK, astra.Map{"data": []any{}, "total": 0, "page": q.Page, "limit": q.Limit})
-}
-
-// Create creates a new {{.NameLower}}.
-func (h *{{.Name}}Handler) Create(c *astra.Ctx) error {
-	var req Create{{.Name}}Request
-	if err := c.ShouldBindJSON(&req); err != nil {
-		return err
-	}
-	ctx := c.Request.Context()
-	_ = ctx // TODO: item, err := h.svc.Create(ctx, req)
-	return c.JSON(http.StatusCreated, astra.Map{"data": req})
-}
-
-// Get returns a {{.NameLower}} by ID.
-func (h *{{.Name}}Handler) Get(c *astra.Ctx) error {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		return astra.NewHTTPError(http.StatusBadRequest, "invalid id")
-	}
-	ctx := c.Request.Context()
-	_ = ctx // TODO: item, err := h.svc.Get(ctx, id)
-	return c.JSON(http.StatusOK, astra.Map{"id": id})
-}
-
-// Update updates a {{.NameLower}} by ID.
-func (h *{{.Name}}Handler) Update(c *astra.Ctx) error {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		return astra.NewHTTPError(http.StatusBadRequest, "invalid id")
-	}
-	var req Update{{.Name}}Request
-	if err := c.ShouldBindJSON(&req); err != nil {
-		return err
-	}
-	ctx := c.Request.Context()
-	_ = ctx // TODO: item, err := h.svc.Update(ctx, id, req)
-	_ = id
-	return c.JSON(http.StatusOK, astra.Map{"data": req})
-}
-
-// Delete removes a {{.NameLower}} by ID.
-func (h *{{.Name}}Handler) Delete(c *astra.Ctx) error {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		return astra.NewHTTPError(http.StatusBadRequest, "invalid id")
-	}
-	ctx := c.Request.Context()
-	_ = ctx // TODO: err := h.svc.Delete(ctx, id)
-	_ = id
-	return c.NoContent(http.StatusNoContent)
-}
-`
-
-const modelSrc = `package model
-
-import "time"
-
-// {{.Name}} represents a {{.NameLower}} entity.
-type {{.Name}} struct {
-	ID        int64      `json:"id"                     gorm:"primaryKey;autoIncrement"`
-	CreatedAt time.Time  `json:"created_at"              gorm:"autoCreateTime"`
-	UpdatedAt time.Time  `json:"updated_at"              gorm:"autoUpdateTime"`
-	DeletedAt *time.Time `json:"deleted_at,omitempty"      gorm:"index"`
-	// TODO: add domain fields
-}
-
-// TableName sets the GORM table name.
-func ({{.Name}}) TableName() string { return "{{.NameLower}}s" }
-`
-
-const dtoSrc = `package dto
-
-// Create{{.Name}}Request is the request body for creating a {{.NameLower}}.
-type Create{{.Name}}Request struct {
-	// TODO: add fields
-}
-
-// Update{{.Name}}Request is the request body for updating a {{.NameLower}}.
-type Update{{.Name}}Request struct {
-	// TODO: add fields
-}
-
-// {{.Name}}Response is the response DTO for a {{.NameLower}}.
-type {{.Name}}Response struct {
-	ID int64 `json:"id"`
-	// TODO: add fields
-}
-`
+const dtoSrc = "package dto" +
+"" +
+"// Create{{.Name}}Request is the request body for creating a {{.NameLower}}." +
+"type Create{{.Name}}Request struct {" +
+"	// TODO: add fields" +
+"}" +
+"" +
+"// Update{{.Name}}Request is the request body for updating a {{.NameLower}}." +
+"type Update{{.Name}}Request struct {" +
+"	// TODO: add fields" +
+"}" +
+"" +
+"// {{.Name}}Response is the response DTO for a {{.NameLower}}." +
+"type {{.Name}}Response struct {" +
+"	ID int64 " +
+"\x60" +
+"json:\"id\"" +
+"\x60" +
+"	// TODO: add fields" +
+"}"
 
 // ─── Docker / CI templates ─────────────────────────────────────────────────────
 
@@ -751,7 +764,7 @@ func RenderEndpoint(ops []OpDef, pkg, apiTitle string) (string, error) {
 	fmt.Fprintf(&buf, `import "github.com/astra-go/astra"`+"\n\n")
 
 	// Group by tag
-	byTag := make(map[string][]opDef)
+	byTag := make(map[string][]OpDef)
 	for _, op := range ops {
 		byTag[op.Tag] = append(byTag[op.Tag], op)
 	}
@@ -802,7 +815,7 @@ func RenderEndpoint(ops []OpDef, pkg, apiTitle string) (string, error) {
 	return buf.String(), nil
 }
 
-// opDef holds OpenAPI operation metadata for handler generation.
+// OpDef holds OpenAPI operation metadata for handler generation.
 type OpDef struct {
 	Method   string
 	Path     string
@@ -812,4 +825,3 @@ type OpDef struct {
 	Request  string
 	Response string
 }
-`
