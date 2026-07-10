@@ -272,6 +272,122 @@ Each sub-module is an independent Go module with its own version:
 | **mongodb** | `astra/mongodb` | MongoDB integration |
 | **netengine** | `astra/netengine` | Network engine |
 
+## 🔧 Dependency Injection (`di`)
+
+The `di` package provides a lightweight, generics-based dependency injection container with environment-aware provider sets.
+
+```go
+import "github.com/astra-go/astra/di"
+
+// Define provider sets per environment
+devSet := di.NewSet("dev",
+    // Simple provider — no container dependency
+    di.ProvideFunc(func() (*UserRepo, error) {
+        return rep.NewMemoryUserRepo(), nil
+    }),
+)
+
+prodSet := di.NewSet("prod",
+    // Factory with container — resolve deps before building target
+    di.FactoryFunc(func(c *di.Container) (*UserRepo, error) {
+        db, _ := di.Invoke[*sql.DB](c)
+        return rep.NewDBUserRepo(db), nil
+    }),
+)
+
+// Register and resolve
+container := di.New()
+di.MustRegisterSets(container, "dev", devSet, prodSet)
+
+userRepo, _ := di.Invoke[*UserRepo](container)
+_ = userRepo
+```
+
+## 🛡️ Service Bootstrap (`boot`)
+
+The `boot` package integrates config loading, structured logging, health endpoints, and graceful shutdown into a single startup scaffold.
+
+```go
+import "github.com/astra-go/astra/boot"
+
+func main() {
+    svc := boot.New("usercenter-svc",
+        boot.WithConfigPath("config/service.yaml"),
+        boot.WithEnvPrefix("USC"),
+    )
+
+    // Global middleware
+    svc.Use(middleware.RequestID())
+    svc.UseLogger()
+    svc.UseCORS()
+
+    // Register health checkers
+    svc.RegisterHealthChecker(&boot.DBChecker{DB: db})
+    svc.RegisterHealthChecker(&boot.RedisChecker{Client: redis})
+
+    // Or use the function form for quick checks
+    svc.RegisterHealthCheckerFunc("mysql", func(ctx context.Context) error {
+        return db.PingContext(ctx)
+    })
+
+    // Config hot-reload callback
+    svc.Watch(func() {
+        svc.Logger().Info("config reloaded", "mode", svc.Cfg().Mode)
+    })
+
+    // Register routes
+    svc.Router(func(app *astra.App) {
+        app.GET("/api/v1/users/:id", getUser)
+    })
+
+    svc.Run()
+}
+```
+
+## 🚨 Structured Error Codes (`errcode`)
+
+The `errcode` package provides a global error registry, auto i18n key derivation, and common error wrappers.
+
+```go
+import "github.com/astra-go/astra/errcode"
+
+// Define an error — auto-registers and derives HTTP status + i18n key
+// USC-AUTH-1001 → HTTP 401 | i18n key: error.usc.auth.1001
+var ErrUserNotFound = errcode.Define("USC-NOTF-2001", "usercenter-svc", "Account not found")
+var ErrInvalidToken = errcode.Define("USC-AUTH-1001", "usercenter-svc", "Invalid or expired token")
+
+// In a handler — return with extra context
+func getUser(c *astra.Ctx) error {
+    user, err := userSvc.Find(c.Request().Context(), c.Param("id"))
+    if err != nil {
+        return ErrUserNotFound.WithDetails("user_id", c.Param("id"))
+    }
+    return c.JSON(200, user)
+}
+
+// Wrap low-level errors with structured context
+func findUser(db *sql.DB, id string) (*User, error) {
+    var user User
+    err := db.QueryRowContext(ctx, "SELECT * FROM users WHERE id=?", id).Scan(&user)
+    if err != nil {
+        if errors.Is(err, sql.ErrNoRows) {
+            return nil, ErrUserNotFound.WithDetails("id", id)
+        }
+        return nil, errcode.WrapDBError(err, "FindUserByID")
+    }
+    return &user, nil
+}
+
+// Registry introspection — generate error catalog at build time or in admin tools
+func printErrorCatalog() {
+    for _, e := range errcode.ListByService("usercenter-svc") {
+        fmt.Printf("[%s] %s — HTTP %d\n", e.Code, e.Description, e.HTTPStatus)
+    }
+    // Or generate markdown:
+    fmt.Println(errcode.MarkdownTable())
+}
+```
+
 ## 📄 License
 
 [MIT License](LICENSE)

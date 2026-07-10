@@ -84,16 +84,51 @@ type HealthConfig struct {
 // HealthChecker 是健康检查组件需要实现的接口。
 // 用于 /health/ready 端点的依赖检查（DB、Redis、MQ 等）。
 //
-// 用法：
+// 实现示例 — 自定义 Checker：
 //
-//	type DBChecker struct { DB *sql.DB }
-//
-//	func (c *DBChecker) Name() string { return "mysql" }
-//	func (c *DBChecker) Check(ctx context.Context) error {
-//	    return c.DB.PingContext(ctx)
+//	type DBChecker struct {
+//	    DB *sql.DB
 //	}
 //
+//	func (c *DBChecker) Name() string    { return "mysql" }
+//	func (c *DBChecker) Check(ctx context.Context) error {
+//	    return c.DB.PingContext(ctx)  // 超时由框架统一控制
+//	}
+//
+// 实现示例 — 带自定义超时的 Checker：
+//
+//	type SlowChecker struct {
+//	    URL string
+//	}
+//
+//	func (c *SlowChecker) Name() string { return "downstream-api" }
+//	func (c *SlowChecker) Check(ctx context.Context) error {
+//	    // 自己的超时逻辑，独立于框架超时
+//	    subCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+//	    defer cancel()
+//
+//	    req, _ := http.NewRequestWithContext(subCtx, http.MethodGet, c.URL, nil)
+//	    resp, err := http.DefaultClient.Do(req)
+//	    if err != nil {
+//	        return fmt.Errorf("ping failed: %w", err)
+//	    }
+//	    defer resp.Body.Close()
+//	    if resp.StatusCode != http.StatusOK {
+//	        return fmt.Errorf("unexpected status: %d", resp.StatusCode)
+//	    }
+//	    return nil
+//	}
+//
+// 注册方式：
+//
 //	svc.RegisterHealthChecker(&DBChecker{DB: db})
+//	svc.RegisterHealthChecker(&SlowChecker{URL: "http://localhost:9000/health"})
+//
+// 或使用函数形式（无需定义类型）：
+//
+//	svc.RegisterHealthCheckerFunc("redis", func(ctx context.Context) error {
+//	    return redis.Ping(ctx).Err()
+//	})
 type HealthChecker interface {
 	// Name 返回检查项名称，用于日志和响应中的标识。
 	Name() string

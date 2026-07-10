@@ -39,13 +39,33 @@ import (
 // ─── Registered error descriptor ──────────────────────────────────────────────
 
 // ErrorDesc holds metadata for a registered error code.
+// All fields are populated by [Define] or [Register]; the struct is primarily
+// used for tooling, documentation generation, and runtime introspection.
+//
+// Example — generate an error catalog in markdown:
+//
+//	// In a CLI tool or build script
+//	fmt.Println(errcode.MarkdownTable())
+//
+// Example — runtime introspection:
+//
+//	if desc := errcode.Lookup("USC-AUTH-1001"); desc != nil {
+//	    fmt.Printf("HTTP %d: %s\n", desc.HTTPStatus, desc.Description)
+//	    fmt.Printf("i18n key: %s\n", desc.I18nKey)
+//	}
 type ErrorDesc struct {
-	Code        string // e.g., "USC-AUTH-1001"
-	Service     string // e.g., "usercenter-svc"
-	Category    string // e.g., "AUTH"
-	HTTPStatus  int    // Auto-derive HTTP status
-	Description string // Human-readable description
-	I18nKey     string // Auto-derive i18n key
+	// Code is the full error code string, e.g. "USC-AUTH-1001".
+	Code string
+	// Service is the owning service name, e.g. "usercenter-svc".
+	Service string
+	// Category is the error category extracted from the code, e.g. "AUTH".
+	Category string
+	// HTTPStatus is the recommended HTTP response status derived from Category.
+	HTTPStatus int
+	// Description is the human-readable description passed to [Define].
+	Description string
+	// I18nKey is the auto-derived i18n lookup key, e.g. "error.usc.auth.1001".
+	I18nKey string
 }
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
@@ -167,7 +187,7 @@ func Reset() {
 
 // ─── Define: create + auto-register ───────────────────────────────────────────
 
-// Define creates an AppError with auto-derived HTTP status and i18n key,
+// Define creates an [*astra.AppError] with auto-derived HTTP status and i18n key,
 // and registers the error in the global registry.
 //
 // Error code format: <SERVICE>-<CATEGORY><NUMBER>
@@ -176,11 +196,30 @@ func Reset() {
 //	ORD-VAL-2001   →  VAL  → 400 | i18n key: error.ord.val.2001
 //	INT-5000       →  INT  → 500 | i18n key: error.int.5000
 //
-// service is the human-readable service name (e.g. "usercenter-svc").
-// It is NOT derived from the code prefix, because the code prefix may be
-// an abbreviation and the mapping is not always 1:1.
+// Parameters:
 //
-// Returns an *AppError that can be used directly or extended with fluent API.
+//	code        Full error code, e.g. "USC-AUTH-1001".
+//	service     Human-readable owning service name, e.g. "usercenter-svc".
+//	description Brief human-readable message, e.g. "Account not found".
+//
+// Returns *astra.AppError with Category and HTTP status auto-filled.
+// The returned error supports the fluent API: [astra.AppError.WithCause],
+// [astra.AppError.WithDetails], etc.
+//
+// Example:
+//
+//	var ErrUserNotFound = errcode.Define("USC-NOTF-2001", "usercenter-svc", "Account not found")
+//
+//	// In a handler:
+//	if user == nil {
+//	    return ErrUserNotFound.WithDetails("user_id", id)
+//	}
+//
+//	// Wrapping an external error:
+//	return ErrUserNotFound.WithCause(err).WithDetails("user_id", id)
+//
+// To create an AppError without registering (for testing or internal use only),
+// see [DefineNoRegister].
 func Define(code, service, description string) *astra.AppError {
 	category := CategoryFromCode(code)
 	httpStatus := CategoryHTTPStatus(category)
@@ -263,8 +302,23 @@ func NumberFromCode(code string) string {
 
 // ─── Common wrappers ──────────────────────────────────────────────────────────
 
-// WrapDBError wraps a database error as an AppError with DB-operation context.
-// Creates a generic error with code prefix "INT" and message based on operation.
+// WrapDBError wraps a low-level database error as an [*astra.AppError] with
+// DB-operation context, so callers receive a structured error instead of a raw
+// driver error (e.g. "Error 1062: Duplicate entry").
+//
+// The returned error uses code "INT-DB-0001" and HTTP status 500.
+// It preserves the original error as the cause via [astra.AppError.WithCause],
+// and attaches "operation" and "original_error" details.
+//
+// Example:
+//
+//	rows, err := db.QueryContext(ctx, "SELECT * FROM users WHERE id=?", id)
+//	if err != nil {
+//	    return errcode.WrapDBError(err, "FindUserByID")
+//	}
+//
+// For non-DB cache errors, use [WrapCacheError]; for external HTTP/gRPC calls,
+// use [WrapExternalError].
 func WrapDBError(err error, operation string) *astra.AppError {
 	return astra.NewAppError("INT-DB-0001", http.StatusInternalServerError, "database operation failed").
 		WithCause(err).
@@ -272,7 +326,19 @@ func WrapDBError(err error, operation string) *astra.AppError {
 		WithDetails("original_error", err.Error())
 }
 
-// WrapCacheError wraps a cache operation error with context.
+// WrapCacheError wraps a cache operation error (Redis, Memcached, etc.) as
+// an [*astra.AppError] with operation context.
+//
+// The returned error uses code "INT-CACHE-0001" and HTTP status 500.
+// It preserves the original error as the cause and attaches "operation" and
+// "original_error" details.
+//
+// Example:
+//
+//	val, err := redis.Get(ctx, "user:"+id).Result()
+//	if err != nil && !errors.Is(err, redis.Nil) {
+//	    return errcode.WrapCacheError(err, "GetUserProfile")
+//	}
 func WrapCacheError(err error, operation string) *astra.AppError {
 	return astra.NewAppError("INT-CACHE-0001", http.StatusInternalServerError, "cache operation failed").
 		WithCause(err).
@@ -280,7 +346,23 @@ func WrapCacheError(err error, operation string) *astra.AppError {
 		WithDetails("original_error", err.Error())
 }
 
-// WrapExternalError wraps a third-party service call error with platform context.
+// WrapExternalError wraps a third-party service call error (HTTP, gRPC,
+// external API) as an [*astra.AppError] with platform context.
+//
+// The returned error uses code "EXT-0001" and HTTP status 502 (Bad Gateway),
+// which signals to API consumers that the downstream dependency is unavailable.
+// It preserves the original error as the cause and attaches "platform" and
+// "original_error" details.
+//
+// Example:
+//
+//	resp, err := httpClient.Get(ctx, "https://api.payment.com/v1/health")
+//	if err != nil {
+//	    return errcode.WrapExternalError("payment-service", err)
+//	}
+//
+// For timeout-specific errors you may prefer wrapping with Category "TIMEOUT"
+// to produce HTTP 504; see [astra.NewAppError] with status 504 for fine control.
 func WrapExternalError(platform string, err error) *astra.AppError {
 	return astra.NewAppError("EXT-0001", http.StatusBadGateway, "external service call failed").
 		WithCause(err).

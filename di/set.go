@@ -67,19 +67,56 @@ func (s *ProviderSet) Env() string { return s.env }
 
 // ProviderFunc is a generic provider function that does not require Container.
 // Use this for providers that create instances without depending on other DI services.
+// The type parameter T is the concrete return type; it must match what callers
+// will Invoke from the container.
 //
-//	di.ProvideFunc(func() (*UserRepo, error) {
-//	    return NewMemoryUserRepo(), nil
-//	})
+// Example — register a singleton repository:
+//
+//	var _ di.ProviderFunc[*UserRepo] = func() (*UserRepo, error) {
+//	    return rep.NewMemoryUserRepo(), nil
+//	}
+//
+//	// In a ProviderSet:
+//	devSet := di.NewSet("dev",
+//	    di.ProvideFunc(func() (*UserRepo, error) { return rep.NewMemoryUserRepo(), nil }),
+//	    di.ProvideFunc(func() (*UserService, error) { return service.NewUserService(), nil }),
+//	)
+//
+// The provider function is called once; the returned instance is registered as
+// a singleton. If the function returns a non-nil error the registration aborts
+// and the container creation fails.
 type ProviderFunc[T any] func() (T, error)
 
-// FactoryFunc is a generic provider factory that receives Container for dependency injection.
-// Use this when you need to resolve other services within the provider.
+// FactoryFunc is a generic provider factory that receives *Container for dependency injection.
+// Use this when you need to resolve other services from the container before
+// building the target type. The type parameter T is the concrete return type.
 //
-//	di.FactoryFunc(func(c *di.Container) (*UserService, error) {
+// Example — resolve a dependency before constructing the target:
+//
+//	var _ di.FactoryFunc[*UserService] = func(c *di.Container) (*UserService, error) {
+//	    // Resolve dependencies from the container (error is intentionally ignored here;
+//	    // in production always handle it or use di.InvokeMust for mandatory deps).
 //	    repo, _ := di.Invoke[*UserRepo](c)
-//	    return NewUserService(repo), nil
-//	})
+//	    return service.NewUserService(repo), nil
+//	}
+//
+//	// In a ProviderSet:
+//	container := di.New()
+//	di.MustRegisterSets(container, "dev",
+//	    di.NewSet("",
+//	        di.ProvideFunc(func() (*UserRepo, error) { return rep.NewMemoryUserRepo(), nil }),
+//	    ),
+//	    di.NewSet("dev",
+//	        di.FactoryFunc(func(c *di.Container) (*UserService, error) {
+//	            repo, _ := di.Invoke[*UserRepo](c)
+//	            return service.NewUserService(repo), nil
+//	        }),
+//	    ),
+//	)
+//
+// FactoryFunc is called every time the container resolves T (not just once).
+// The factory receives the same Container instance used for Invoke, so you can
+// safely resolve scoped or transient dependencies within it.
 type FactoryFunc[T any] func(*Container) (T, error)
 
 // toRegistrar converts various provider types to func(*Container) error.
