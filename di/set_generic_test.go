@@ -259,3 +259,58 @@ func TestDefaultSetWithGenericFunctions(t *testing.T) {
 		t.Fatalf("default set not applied: err=%v, name=%q", err, svc.name)
 	}
 }
+
+// TestProviderFunc_CalledOnce verifies that the provider function is invoked
+// exactly once per registration, not twice (regression test for the fix that
+// removed the redundant v.Call in toRegistrar).
+func TestProviderFunc_CalledOnce(t *testing.T) {
+	c := New()
+	calls := 0
+
+	set := NewSet("test",
+		ProviderFunc[*simpleService](func() (*simpleService, error) {
+			calls++
+			return &simpleService{name: "once"}, nil
+		}),
+	)
+
+	if err := set.Apply(c); err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+
+	// Resolve twice — the factory itself runs only during Apply.
+	Invoke[*simpleService](c)
+	Invoke[*simpleService](c)
+
+	if calls != 1 {
+		t.Fatalf("expected provider called 1 time (during Apply), got %d", calls)
+	}
+}
+
+// TestFactoryFunc_CalledOnce verifies that the factory function is invoked
+// exactly once per registration, not twice.
+func TestFactoryFunc_CalledOnce(t *testing.T) {
+	c := New()
+	ProvideValue(c, &dependencyService{name: "dep"})
+	calls := 0
+
+	set := NewSet("test",
+		FactoryFunc[*complexService](func(c *Container) (*complexService, error) {
+			calls++
+			dep, _ := Invoke[*dependencyService](c)
+			return &complexService{dep: dep, name: "once"}, nil
+		}),
+	)
+
+	if err := set.Apply(c); err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+
+	// Resolve twice — the factory itself runs only during Apply.
+	Invoke[*complexService](c)
+	Invoke[*complexService](c)
+
+	if calls != 1 {
+		t.Fatalf("expected factory called 1 time (during Apply), got %d", calls)
+	}
+}

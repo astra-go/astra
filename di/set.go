@@ -94,8 +94,6 @@ type ProviderFunc[T any] func() (T, error)
 // Example — resolve a dependency before constructing the target:
 //
 //	var _ di.FactoryFunc[*UserService] = func(c *di.Container) (*UserService, error) {
-//	    // Resolve dependencies from the container (error is intentionally ignored here;
-//	    // in production always handle it or use di.InvokeMust for mandatory deps).
 //	    repo, _ := di.Invoke[*UserRepo](c)
 //	    return service.NewUserService(repo), nil
 //	}
@@ -114,9 +112,9 @@ type ProviderFunc[T any] func() (T, error)
 //	    ),
 //	)
 //
-// FactoryFunc is called every time the container resolves T (not just once).
-// The factory receives the same Container instance used for Invoke, so you can
-// safely resolve scoped or transient dependencies within it.
+// The returned instance is registered as a singleton (built once, cached for all
+// subsequent Invocations). Use when the factory needs to resolve dependencies
+// from the container to construct the target type.
 type FactoryFunc[T any] func(*Container) (T, error)
 
 // toRegistrar converts various provider types to func(*Container) error.
@@ -156,20 +154,13 @@ func toRegistrar(provider any) func(*Container) error {
 
 	if numIn == 0 {
 		// ProviderFunc pattern: func() (T, error)
-		// Call provider, then register the result using the return type
+		// Call provider once, then register the pre-built value as a singleton.
 		return func(c *Container) error {
 			result := v.Call(nil)
 			if !result[1].IsNil() {
 				return result[1].Interface().(error)
 			}
-			// Register using the concrete type via ProvideAny
-			return registerGeneric(c, typ.Out(0), func(_ *Container) (any, error) {
-				result := v.Call(nil)
-				if !result[1].IsNil() {
-					return nil, result[1].Interface().(error)
-				}
-				return result[0].Interface(), nil
-			})
+			return registerSingleton(c, typ.Out(0), result[0].Interface())
 		}
 	} else if numIn == 1 {
 		// Verify first argument is *Container
@@ -178,51 +169,33 @@ func toRegistrar(provider any) func(*Container) error {
 		}
 
 		// FactoryFunc pattern: func(*Container) (T, error)
+		// Call provider once, then register the pre-built value as a singleton.
 		return func(c *Container) error {
 			containerVal := reflect.ValueOf(c)
 			result := v.Call([]reflect.Value{containerVal})
 			if !result[1].IsNil() {
 				return result[1].Interface().(error)
 			}
-			// Register using the concrete type via ProvideAny
-			return registerGeneric(c, typ.Out(0), func(_ *Container) (any, error) {
-				containerVal := reflect.ValueOf(c)
-				result := v.Call([]reflect.Value{containerVal})
-				if !result[1].IsNil() {
-					return nil, result[1].Interface().(error)
-				}
-				return result[0].Interface(), nil
-			})
+			return registerSingleton(c, typ.Out(0), result[0].Interface())
 		}
 	}
 
 	panic(fmt.Errorf("di: unsupported provider function signature %T (expected func() (T, error) or func(*Container) (T, error))", provider))
 }
 
-// registerGeneric registers a factory with the container using reflection.
-// It calls the factory to get the actual value, then registers it as a singleton.
-func registerGeneric(c *Container, targetType reflect.Type, factory func(*Container) (any, error)) error {
-	val, err := factory(c)
-	if err != nil {
-		return err
-	}
-
-	// Verify the returned type matches expected
+// registerSingleton registers a pre-built singleton value with the container.
+// The value has already been instantiated by the caller; this function only
+// performs the duplicate-registration check and stores it.
+func registerSingleton(c *Container, targetType reflect.Type, val any) error {
 	if val != nil && reflect.TypeOf(val) != targetType {
-		return fmt.Errorf("di: factory returned %T, expected %s", val, targetType)
+		return fmt.Errorf("di: provider returned %T, expected %s", val, targetType)
 	}
-
-	// Register as singleton using ProvideValue pattern
 	k := typeKey{typ: targetType, name: ""}
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	if _, exists := c.providers[k]; exists {
 		return fmt.Errorf("%w: %s", ErrDuplicate, k)
 	}
-
-	// Store as a factory that always returns the pre-built value (singleton)
 	c.providers[k] = &entry{
 		key:   k,
 		build: func(*Container) (any, error) { return val, nil },

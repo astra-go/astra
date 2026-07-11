@@ -88,8 +88,10 @@ func (s *sonicSerializer) putEncoder(wrapper *sonicEncoderWrapper) {
 // into buf, trimming the trailing '\n' that sonic.Encoder.Encode appends.
 // This is the zero-copy path used by context_response.JSON for small responses.
 func (s *sonicSerializer) EncodeInto(buf *bytes.Buffer, v any) error {
-	enc := s.api.NewEncoder(buf)
-	err := enc.Encode(v)
+	wrapper := s.getEncoder(buf)
+	defer s.putEncoder(wrapper)
+
+	err := wrapper.enc.Encode(v)
 	// Trim the trailing '\n' appended by Encoder.Encode so JSON responses are
 	// byte-for-byte identical to what Marshal would have produced.
 	if err == nil {
@@ -106,6 +108,8 @@ func (s *sonicSerializer) EncodeInto(buf *bytes.Buffer, v any) error {
 // for streaming responses where Content-Length is not set.
 // This is the zero-copy path used by context_response.JSONStream for large responses.
 func (s *sonicSerializer) EncodeStream(w io.Writer, v any) error {
-	enc := s.api.NewEncoder(w)
-	return enc.Encode(v)
+	wrapper := s.getEncoder(w)
+	defer s.putEncoder(wrapper)
+
+	return wrapper.enc.Encode(v)
 }
