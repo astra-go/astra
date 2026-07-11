@@ -58,6 +58,7 @@ type Client struct {
 	retryPolicy retry.Policy
 	timeout     time.Duration
 	tracer      trace.Tracer
+
 	propagator  propagation.TextMapPropagator
 	http        *http.Client
 
@@ -163,6 +164,95 @@ func (c *Client) Close() {
 	for svc, r := range c.resolvers {
 		r.Close()
 		delete(c.resolvers, svc)
+	}
+}
+
+// ─── YAML-friendly configuration ──────────────────────────────────────────────
+
+// RetryPolicyYAML mirrors retry.Policy fields for YAML/unstructured config sources.
+// Example YAML:
+//
+//	retry:
+//	  enabled: true
+//	  max_attempts: 3
+//	  delay: 100ms
+//	  max_delay: 5s
+//	  multiplier: 2.0
+//	  jitter: true
+type RetryPolicyYAML struct {
+	Enabled    bool          `yaml:"enabled"`
+	MaxAttempts int          `yaml:"max_attempts"`
+	Delay      time.Duration `yaml:"delay"`
+	MaxDelay   time.Duration `yaml:"max_delay"`
+	Multiplier float64       `yaml:"multiplier"`
+	Jitter     bool          `yaml:"jitter"`
+}
+
+// ToPolicy converts RetryPolicyYAML to retry.Policy.
+func (p RetryPolicyYAML) ToPolicy() retry.Policy {
+	return retry.Policy{
+		MaxAttempts: p.MaxAttempts,
+		Delay:       p.Delay,
+		MaxDelay:    p.MaxDelay,
+		Multiplier:  p.Multiplier,
+		Jitter:      p.Jitter,
+	}
+}
+
+// DefaultRetryPolicyYAML returns a sensible default for idempotent downstream calls.
+func DefaultRetryPolicyYAML() RetryPolicyYAML {
+	return RetryPolicyYAML{
+		Enabled:     true,
+		MaxAttempts: 3,
+		Delay:       100 * time.Millisecond,
+		MaxDelay:    5 * time.Second,
+		Multiplier:  2.0,
+		Jitter:      true,
+	}
+}
+
+// CircuitBreakerYAML mirrors circuit.Config fields for YAML/unstructured config sources.
+// Example YAML:
+//
+//	circuit_breaker:
+//	  enabled: true
+//	  failure_threshold: 10
+//	  success_threshold: 3
+//	  timeout: 30s
+type CircuitBreakerYAML struct {
+	Enabled          bool          `yaml:"enabled"`
+	FailureThreshold int           `yaml:"failure_threshold"`
+	SuccessThreshold int           `yaml:"success_threshold"`
+	Timeout          time.Duration `yaml:"timeout"`
+}
+
+// ToConfig converts CircuitBreakerYAML to circuit.Config.
+func (c CircuitBreakerYAML) ToConfig(name string, onStateChange func(string, circuit.State, circuit.State)) circuit.Config {
+	return circuit.Config{
+		Name:              name,
+		Threshold:         int64(c.FailureThreshold),
+		HalfOpenSuccesses: int64(c.SuccessThreshold),
+		Timeout:           c.Timeout,
+		OnStateChange:     onStateChange,
+	}
+}
+
+// WithRetryPolicyYAML is a convenience option that applies RetryPolicyYAML if enabled.
+func WithRetryPolicyYAML(p RetryPolicyYAML) Option {
+	return func(c *Client) {
+		if !p.Enabled {
+			c.retryPolicy.MaxAttempts = 1
+			return
+		}
+		c.retryPolicy = p.ToPolicy()
+	}
+}
+
+// WithCircuitBreakerYAML is a convenience option that applies CircuitBreakerYAML.
+// The name parameter sets the circuit breaker name; onStateChange is optional (pass nil to skip).
+func WithCircuitBreakerYAML(name string, cfg CircuitBreakerYAML, onStateChange func(string, circuit.State, circuit.State)) Option {
+	return func(c *Client) {
+		c.breakerCfg = cfg.ToConfig(name, onStateChange)
 	}
 }
 
@@ -328,6 +418,146 @@ func (c *Client) Get(ctx context.Context, serviceName, path string, opts ...Call
 // Post is a shortcut for a POST call with a JSON body.
 func (c *Client) Post(ctx context.Context, serviceName, path string, body io.Reader, opts ...CallOption) (*http.Response, error) {
 	return c.Call(ctx, serviceName, http.MethodPost, path, body, opts...)
+}
+
+// ─── Direct client (no service discovery) ─────────────────────────────────────
+
+// DirectClient is a lightweight HTTP client for calling a fixed base URL
+// without service discovery or load balancing. It still provides circuit
+// breaker, retry, and tracing.
+//
+// Use this for calling known, stable downstream services (e.g. a specific
+// backend at a fixed address).
+type DirectClient struct {
+	base        string
+	breaker     *circuit.Breaker
+	retryPolicy retry.Policy
+	http        *http.Client
+	tracer      trace.Tracer
+}
+
+// DirectOption configures a DirectClient.
+type DirectOption func(*DirectClient)
+
+// NewDirectClient creates a DirectClient for the given base URL (e.g. "http://localhost:8080").
+// The caller must provide circuit breaker config via WithDirectCircuitBreaker.
+func NewDirectClient(base string, opts ...DirectOption) *DirectClient {
+	dc := &DirectClient{
+		base:        base,
+		retryPolicy: retry.DefaultPolicy,
+		http:        &http.Client{Timeout: 10 * time.Second},
+		tracer:      otel.Tracer("astra/client/direct"),
+		breaker:     circuit.New(circuit.Config{Name: base}),
+	}
+	for _, opt := range opts {
+		opt(dc)
+	}
+	return dc
+}
+
+// WithDirectCircuitBreaker replaces the default circuit breaker.
+func WithDirectCircuitBreaker(cb *circuit.Breaker) DirectOption {
+	return func(dc *DirectClient) { dc.breaker = cb }
+}
+
+// WithDirectCircuitBreakerConfig sets the circuit breaker config.
+func WithDirectCircuitBreakerConfig(cfg circuit.Config) DirectOption {
+	return func(dc *DirectClient) {
+		cfg.Name = dc.base
+		dc.breaker = circuit.New(cfg)
+	}
+}
+
+// WithDirectRetryPolicy sets the retry policy.
+func WithDirectRetryPolicy(p retry.Policy) DirectOption {
+	return func(dc *DirectClient) { dc.retryPolicy = p }
+}
+
+// WithDirectRetryPolicyYAML sets retry from a YAML-friendly struct.
+func WithDirectRetryPolicyYAML(p RetryPolicyYAML) DirectOption {
+	return func(dc *DirectClient) {
+		if !p.Enabled {
+			p.MaxAttempts = 1
+		}
+		dc.retryPolicy = p.ToPolicy()
+	}
+}
+
+// WithDirectHTTPClient replaces the underlying *http.Client.
+func WithDirectHTTPClient(h *http.Client) DirectOption {
+	return func(dc *DirectClient) { dc.http = h }
+}
+
+// Get makes a GET request to the given path.
+func (dc *DirectClient) Get(ctx context.Context, path string, opts ...CallOption) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, dc.base+path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("direct client: build request: %w", err)
+	}
+	return dc.Do(req, opts...)
+}
+
+// Post makes a POST request with a JSON body.
+func (dc *DirectClient) Post(ctx context.Context, path string, body io.Reader, opts ...CallOption) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, dc.base+path, body)
+	if err != nil {
+		return nil, fmt.Errorf("direct client: build request: %w", err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return dc.Do(req, opts...)
+}
+
+// Do sends the request through circuit breaker and retry logic.
+func (dc *DirectClient) Do(req *http.Request, opts ...CallOption) (*http.Response, error) {
+	cfg := &CallConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	var resp *http.Response
+	err := dc.breaker.Do(func() error {
+		return retry.Do(req.Context(), dc.retryPolicy, func(ctx context.Context) error {
+			cloned := req.Clone(ctx)
+
+			// Apply per-call headers.
+			for k, vs := range cfg.headers {
+				for _, v := range vs {
+					cloned.Header.Set(k, v)
+				}
+			}
+
+			// OTel span.
+			ctx, span := dc.tracer.Start(ctx, req.Method+" "+req.URL.Path,
+				trace.WithSpanKind(trace.SpanKindClient),
+				trace.WithAttributes(
+					semconv.HTTPRequestMethodKey.String(req.Method),
+					semconv.ServerAddress(dc.base),
+				),
+			)
+			defer span.End()
+
+			r, doErr := dc.http.Do(cloned.WithContext(ctx))
+			if doErr != nil {
+				span.RecordError(doErr)
+				span.SetStatus(codes.Error, doErr.Error())
+				return doErr
+			}
+
+			span.SetAttributes(semconv.HTTPResponseStatusCode(r.StatusCode))
+			if r.StatusCode >= 500 {
+				span.SetStatus(codes.Error, http.StatusText(r.StatusCode))
+			}
+
+			if statusErr := retry.NewStatusError(r); statusErr != nil {
+				return statusErr
+			}
+			resp = r
+			return nil
+		})
+	})
+	return resp, err
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
