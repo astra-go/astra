@@ -5,6 +5,7 @@ package astra
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -528,3 +529,139 @@ func BenchmarkSonicFast_EncodeInto(b *testing.B) {
 		_ = SonicFast.EncodeInto(&buf, data)
 	}
 }
+
+// ─── Pool Reuse Benchmarks ───────────────────────────────────────────────────
+//
+// These benchmarks isolate the benefit of the sonicEncoderPool by comparing
+// the current pooled implementation against a no-pool baseline.
+// Run with: go test -tags sonic -bench='Pool' -benchmem -count=10 ./...
+
+func BenchmarkSonicFast_EncodeInto_PoolReuse(b *testing.B) {
+	// Warm the pool so Get() always hits pre-allocated wrappers.
+	for i := 0; i < 4; i++ {
+		var buf bytes.Buffer
+		_ = SonicFast.EncodeInto(&buf, map[string]interface{}{"warm": i})
+	}
+
+	data := map[string]interface{}{
+		"id":    1,
+		"name":  "Alice",
+		"email": "alice@example.com",
+		"role":  "admin",
+		"score": 99.5,
+	}
+	b.ReportMetric(0, "wrapper-allocs/op") // pooled path: no struct allocation
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		var buf bytes.Buffer
+		for pb.Next() {
+			buf.Reset()
+			_ = SonicFast.EncodeInto(&buf, data)
+		}
+	})
+}
+
+// noPoolEncodeInto simulates the OLD broken path: each call allocates a fresh
+// encoder wrapper instead of recycling it from the pool.
+// This is the behaviour that existed before the fix (commit 9292cd6).
+func noPoolEncodeInto(ser *sonicSerializer, buf *bytes.Buffer, v any) error {
+	// Direct NewEncoder — no pool involvement.
+	enc := ser.api.NewEncoder(buf)
+	err := enc.Encode(v)
+	if err == nil {
+		if b := buf.Bytes(); len(b) > 0 && b[len(b)-1] == '\n' {
+			buf.Truncate(buf.Len() - 1)
+		}
+	}
+	return err
+}
+
+func BenchmarkSonicFast_EncodeInto_NoPool(b *testing.B) {
+	data := map[string]interface{}{
+		"id":    1,
+		"name":  "Alice",
+		"email": "alice@example.com",
+		"role":  "admin",
+		"score": 99.5,
+	}
+	// Report 1 wrapper struct alloc per call — this is what the pool eliminates.
+	b.ReportMetric(1, "wrapper-allocs/op")
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		var buf bytes.Buffer
+		for pb.Next() {
+			buf.Reset()
+			_ = noPoolEncodeInto(SonicFast, &buf, data)
+		}
+	})
+}
+
+func BenchmarkSonicFast_EncodeStream_PoolReuse(b *testing.B) {
+	// Warm the pool.
+	for i := 0; i < 4; i++ {
+		var buf bytes.Buffer
+		_ = SonicFast.EncodeStream(&buf, map[string]interface{}{"warm": i})
+	}
+
+	data := map[string]interface{}{
+		"id":    1,
+		"name":  "Bob",
+		"email": "bob@example.com",
+		"role":  "user",
+	}
+	b.ReportMetric(0, "wrapper-allocs/op")
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		var buf bytes.Buffer
+		for pb.Next() {
+			buf.Reset()
+			_ = SonicFast.EncodeStream(&buf, data)
+		}
+	})
+}
+
+// noPoolEncodeStream simulates the OLD broken path for EncodeStream.
+func noPoolEncodeStream(ser *sonicSerializer, w io.Writer, v any) error {
+	enc := ser.api.NewEncoder(w)
+	return enc.Encode(v)
+}
+
+func BenchmarkSonicFast_EncodeStream_NoPool(b *testing.B) {
+	data := map[string]interface{}{
+		"id":    1,
+		"name":  "Bob",
+		"email": "bob@example.com",
+		"role":  "user",
+	}
+	b.ReportMetric(1, "wrapper-allocs/op")
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		var buf bytes.Buffer
+		for pb.Next() {
+			buf.Reset()
+			_ = noPoolEncodeStream(SonicFast, &buf, data)
+		}
+	})
+}
+
+// benchmarkSmallJSON exercises a typical API response payload (5 fields).
+func benchmarkSmallJSON(b *testing.B, ser *sonicSerializer, encode func(*sonicSerializer, *bytes.Buffer, any) error) {
+	payload := map[string]interface{}{
+		"code":  0,
+		"msg":   "success",
+		"data":  map[string]interface{}{"user_id": 12345, "token": "abc123"},
+		"ts":    1719792000,
+		"extra": []string{"vip", "verified"},
+	}
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		var buf bytes.Buffer
+		for pb.Next() {
+			buf.Reset()
+			_ = encode(ser, &buf, payload)
+		}
+	})
+}
+
+func BenchmarkSonicFast_SmallJSON_Pool(b *testing.B)   { benchmarkSmallJSON(b, SonicFast, (*sonicSerializer).EncodeInto) }
+func BenchmarkSonicFast_SmallJSON_NoPool(b *testing.B) { benchmarkSmallJSON(b, SonicFast, noPoolEncodeInto) }
