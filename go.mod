@@ -57,6 +57,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/lib/pq v1.12.3
 	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_model v0.6.2
 )
 
 require (
@@ -115,7 +116,6 @@ require (
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.68.0 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/rabbitmq/amqp091-go v1.11.0 // indirect
@@ -163,6 +163,6 @@ replace github.com/astra-go/astra/cache v0.0.0-00010101000000-000000000000 => ./
 
 replace github.com/astra-go/astra/middleware/security v0.0.0-00010101000000-000000000000 => ./middleware/security
 
-replace github.com/astra-go/astra/mq v0.0.0-00010101000000-000000000000 => ./mq
+replace github.com/astra-go/astra/mq v1.0.5 => ./mq
 
 replace github.com/astra-go/astra/testutil v0.0.0-00010101000000-000000000000 => ./testutil
