@@ -405,3 +405,63 @@ When a capability is not supported, the framework provides fallback behavior:
 - [NATS JetStream](https://docs.nats.io/nats-concepts/jetstream)
 - [MQTT v5.0 Specification](https://mqtt.org/mqtt-specification/)
 - [Redis Streams](https://redis.io/docs/data-types/streams/)
+
+---
+
+## Task Queue (`astra/taskqueue`)
+
+A typed dispatch layer built on top of `mq.Consumer`. Adds application-level task semantics to any broker adapter.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Type-based routing** | Messages are dispatched to typed `TaskHandler` functions by `TaskType` |
+| **Exponential backoff** | Configurable base delay × multiplier with jitter and max cap |
+| **DLQ envelope** | `DLQPayload` records full task context (attempts, error, timestamps) on final failure |
+| **Task store interface** | `TaskStore` interface allows pluggable persistence (Postgres, Redis) |
+| **Broker agnostic** | Works with any `mq.Consumer` (NATS, RabbitMQ, Kafka, RocketMQ, etc.) |
+
+### Usage
+
+```go
+import "github.com/astra-go/astra/taskqueue"
+
+// 1. Define handlers
+r := taskqueue.NewRouter(nil)
+r.Register("send_email", func(ctx context.Context, data json.RawMessage) error {
+    var email EmailPayload
+    json.Unmarshal(data, &email)
+    return smtp.Send(email)
+})
+
+// 2. Wrap the mq.Consumer with a Dispatcher
+d := taskqueue.NewDispatcher(natsConsumer, r,
+    taskqueue.WithRetryPolicy(taskqueue.DefaultRetryPolicy),
+)
+
+// 3. Start (blocks)
+d.Start(ctx)
+```
+
+### RetryPolicy defaults
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `MaxRetries` | 3 | Attempts after initial delivery |
+| `BackoffBase` | 5s | Base delay |
+| `BackoffMultiplier` | 3 | Multiply delay per attempt |
+| `BackoffMax` | 300s | Hard cap on delay |
+| `BackoffJitter` | true | ±25% randomization |
+
+### Compared to raw `mq.Consumer` retry
+
+| Aspect | `mq.Consumer` (MaxDeliver) | `taskqueue.RetryPolicy` |
+|--------|---------------------------|------------------------|
+| Retries | Count only | Count + exponential delay |
+| Backoff | None (fixed interval) | Configurable base × multiplier |
+| Max cap | None | `BackoffMax` |
+| Jitter | None | ±25% optional |
+| DLQ envelope | Raw message | `DLQPayload` with full context |
+| Task routing | Topic-based | `TaskType`-based |
+
