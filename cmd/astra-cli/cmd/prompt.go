@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-// promptString asks for a text value from stdin.
-func promptString(label, defaultVal string) (string, error) {
+// PromptString asks for a text value from stdin.
+func PromptString(label, defaultVal string) (string, error) {
 	if defaultVal != "" {
 		fmt.Printf("%s [%s]: ", label, defaultVal)
 	} else {
@@ -27,8 +27,8 @@ func promptString(label, defaultVal string) (string, error) {
 	return line, nil
 }
 
-// promptSelect presents numbered options and returns the chosen string.
-func promptSelect(label string, options []string, defaultVal string) (string, error) {
+// PromptSelect presents numbered options and returns the chosen string.
+func PromptSelect(label string, options []string, defaultVal string) (string, error) {
 	fmt.Printf("%s:\n", label)
 	for i, opt := range options {
 		mark := "  "
@@ -63,8 +63,8 @@ func promptSelect(label string, options []string, defaultVal string) (string, er
 	}
 }
 
-// promptConfirm asks for a yes/no answer.
-func promptConfirm(label string, defaultVal bool) (bool, error) {
+// PromptConfirm asks for a yes/no answer.
+func PromptConfirm(label string, defaultVal bool) (bool, error) {
 	defaultStr := "no"
 	if defaultVal {
 		defaultStr = "yes"

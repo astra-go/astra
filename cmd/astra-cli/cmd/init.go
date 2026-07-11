@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/astra-go/astra/cmd/astra-cli/internal/fsutil"
@@ -58,12 +57,12 @@ Usage:
 			}
 
 			outRoot := "."
-			if globalOutDir != "" {
-				outRoot = globalOutDir
+			if GlobalOutDir != "" {
+				outRoot = GlobalOutDir
 			}
 
 			goModPath := filepath.Join(outRoot, "go.mod")
-			if fileExists(goModPath) && !globalForce {
+			if FileExists(goModPath) && !GlobalForce {
 				return fmt.Errorf("go.mod already exists in %s (use --force to overwrite)", outRoot)
 			}
 
@@ -102,7 +101,7 @@ Usage:
 				"migrations",
 			}
 			for _, d := range dirs {
-				mkdirAll(filepath.Join(outRoot, d))
+				MkdirAll(filepath.Join(outRoot, d))
 			}
 
 			// files: {relPath, renderedContent}
@@ -125,7 +124,7 @@ Usage:
 			var created []string
 			for _, f := range files {
 				fullPath := filepath.Join(outRoot, f.path)
-				if fileExists(fullPath) && !globalForce {
+				if FileExists(fullPath) && !GlobalForce {
 					continue
 				}
 				fsutil.MkdirForFile(fullPath)
@@ -136,7 +135,7 @@ Usage:
 			}
 
 			if withDocker {
-				mkdirAll(filepath.Join(outRoot, "deploy", "docker"))
+				MkdirAll(filepath.Join(outRoot, "deploy", "docker"))
 				dockerFiles := []fileEntry{
 					{"Dockerfile", templates.Dockerfile()},
 					{"docker-compose.yml", templates.RenderDockerCompose(data)},
@@ -149,7 +148,7 @@ Usage:
 			}
 
 			if withCI {
-				mkdirAll(filepath.Join(outRoot, ".github", "workflows"))
+				MkdirAll(filepath.Join(outRoot, ".github", "workflows"))
 				p := filepath.Join(outRoot, ".github/workflows/ci.yml")
 				fsutil.WriteString(p, templates.RenderCIWorkflow(data))
 				created = append(created, ".github/workflows/ci.yml")
@@ -183,15 +182,15 @@ func promptsInit() (module string, withDocker, withCI bool, err error) {
 	fmt.Println()
 	cwd, _ := os.Getwd()
 	defaultModule := filepath.Base(cwd)
-	module, err = promptString("Go module path", defaultModule)
+	module, err = PromptString("Go module path", defaultModule)
 	if err != nil {
 		return
 	}
-	withDocker, err = promptConfirm("Include Dockerfile and docker-compose.yml", false)
+	withDocker, err = PromptConfirm("Include Dockerfile and docker-compose.yml", false)
 	if err != nil {
 		return
 	}
-	withCI, err = promptConfirm("Include GitHub Actions CI workflow", false)
+	withCI, err = PromptConfirm("Include GitHub Actions CI workflow", false)
 	if err != nil {
 		return
 	}
@@ -199,7 +198,7 @@ func promptsInit() (module string, withDocker, withCI bool, err error) {
 }
 
 func findGoBin() (string, error) {
-	paths := strings.SplitList(os.Getenv("PATH"))
+	paths := filepath.SplitList(os.Getenv("PATH"))
 	for _, dir := range paths {
 		candidate := filepath.Join(dir, "go")
 		if runtime.GOOS == "windows" {

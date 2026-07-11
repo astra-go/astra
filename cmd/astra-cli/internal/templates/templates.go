@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"text/template"
-	"time"
 
 	"github.com/astra-go/astra/cmd/astra-cli/internal/tpldata"
 )
@@ -720,8 +719,7 @@ volumes:
 
 // RenderCIWorkflow generates .github/workflows/ci.yml.
 func RenderCIWorkflow(d tpldata.Data) string {
-	year := time.Now().Year()
-	return render("ciworkflow", fmt.Sprintf(ciWorkflowSrc, year), d)
+	return render("ciworkflow", ciWorkflowSrc, d)
 }
 
 const ciWorkflowSrc = `name: CI
@@ -824,4 +822,93 @@ type OpDef struct {
 	Tag      string
 	Request  string
 	Response string
+}
+// GoMod returns the go.mod template content.
+func GoMod() string {
+	return `module {{.NameLower}}
+
+go 1.23
+
+require (
+	github.com/astra-go/astra v1.0.6
+	github.com/spf13/cast v1.7.0
+	github.com/spf13/viper v1.19.0
+	gorm.io/driver/mysql v1.5.7
+	gorm.io/gorm v1.25.12
+)
+
+require (
+	github.com/fsnotify/fsnotify v1.8.0 // indirect
+	github.com/go-sql-driver/mysql v1.8.1 // indirect
+	github.com/hashicorp/hcl v1.0.3 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/magiconair/properties v1.8.9 // indirect
+	github.com/mitchellh/mapstructure v1.1.2 // indirect
+	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
+	github.com/sagikazarmark/locafero v0.4.0 // indirect
+	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
+	github.com/sourcegraph/conc v0.3.0 // indirect
+	github.com/spf13/afero v1.12.0 // indirect
+	github.com/spf13/cast v1.7.0 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/subosito/gotenv v1.6.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)
+`
+}
+
+// Makefile returns the Makefile content.
+func Makefile() string { return RenderMakefile(tpldata.Data{Name: "app", NameLower: "app"}) }
+
+
+// ─── Middleware template ──────────────────────────────────────────────────────
+
+var middlewareSrc = "package middleware\n\nimport (\n\t\"net/http\"\n\t\"time\"\n\n\t\"github.com/astra-go/astra\"\n)\n\n// {{.Name}} creates a {{.NameLower}} middleware.\nfunc {{.Name}}() astra.MiddlewareFunc {\n\treturn func(next astra.HandlerFunc) astra.HandlerFunc {\n\t\treturn func(c *astra.Ctx) error {\n\t\t\t// TODO: implement {{.NameLower}} logic\n\t\t\treturn next(c)\n\t\t}\n\t}\n}\n"
+
+// RenderMiddleware generates a middleware file.
+func RenderMiddleware(d tpldata.Data) string {
+	return render("middleware", middlewareSrc, d)
+}
+
+// ─── CRUD templates ───────────────────────────────────────────────────────────
+
+var crudModelSrc = "package model\\n\\n" +
+	"import (\\n\\t\"time\"\\n)\\n\\n" +
+	"// {{.Name}} represents a {{.NameLower}} entity.\\n" +
+	"type {{.Name}} struct {\\n" +
+	"\\tID        int64      " + "\x60" + "json:\"id\" gorm:\"primaryKey;autoIncrement\" " + "\x60" + "\\n" +
+	"\\tCreatedAt time.Time " + "\x60" + "json:\"created_at\" gorm:\"autoCreateTime\" " + "\x60" + "\\n" +
+	"\\tUpdatedAt time.Time " + "\x60" + "json:\"updated_at\" gorm:\"autoUpdateTime\" " + "\x60" + "\\n" +
+	"\\tDeletedAt *time.Time " + "\x60" + "json:\"deleted_at,omitempty\" gorm:\"index\" " + "\x60" + "\\n" +
+	"\\t// TODO: add domain fields\\n" +
+	"}\\n\\n" +
+	"// TableName sets the GORM table name.\\n" +
+	"func ({{.Name}}) TableName() string { return \"{{.NameLower}}s\" }\\n"
+
+var crudRepoSrc = "package repository\n\nimport (\n\t\"context\"\n\n\t\"github.com/astra-go/astra\"\n\t\"github.com/astra-go/astra/examples/{{.NameLower}}/internal/model\"\n\t\"gorm.io/gorm\"\n)\n\n// {{.Name}}Repository defines the data-access interface.\ntype {{.Name}}Repository interface {\n\tCreate(ctx context.Context, m *model.{{.Name}}) error\n\tGetByID(ctx context.Context, id int64) (*model.{{.Name}}, error)\n\tUpdate(ctx context.Context, m *model.{{.Name}}) error\n\tDelete(ctx context.Context, id int64) error\n\tList(ctx context.Context, offset, limit int, keyword string) ([]*model.{{.Name}}, int64, error)\n}\n\ntype gorm{{.Name}}Repository struct {\n\tdb *gorm.DB\n}\n\nfunc New{{.Name}}Repository(db *gorm.DB) {{.Name}}Repository {\n\treturn &gorm{{.Name}}Repository{db: db}\n}\n\nfunc (r *gorm{{.Name}}Repository) Create(ctx context.Context, m *model.{{.Name}}) error {\n\treturn r.db.WithContext(ctx).Create(m).Error\n}\n\nfunc (r *gorm{{.Name}}Repository) GetByID(ctx context.Context, id int64) (*model.{{.Name}}, error) {\n\tvar m model.{{.Name}}\n\tif err := r.db.WithContext(ctx).First(&m, id).Error; err != nil {\n\t\treturn nil, err\n\t}\n\treturn &m, nil\n}\n\nfunc (r *gorm{{.Name}}Repository) Update(ctx context.Context, m *model.{{.Name}}) error {\n\treturn r.db.WithContext(ctx).Save(m).Error\n}\n\nfunc (r *gorm{{.Name}}Repository) Delete(ctx context.Context, id int64) error {\n\treturn r.db.WithContext(ctx).Delete(&model.{{.Name}}{}, id).Error\n}\n\nfunc (r *gorm{{.Name}}Repository) List(ctx context.Context, offset, limit int, keyword string) ([]*model.{{.Name}}, int64, error) {\n\tvar ms []*model.{{.Name}}\n\tvar total int64\n\tq := r.db.WithContext(ctx).Model(&model.{{.Name}}{})\n\tif keyword != \"\" {\n\t\tq = q.Where(\"name LIKE ?\", \"%\"+keyword+\"%\")\n\t}\n\tif err := q.Count(&total).Error; err != nil {\n\t\treturn nil, 0, err\n\t}\n\tif err := q.Offset(offset).Limit(limit).Find(&ms).Error; err != nil {\n\t\treturn nil, 0, err\n\t}\n\treturn ms, total, nil\n}\n"
+
+var crudHandlerSrc = "package handler\n\nimport (\n\t\"net/http\"\n\t\"strconv\"\n\n\t\"github.com/astra-go/astra\"\n\t\"github.com/astra-go/astra/examples/{{.NameLower}}/internal/dto\"\n\t\"github.com/astra-go/astra/examples/{{.NameLower}}/internal/repository\"\n)\n\n// {{.Name}}Handler handles HTTP requests for {{.NameLower}}.\ntype {{.Name}}Handler struct {\n\trepo repository.{{.Name}}Repository\n}\n\nfunc New{{.Name}}Handler(repo repository.{{.Name}}Repository) *{{.Name}}Handler {\n\treturn &{{.Name}}Handler{repo: repo}\n}\n\nfunc (h *{{.Name}}Handler) Register(g *astra.RouterGroup) {\n\tg.GET(\"/{{.NameLower}}s\", h.List)\n\tg.POST(\"/{{.NameLower}}s\", h.Create)\n\tg.GET(\"/{{.NameLower}}s/:id\", h.Get)\n\tg.PUT(\"/{{.NameLower}}s/:id\", h.Update)\n\tg.DELETE(\"/{{.NameLower}}s/:id\", h.Delete)\n}\n\nfunc (h *{{.Name}}Handler) List(c *astra.Ctx) error {\n\tpage, _ := strconv.Atoi(c.DefaultQuery(\"page\", \"1\"))\n\tlimit, _ := strconv.Atoi(c.DefaultQuery(\"limit\", \"20\"))\n\tkeyword := c.Query(\"keyword\")\n\tif page < 1 { page = 1 }\n\tif limit < 1 || limit > 100 { limit = 20 }\n\toffset := (page - 1) * limit\n\tms, total, err := h.repo.List(c.Request.Context(), offset, limit, keyword)\n\tif err != nil { return err }\n\treturn c.JSON(http.StatusOK, astra.Map{\"data\": ms, \"total\": total, \"page\": page, \"limit\": limit})\n}\n\nfunc (h *{{.Name}}Handler) Get(c *astra.Ctx) error {\n\tid, err := strconv.ParseInt(c.Param(\"id\"), 10, 64)\n\tif err != nil { return astra.NewHTTPError(http.StatusBadRequest, \"invalid id\") }\n\tm, err := h.repo.GetByID(c.Request.Context(), id)\n\tif err != nil { return err }\n\treturn c.JSON(http.StatusOK, astra.Map{\"data\": m})\n}\n\nfunc (h *{{.Name}}Handler) Create(c *astra.Ctx) error {\n\tvar req dto.Create{{.Name}}Request\n\tif err := c.ShouldBindJSON(&req); err != nil { return err }\n\t_ = req\n\treturn c.NoContent(http.StatusCreated)\n}\n\nfunc (h *{{.Name}}Handler) Update(c *astra.Ctx) error {\n\tid, err := strconv.ParseInt(c.Param(\"id\"), 10, 64)\n\tif err != nil { return astra.NewHTTPError(http.StatusBadRequest, \"invalid id\") }\n\tvar req dto.Update{{.Name}}Request\n\tif err := c.ShouldBindJSON(&req); err != nil { return err }\n\t_ = id; _ = req\n\treturn c.NoContent(http.StatusNoContent)\n}\n\nfunc (h *{{.Name}}Handler) Delete(c *astra.Ctx) error {\n\tid, err := strconv.ParseInt(c.Param(\"id\"), 10, 64)\n\tif err != nil { return astra.NewHTTPError(http.StatusBadRequest, \"invalid id\") }\n\tif err := h.repo.Delete(c.Request.Context(), id); err != nil { return err }\n\treturn c.NoContent(http.StatusNoContent)\n}\n"
+
+var crudServiceSrc = "package service\n\nimport (\n\t\"context\"\n\n\t\"github.com/astra-go/astra/examples/{{.NameLower}}/internal/dto\"\n\t\"github.com/astra-go/astra/examples/{{.NameLower}}/internal/model\"\n\t\"github.com/astra-go/astra/examples/{{.NameLower}}/internal/repository\"\n)\n\n// {{.Name}}Service defines the business-logic interface for {{.NameLower}}.\ntype {{.Name}}Service interface {\n\tList(ctx context.Context, page, limit int, keyword string) ([]*model.{{.Name}}, int64, error)\n\tGet(ctx context.Context, id int64) (*model.{{.Name}}, error)\n\tCreate(ctx context.Context, req *dto.Create{{.Name}}Request) (*model.{{.Name}}, error)\n\tUpdate(ctx context.Context, id int64, req *dto.Update{{.Name}}Request) (*model.{{.Name}}, error)\n\tDelete(ctx context.Context, id int64) error\n}\n\ntype {{.NameLower}}Service struct {\n\trepo repository.{{.Name}}Repository\n}\n\nfunc New{{.Name}}Service(repo repository.{{.Name}}Repository) {{.Name}}Service {\n\treturn &{{.NameLower}}Service{repo: repo}\n}\n\nfunc (s *{{.NameLower}}Service) List(ctx context.Context, page, limit int, keyword string) ([]*model.{{.Name}}, int64, error) {\n\treturn s.repo.List(ctx, (page-1)*limit, limit, keyword)\n}\nfunc (s *{{.NameLower}}Service) Get(ctx context.Context, id int64) (*model.{{.Name}}, error) {\n\treturn s.repo.GetByID(ctx, id)\n}\nfunc (s *{{.NameLower}}Service) Create(ctx context.Context, req *dto.Create{{.Name}}Request) (*model.{{.Name}}, error) {\n\tm := &model.{{.Name}}{}\n\tif err := s.repo.Create(ctx, m); err != nil { return nil, err }\n\treturn m, nil\n}\nfunc (s *{{.NameLower}}Service) Update(ctx context.Context, id int64, req *dto.Update{{.Name}}Request) (*model.{{.Name}}, error) {\n\tm, err := s.repo.GetByID(ctx, id)\n\tif err != nil { return nil, err }\n\t_ = m; _ = req\n\tif err := s.repo.Update(ctx, m); err != nil { return nil, err }\n\treturn m, nil\n}\nfunc (s *{{.NameLower}}Service) Delete(ctx context.Context, id int64) error {\n\treturn s.repo.Delete(ctx, id)\n}\n"
+
+func RenderCRUDModel(d tpldata.Data) string {
+	return render("crudModel", crudModelSrc, d)
+}
+
+func RenderCRUDRepo(d tpldata.Data) string {
+	return render("crudRepo", crudRepoSrc, d)
+}
+
+func RenderCRUDHandler(d tpldata.Data) string {
+	return render("crudHandler", crudHandlerSrc, d)
+}
+
+func RenderCRUDService(d tpldata.Data) string {
+	return render("crudService", crudServiceSrc, d)
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/astra-go/astra/cmd/astra-cli/cmd/generate"
 )
 
 // newGenerateCmd creates the `astra-cli generate` parent command.
@@ -27,9 +28,19 @@ Use 'astra-cli generate <subcommand> --help' for subcommand-specific options.`,
 		},
 	}
 
-	c.AddCommand(newGenerateEndpointCmd())
-	c.AddCommand(newGenerateCrudCmd())
-	c.AddCommand(newGenerateMiddlewareCmd())
+	opts := generate.CmdOptions{
+		OutDir:        GlobalOutDir,
+		Force:         GlobalForce,
+		MkdirAll:      MkdirAll,
+		FileExists:    FileExists,
+		PromptString:  PromptString,
+		PromptSelect:  PromptSelect,
+		PromptConfirm: PromptConfirm,
+	}
+
+	c.AddCommand(generate.NewGenerateEndpointCmd(opts))
+	c.AddCommand(generate.NewGenerateCrudCmd(opts))
+	c.AddCommand(generate.NewGenerateMiddlewareCmd(opts))
 
 	return c
 }

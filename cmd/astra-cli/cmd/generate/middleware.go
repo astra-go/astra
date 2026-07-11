@@ -13,8 +13,8 @@ import (
 	"github.com/astra-go/astra/cmd/astra-cli/internal/templates"
 )
 
-// newGenerateMiddlewareCmd creates the `astra-cli generate middleware` command.
-func newGenerateMiddlewareCmd() *cobra.Command {
+// NewGenerateMiddlewareCmd creates the `astra-cli generate middleware` command.
+func NewGenerateMiddlewareCmd(opts CmdOptions) *cobra.Command {
 	var (
 		interactive bool
 		optName     string
@@ -44,7 +44,7 @@ Examples:
 			var err error
 
 			if interactive || len(args) == 0 {
-				name, mwType, err = promptsMiddleware()
+				name, mwType, err = promptsMiddleware(opts)
 				if err != nil {
 					return fmt.Errorf("interactive prompt cancelled: %w", err)
 				}
@@ -80,8 +80,8 @@ Examples:
 			}
 
 			outDir := optDir
-			if outDir == "" && globalOutDir != "" {
-				outDir = globalOutDir
+			if outDir == "" && opts.OutDir != "" {
+				outDir = opts.OutDir
 			}
 
 			data := tpldata.New(name, "")
@@ -89,15 +89,15 @@ Examples:
 
 			filename := strings.ToLower(pascal(name)) + "_middleware.go"
 			if outDir != "" {
-				mkdirAll(outDir)
+				opts.MkdirAll(outDir)
 				filename = filepath.Join(outDir, filename)
 			}
 
-			if fileExists(filename) && !globalForce {
+			if opts.FileExists(filename) && !opts.Force {
 				return fmt.Errorf("file already exists: %s (use --force to overwrite)", filename)
 			}
 
-			content, err := templates.RenderMiddleware(data)
+			content := templates.RenderMiddleware(data)
 			if err != nil {
 				return fmt.Errorf("render middleware template: %w", err)
 			}
@@ -126,11 +126,11 @@ Examples:
 	return c
 }
 
-func promptsMiddleware() (name, mwType string, err error) {
+func promptsMiddleware(opts CmdOptions) (name, mwType string, err error) {
 	fmt.Println("=== astra-cli generate middleware — interactive mode ===")
 	fmt.Println()
 
-	name, err = promptString("Middleware name", "MyMiddleware")
+	name, err = opts.PromptString("Middleware name", "MyMiddleware")
 	if err != nil {
 		return
 	}
@@ -144,9 +144,12 @@ func promptsMiddleware() (name, mwType string, err error) {
 		"recovery",
 		"request-id",
 	}
-	mwType, err = promptSelect("Middleware type", typeOptions, "custom")
+	mwType, err = opts.PromptSelect("Middleware type", typeOptions, "custom")
 	if err != nil {
 		return
 	}
 	return
 }
+
+var _ = tpldata.Data{}
+var _ = os.ErrNotExist

@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"unicode"
 
 	"github.com/spf13/cobra"
 	"github.com/astra-go/astra/cmd/astra-cli/internal/fsutil"
@@ -18,8 +17,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// newGenerateEndpointCmd creates the `astra-cli generate endpoint` command.
-func newGenerateEndpointCmd() *cobra.Command {
+// NewGenerateEndpointCmd creates the `astra-cli generate endpoint` command.
+func NewGenerateEndpointCmd(opts CmdOptions) *cobra.Command {
 	var (
 		interactive bool
 		optFile     string
@@ -44,7 +43,7 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var file string
 			if interactive || len(args) == 0 {
-				f, err := promptString("OpenAPI file path", "api/openapi.yaml")
+				f, err := opts.PromptString("OpenAPI file path", "api/openapi.yaml")
 				if err != nil {
 					return fmt.Errorf("cancelled: %w", err)
 				}
@@ -56,22 +55,22 @@ Examples:
 			if file == "" {
 				return errors.New("OpenAPI file path is required")
 			}
-			if !fileExists(file) {
+			if !opts.FileExists(file) {
 				return fmt.Errorf("file not found: %s", file)
 			}
 
 			pkg := optPkg
 			if pkg == "" {
 				if interactive {
-					pkg, _ = promptString("Handler package name", "handler")
+					pkg, _ = opts.PromptString("Handler package name", "handler")
 				} else {
 					pkg = inferPkgFromDir(optDir)
 				}
 			}
 
 			outDir := optDir
-			if outDir == "" && globalOutDir != "" {
-				outDir = globalOutDir
+			if outDir == "" && opts.OutDir != "" {
+				outDir = opts.OutDir
 			}
 
 			fmt.Printf("▶  Parsing OpenAPI spec: %s\n", file)
@@ -99,11 +98,11 @@ Examples:
 
 			filename := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)) + "_handler.go"
 			if outDir != "" {
-				mkdirAll(outDir)
+				opts.MkdirAll(outDir)
 				filename = filepath.Join(outDir, filename)
 			}
 
-			if fileExists(filename) && !globalForce {
+			if opts.FileExists(filename) && !opts.Force {
 				return fmt.Errorf("file already exists: %s (use --force to overwrite)", filename)
 			}
 			if err := fsutil.WriteString(filename, content); err != nil {
@@ -265,7 +264,7 @@ func schemaTypeToGo(schema map[string]any, schemas map[string]any) string {
 		name := parts[len(parts)-1]
 		// If schemas map is available, expand inline
 		if schemas != nil {
-			if def, ok := schemas[name].(map[string]any); ok {
+			if _, ok := schemas[name].(map[string]any); ok {
 				return "map[string]any /* " + name + " */"
 			}
 		}
@@ -301,21 +300,6 @@ func schemaTypeToGo(schema map[string]any, schemas map[string]any) string {
 	}
 }
 
-// pascal converts "my-name" or "my_name" or "MyName" to "MyName".
-func pascal(s string) string {
-	s = strings.ReplaceAll(s, "-", " ")
-	s = strings.ReplaceAll(s, "_", " ")
-	words := strings.Fields(s)
-	for i, w := range words {
-		if len(w) > 0 {
-			runes := []rune(w)
-			runes[0] = unicode.ToUpper(runes[0])
-			words[i] = string(runes)
-		}
-	}
-	return strings.Join(words, "")
-}
-
 func inferPkgFromDir(dir string) string {
 	if dir == "" {
 		return "handler"
@@ -323,3 +307,6 @@ func inferPkgFromDir(dir string) string {
 	name := filepath.Base(dir)
 	return strings.ToLower(name)
 }
+
+// Suppress unused import
+var _ = tpldata.Data{}

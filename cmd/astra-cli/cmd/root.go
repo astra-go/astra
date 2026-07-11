@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var globalOutDir string
-var globalForce bool
+var GlobalOutDir string
+var GlobalForce bool
 
 // NewRootCmd creates the root cobra command.
 func NewRootCmd(version string) *cobra.Command {
@@ -30,8 +30,8 @@ Run 'astra-cli <command> --help' for details on each command.`,
 	}
 
 	// Global flags shared by all subcommands.
-	root.PersistentFlags().StringVarP(&globalOutDir, "out", "o", "", "output directory (default: stdout or current directory)")
-	root.PersistentFlags().BoolVarP(&globalForce, "force", "f", false, "overwrite existing files without prompting")
+	root.PersistentFlags().StringVarP(&GlobalOutDir, "out", "o", "", "output directory (default: stdout or current directory)")
+	root.PersistentFlags().BoolVarP(&GlobalForce, "force", "f", false, "overwrite existing files without prompting")
 
 	// Register subcommands.
 	root.AddCommand(newNewCmd())
@@ -53,14 +53,14 @@ func dirExists(path string) bool {
 	return err == nil && info.IsDir()
 }
 
-// fileExists reports whether path exists (any type).
-func fileExists(path string) bool {
+// FileExists reports whether path exists (any type).
+func FileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
 
-// mkdirAll creates dir, printing an error and exiting on failure.
-func mkdirAll(dir string) {
+// MkdirAll creates dir, printing an error and exiting on failure.
+func MkdirAll(dir string) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		fatal("mkdir " + dir + ": " + err.Error())
 	}

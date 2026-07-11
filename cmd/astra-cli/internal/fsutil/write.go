@@ -9,14 +9,18 @@ import (
 	"text/template"
 )
 
-// WriteTemplate renders tpl with data and writes the result to path.
+// WriteTemplate renders a template from a string source and writes the result to path.
 // If path's directory doesn't exist it is created.
-func WriteTemplate(baseDir, file string, tpl *template.Template, data any) error {
+func WriteTemplate(baseDir, file, tplSrc string, data any) error {
 	path := file
 	if baseDir != "" {
 		path = filepath.Join(baseDir, file)
 	}
 	MkdirForFile(path)
+	tpl, err := template.New(file).Parse(tplSrc)
+	if err != nil {
+		return fmt.Errorf("parse template %s: %w", file, err)
+	}
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("create %s: %w", path, err)

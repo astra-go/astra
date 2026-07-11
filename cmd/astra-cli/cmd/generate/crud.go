@@ -15,12 +15,23 @@ import (
 	"github.com/astra-go/astra/cmd/astra-cli/internal/templates"
 )
 
-// newGenerateCrudCmd creates the `astra-cli generate crud` command.
-func newGenerateCrudCmd() *cobra.Command {
+// CmdOptions holds the global flags and helper functions needed by generate commands.
+type CmdOptions struct {
+	OutDir  string
+	Force   bool
+	MkdirAll func(string)
+	FileExists func(string) bool
+	PromptString  func(string, string) (string, error)
+	PromptSelect  func(string, []string, string) (string, error)
+	PromptConfirm func(string, bool) (bool, error)
+}
+
+// NewGenerateCrudCmd creates the `astra-cli generate crud` command.
+func NewGenerateCrudCmd(opts CmdOptions) *cobra.Command {
 	var (
-		interactive bool
-		optName     string
-		optDir      string
+		interactive    bool
+		optName        string
+		optDir         string
 		optWithService bool
 	)
 
@@ -46,7 +57,7 @@ Examples:
 			var err error
 
 			if interactive || len(args) == 0 {
-				entityName, columns, err = promptsCrud()
+				entityName, columns, err = promptsCrud(opts)
 				if err != nil {
 					return fmt.Errorf("interactive prompt cancelled: %w", err)
 				}
@@ -66,12 +77,23 @@ Examples:
 				return fmt.Errorf("invalid entity name: %q", entityName)
 			}
 
+			// Convert []colDef to []tpldata.Column
+			tplCols := make([]tpldata.Column, len(columns))
+			for i, c := range columns {
+				tplCols[i] = tpldata.Column{
+					Name:    c.Name,
+					JSONTag: c.JSONTag,
+					GoType:  c.GoType,
+					GORMCol: c.GORMCol,
+					Comment: c.Comment,
+				}
+			}
 			data := tpldata.New(entityName, "")
-			data.Columns = columns
+			data.Columns = tplCols
 
 			outDir := optDir
-			if outDir == "" && globalOutDir != "" {
-				outDir = globalOutDir
+			if outDir == "" && opts.OutDir != "" {
+				outDir = opts.OutDir
 			}
 
 			entityNameL := strings.ToLower(pascal(entityName))
@@ -80,35 +102,35 @@ Examples:
 			handlerFile := filepath.Join(outDir, "handler", entityNameL+"_handler.go")
 
 			// Create subdirs
-			mkdirAll(filepath.Join(outDir, "model"))
-			mkdirAll(filepath.Join(outDir, "repository"))
-			mkdirAll(filepath.Join(outDir, "handler"))
+			opts.MkdirAll(filepath.Join(outDir, "model"))
+			opts.MkdirAll(filepath.Join(outDir, "repository"))
+			opts.MkdirAll(filepath.Join(outDir, "handler"))
 
 			render := func(path, content string) error {
-				if fileExists(path) && !globalForce {
+				if opts.FileExists(path) && !opts.Force {
 					return fmt.Errorf("file already exists: %s (use --force to overwrite)", path)
 				}
 				return fsutil.WriteString(path, content)
 			}
 
 			if err := render(modelFile, templates.RenderCRUDModel(data)); err != nil {
-				return err
+				return fmt.Errorf("render model: %w", err)
 			}
 			if err := render(repoFile, templates.RenderCRUDRepo(data)); err != nil {
-				return err
+				return fmt.Errorf("render repo: %w", err)
 			}
 			if err := render(handlerFile, templates.RenderCRUDHandler(data)); err != nil {
-				return err
+				return fmt.Errorf("render handler: %w", err)
 			}
 
 			var created []string
 			created = append(created, modelFile, repoFile, handlerFile)
 
 			if optWithService {
-				mkdirAll(filepath.Join(outDir, "service"))
+				opts.MkdirAll(filepath.Join(outDir, "service"))
 				svcFile := filepath.Join(outDir, "service", entityNameL+"_svc.go")
 				if err := render(svcFile, templates.RenderCRUDService(data)); err != nil {
-					return err
+					return fmt.Errorf("render service: %w", err)
 				}
 				created = append(created, svcFile)
 			}
@@ -153,7 +175,6 @@ var goTypeOptions = []string{
 
 // defaultColumns returns placeholder columns for an entity with TODOs.
 func defaultColumns(name string) []colDef {
-	pName := pascal(name)
 	return []colDef{
 		{Name: "ID", JSONTag: `"id"`, GoType: "int64", GORMCol: `gorm:"primaryKey;autoIncrement"`, Comment: "// TODO: primary key"},
 		{Name: "CreatedAt", JSONTag: `"created_at,omitempty"`, GoType: "time.Time", GORMCol: `gorm:"autoCreateTime"`, Comment: "// TODO: created timestamp"},
@@ -253,24 +274,22 @@ func sqlTypeToGo(sqlType string) string {
 }
 
 // promptsCrud runs interactive prompts for CRUD generation.
-func promptsCrud() (entityName string, columns []colDef, err error) {
+func promptsCrud(opts CmdOptions) (entityName string, columns []colDef, err error) {
 	fmt.Println("=== astra-cli generate crud — interactive mode ===")
 	fmt.Println()
 
-	entityName, err = promptString("Entity name", "Article")
+	entityName, err = opts.PromptString("Entity name", "Article")
 	if err != nil {
 		return
 	}
 
 	entityName = pascal(entityName)
-	entityNameL := strings.ToLower(entityName)
 
 	fmt.Println("\nColumn definitions (press Enter on a prompt to finish adding columns):")
 	fmt.Println()
 
-	var addMore bool
 	for {
-		colName, err := promptString("Column name (empty to finish)", "")
+		colName, err := opts.PromptString("Column name (empty to finish)", "")
 		if err != nil {
 			return "", nil, err
 		}
@@ -278,12 +297,12 @@ func promptsCrud() (entityName string, columns []colDef, err error) {
 			break
 		}
 
-		goType, err := promptSelect("Go type", []string{"string", "int64", "int", "float64", "bool", "time.Time", "[]byte"}, "string")
+		goType, err := opts.PromptSelect("Go type", []string{"string", "int64", "int", "float64", "bool", "time.Time", "[]byte"}, "string")
 		if err != nil {
 			return "", nil, err
 		}
 
-		nullable, _ := promptConfirm("Nullable", false)
+		nullable, _ := opts.PromptConfirm("Nullable", false)
 		gormTag := fmt.Sprintf(`gorm:"column:%s"`, strings.ToLower(colName))
 		if nullable {
 			gormTag += ";default:null"
@@ -295,8 +314,6 @@ func promptsCrud() (entityName string, columns []colDef, err error) {
 			GoType:  goType,
 			GORMCol: gormTag,
 		})
-		_ = addMore
-		_ = entityNameL
 	}
 
 	// Ensure ID column always exists
@@ -316,3 +333,19 @@ func promptsCrud() (entityName string, columns []colDef, err error) {
 
 	return entityName, columns, nil
 }
+
+// pascal converts "my-name" or "my_name" or "MyName" to "MyName".
+func pascal(s string) string {
+	s = strings.ReplaceAll(s, "-", " ")
+	s = strings.ReplaceAll(s, "_", " ")
+	words := strings.Fields(s)
+	for i, w := range words {
+		if len(w) > 0 {
+			runes := []rune(w)
+			runes[0] = unicode.ToUpper(runes[0])
+			words[i] = string(runes)
+		}
+	}
+	return strings.Join(words, "")
+}
+

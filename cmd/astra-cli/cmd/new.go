@@ -15,12 +15,12 @@ import (
 // newCmd represents the `astra-cli new` command.
 func newNewCmd() *cobra.Command {
 	var (
-		interactive bool
-		optName     string
-		optModule   string
-		optLayout   string
+		interactive  bool
+		optName      string
+		optModule    string
+		optLayout    string
 		optWithDocker bool
-		optWithCI  bool
+		optWithCI    bool
 	)
 
 	c := &cobra.Command{
@@ -84,12 +84,12 @@ Supported layouts: simple (single binary) | ddd (domain-driven design)`,
 			// ── Determine output root ──────────────────────────────────────
 			// Respect --out flag if set, otherwise create ./<name>
 			outRoot := name
-			if globalOutDir != "" {
-				outRoot = globalOutDir
+			if GlobalOutDir != "" {
+				outRoot = GlobalOutDir
 			}
 
 			// Guard: do not accidentally overwrite a non-empty directory.
-			if dirExists(outRoot) && !globalForce {
+			if dirExists(outRoot) && !GlobalForce {
 				entries, _ := os.ReadDir(outRoot)
 				if len(entries) > 0 {
 					return fmt.Errorf("directory %q already exists and is not empty (use --force to overwrite)", outRoot)
@@ -99,13 +99,13 @@ Supported layouts: simple (single binary) | ddd (domain-driven design)`,
 			// ── Write project files ───────────────────────────────────────
 
 			// Shared files for all layouts
-			mkdirAll(filepath.Join(outRoot, "config"))
-			mkdirAll(filepath.Join(outRoot, "internal", "handler"))
-			mkdirAll(filepath.Join(outRoot, "internal", "service"))
-			mkdirAll(filepath.Join(outRoot, "internal", "model"))
-			mkdirAll(filepath.Join(outRoot, "internal", "middleware"))
-			mkdirAll(filepath.Join(outRoot, "internal", "repository"))
-			mkdirAll(filepath.Join(outRoot, "internal", "dto"))
+			MkdirAll(filepath.Join(outRoot, "config"))
+			MkdirAll(filepath.Join(outRoot, "internal", "handler"))
+			MkdirAll(filepath.Join(outRoot, "internal", "service"))
+			MkdirAll(filepath.Join(outRoot, "internal", "model"))
+			MkdirAll(filepath.Join(outRoot, "internal", "middleware"))
+			MkdirAll(filepath.Join(outRoot, "internal", "repository"))
+			MkdirAll(filepath.Join(outRoot, "internal", "dto"))
 
 			if err := fsutil.WriteTemplate(outRoot, "go.mod", templates.GoMod(), data); err != nil {
 				return fmt.Errorf("write go.mod: %w", err)
@@ -116,70 +116,70 @@ Supported layouts: simple (single binary) | ddd (domain-driven design)`,
 			if err := fsutil.WriteTemplate(outRoot, "Makefile", templates.Makefile(), data); err != nil {
 				return fmt.Errorf("write Makefile: %w", err)
 			}
-			if err := fsutil.WriteTemplate(outRoot, "config", filepath.Join("config", "dev.yaml"), templates.ConfigDev(), data); err != nil {
+			if err := fsutil.WriteTemplate(outRoot, filepath.Join("config", "dev.yaml"), templates.RenderConfigDev(data), data); err != nil {
 				return fmt.Errorf("write config/dev.yaml: %w", err)
 			}
-			if err := fsutil.WriteTemplate(outRoot, "config", filepath.Join("config", "prod.yaml"), templates.ConfigProd(), data); err != nil {
+			if err := fsutil.WriteTemplate(outRoot, filepath.Join("config", "prod.yaml"), templates.RenderConfigProd(data), data); err != nil {
 				return fmt.Errorf("write config/prod.yaml: %w", err)
 			}
-			if err := fsutil.WriteTemplate(outRoot, filepath.Join("internal", "handler"), "handler.go", templates.Handler(), data); err != nil {
+			if err := fsutil.WriteTemplate(outRoot, filepath.Join("internal", "handler", "handler.go"), templates.RenderHandler(data), data); err != nil {
 				return fmt.Errorf("write handler: %w", err)
 			}
-			if err := fsutil.WriteTemplate(outRoot, filepath.Join("internal", "service"), "service.go", templates.Service(), data); err != nil {
+			if err := fsutil.WriteTemplate(outRoot, filepath.Join("internal", "service", "service.go"), templates.RenderService(data), data); err != nil {
 				return fmt.Errorf("write service: %w", err)
 			}
-			if err := fsutil.WriteTemplate(outRoot, filepath.Join("internal", "model"), "model.go", templates.Model(), data); err != nil {
+			if err := fsutil.WriteTemplate(outRoot, filepath.Join("internal", "model", "model.go"), templates.RenderModel(data), data); err != nil {
 				return fmt.Errorf("write model: %w", err)
 			}
-			if err := fsutil.WriteTemplate(outRoot, filepath.Join("internal", "dto"), "dto.go", templates.DTO(), data); err != nil {
+			if err := fsutil.WriteTemplate(outRoot, filepath.Join("internal", "dto", "dto.go"), templates.RenderDTO(data), data); err != nil {
 				return fmt.Errorf("write dto: %w", err)
 			}
 
 			if layout == "simple" {
-				if err := fsutil.WriteTemplate(outRoot, "main.go", templates.MainSimple(), data); err != nil {
+				if err := fsutil.WriteTemplate(outRoot, "main.go", templates.RenderMainSimple(data), data); err != nil {
 					return fmt.Errorf("write main.go: %w", err)
 				}
-				if err := fsutil.WriteTemplate(outRoot, "wire.go", templates.WireProvider(), data); err != nil {
+				if err := fsutil.WriteTemplate(outRoot, "wire.go", templates.RenderWireProvider(data), data); err != nil {
 					return fmt.Errorf("write wire.go: %w", err)
 				}
-				if err := fsutil.WriteTemplate(outRoot, "container.go", templates.Container(), data); err != nil {
+				if err := fsutil.WriteTemplate(outRoot, "container.go", templates.RenderContainer(data), data); err != nil {
 					return fmt.Errorf("write container.go: %w", err)
 				}
 			} else {
 				// ddd layout
-				mkdirAll(filepath.Join(outRoot, "cmd", "server"))
-				mkdirAll(filepath.Join(outRoot, "internal", "domain"))
-				mkdirAll(filepath.Join(outRoot, "internal", "application"))
-				mkdirAll(filepath.Join(outRoot, "internal", "infrastructure"))
-				mkdirAll(filepath.Join(outRoot, "pkg", "errors"))
+				MkdirAll(filepath.Join(outRoot, "cmd", "server"))
+				MkdirAll(filepath.Join(outRoot, "internal", "domain"))
+				MkdirAll(filepath.Join(outRoot, "internal", "application"))
+				MkdirAll(filepath.Join(outRoot, "internal", "infrastructure"))
+				MkdirAll(filepath.Join(outRoot, "pkg", "errors"))
 
-				if err := fsutil.WriteTemplate(outRoot, filepath.Join("cmd", "server"), "main.go", templates.MainDDD(), data); err != nil {
+				if err := fsutil.WriteTemplate(outRoot, filepath.Join("cmd", "server", "main.go"), templates.RenderMainDDD(data), data); err != nil {
 					return fmt.Errorf("write cmd/server/main.go: %w", err)
 				}
-				if err := fsutil.WriteTemplate(outRoot, filepath.Join("cmd", "server"), "wire.go", templates.WireProvider(), data); err != nil {
+				if err := fsutil.WriteTemplate(outRoot, filepath.Join("cmd", "server", "wire.go"), templates.RenderWireProvider(data), data); err != nil {
 					return fmt.Errorf("write wire.go: %w", err)
 				}
-				if err := fsutil.WriteTemplate(outRoot, filepath.Join("cmd", "server"), "container.go", templates.Container(), data); err != nil {
+				if err := fsutil.WriteTemplate(outRoot, filepath.Join("cmd", "server", "container.go"), templates.RenderContainer(data), data); err != nil {
 					return fmt.Errorf("write container.go: %w", err)
 				}
-				if err := fsutil.WriteTemplate(outRoot, filepath.Join("pkg", "errors"), "errors.go", templates.ErrorCodes(), data); err != nil {
+				if err := fsutil.WriteTemplate(outRoot, filepath.Join("pkg", "errors", "errors.go"), templates.RenderErrorCodes(data), data); err != nil {
 					return fmt.Errorf("write errors: %w", err)
 				}
 			}
 
 			if withDocker {
-				mkdirAll(filepath.Join(outRoot, "deploy", "docker"))
+				MkdirAll(filepath.Join(outRoot, "deploy", "docker"))
 				if err := fsutil.WriteTemplate(outRoot, "Dockerfile", templates.Dockerfile(), data); err != nil {
 					return fmt.Errorf("write Dockerfile: %w", err)
 				}
-				if err := fsutil.WriteTemplate(outRoot, "docker-compose.yml", templates.DockerCompose(), data); err != nil {
+				if err := fsutil.WriteTemplate(outRoot, "docker-compose.yml", templates.RenderDockerCompose(data), data); err != nil {
 					return fmt.Errorf("write docker-compose.yml: %w", err)
 				}
 			}
 
 			if withCI {
-				mkdirAll(filepath.Join(outRoot, ".github", "workflows"))
-				if err := fsutil.WriteTemplate(outRoot, filepath.Join(".github", "workflows"), "ci.yml", templates.CIWorkflow(), data); err != nil {
+				MkdirAll(filepath.Join(outRoot, ".github", "workflows"))
+				if err := fsutil.WriteTemplate(outRoot, filepath.Join(".github", "workflows", "ci.yml"), templates.RenderCIWorkflow(data), data); err != nil {
 					return fmt.Errorf("write .github/workflows/ci.yml: %w", err)
 				}
 			}
@@ -203,11 +203,11 @@ Next steps:
 	}
 
 	c.Flags().BoolVar(&interactive, "interactive", false, "run in interactive mode (default when no args provided)")
-	c.Flags().StringVar(&optName, "name", "", "service name")
-	c.Flags().StringVar(&optModule, "module", "", "Go module path (default: same as name)")
-	c.Flags().StringVar(&optLayout, "layout", "simple", "project layout: simple | ddd")
-	c.Flags().BoolVar(&optWithDocker, "docker", false, "include Dockerfile and docker-compose.yml")
-	c.Flags().BoolVar(&optWithCI, "ci", false, "include GitHub Actions CI workflow")
+	c.Flags().StringVarP(&optName, "name", "", "service name", "")
+	c.Flags().StringVarP(&optModule, "module", "", "Go module path (default: same as name)", "")
+	c.Flags().StringVarP(&optLayout, "layout", "", "project layout: simple | ddd", "")
+	c.Flags().BoolVarP(&optWithDocker, "docker", "", false, "include Dockerfile and docker-compose.yml")
+	c.Flags().BoolVarP(&optWithCI, "ci", "", false, "include GitHub Actions CI workflow")
 
 	return c
 }
@@ -217,23 +217,23 @@ func promptsNew() (name, module, layout string, withDocker, withCI bool, err err
 	fmt.Println("=== astra-cli new — interactive mode ===")
 	fmt.Println()
 
-	name, err = promptString("Service name", "my-service")
+	name, err = PromptString("Service name", "my-service")
 	if err != nil {
 		return
 	}
-	module, err = promptString("Go module path", name)
+	module, err = PromptString("Go module path", name)
 	if err != nil {
 		return
 	}
-	layout, err = promptSelect("Project layout", []string{"simple", "ddd"}, "simple")
+	layout, err = PromptSelect("Project layout", []string{"simple", "ddd"}, "simple")
 	if err != nil {
 		return
 	}
-	withDocker, err = promptConfirm("Include Dockerfile and docker-compose.yml", false)
+	withDocker, err = PromptConfirm("Include Dockerfile and docker-compose.yml", false)
 	if err != nil {
 		return
 	}
-	withCI, err = promptConfirm("Include GitHub Actions CI workflow", false)
+	withCI, err = PromptConfirm("Include GitHub Actions CI workflow", false)
 	if err != nil {
 		return
 	}
