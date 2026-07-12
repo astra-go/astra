@@ -9,13 +9,24 @@
 //	srv := grpcserver.New(app, ...)
 //	pb.RegisterGreeterServer(srv.GRPC, impl)
 //
-//	// Enable gRPC-Web on the HTTP server
-//	srv.HTTP.Use(grpcweb.Wrap(srv.GRPC, grpcweb.WithAllowedOrigins([]string{"https://example.com"})))
+//	// Option 1: Full gRPC-Web handler (recommended)
+//	httpServer := &http.Server{Handler: grpcweb.WrapServer(srv.GRPC)}
+//
+//	// Option 2: Middleware form (gRPC-Web + pass-through)
+//	srv.HTTP.Use(grpcweb.Wrap(srv.GRPC))
 //
 // Browser clients can now use the official grpc-web client library:
 //
 //	const client = new grpcWeb.GreeterClient('https://your-server:8080');
 //	client.sayHello({name: 'World'}, {}, (err, resp) => { ... });
+//
+// # Architecture
+//
+// This package wraps github.com/improbable-eng/grpc-web for the protocol
+// translation (gRPC-Web HTTP/1.1 → gRPC over HTTP/2). The translation is
+// implemented by faking an HTTP/2 request from the gRPC-Web request and
+// passing it to the standard grpc.Server transport, so all registered gRPC
+// handlers are invoked correctly with proper codec and metadata support.
 package grpcweb
 
 import (
@@ -28,6 +39,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -38,13 +50,12 @@ const (
 	contentTypeGRPCWebText   = "application/grpc-web+text"
 	contentTypeGRPCWebJSON   = "application/grpc-web+json"
 	contentTypeGRPCProto     = "application/grpc"
-	contentTypeApplicationJSON = "application/json"
 )
 
 // gRPC frame constants
 const (
 	frameHeaderSize_val = 5
-	FrameNoCompress = 0
+	FrameNoCompress     = 0
 )
 
 // Options configures the gRPC-Web wrapper.
@@ -63,6 +74,8 @@ type Options struct {
 	MaxRequestSize int64
 
 	// TrailersKey is the name of the trailer header returned to the client (default: "grpc-web-").
+	// Deprecated: this field is kept for backward compatibility with existing tests.
+	// improbable-eng/grpcweb controls the trailer key internally.
 	TrailersKey string
 }
 
@@ -93,14 +106,16 @@ func WithMaxRequestSize(size int64) Option {
 	return func(o *Options) { o.MaxRequestSize = size }
 }
 
-// WithTrailersKey sets the custom trailer key name.
-func WithTrailersKey(key string) Option {
-	return func(o *Options) { o.TrailersKey = key }
-}
-
 // WithAllowCustomMetadata enables custom metadata forwarding.
 func WithAllowCustomMetadata() Option {
 	return func(o *Options) { o.AllowCustomMetadata = true }
+}
+
+// WithTrailersKey sets the custom trailer key name.
+// Deprecated: improbable-eng/grpcweb controls the trailer key internally;
+// this option is kept for backward compatibility but has no effect.
+func WithTrailersKey(key string) Option {
+	return func(o *Options) { o.TrailersKey = key }
 }
 
 // Frame represents a gRPC-Web frame (length-prefixed message).
@@ -174,58 +189,179 @@ func SerializeFrames(frames []*Frame) []byte {
 }
 
 // Wrapper is the gRPC-Web HTTP handler that bridges browser requests to a gRPC server.
+// It embeds github.com/improbable-eng/grpc-web for protocol translation
+// (gRPC-Web HTTP/1.1 → gRPC over HTTP/2) so that all registered gRPC handlers
+// are invoked with proper codec and metadata support.
+//
+// The zero value is not valid; use Wrap or WrapServer to construct.
 type Wrapper struct {
-	opts    Options
-	handler http.Handler
-	mu      sync.RWMutex
+	wrapped  *grpcweb.WrappedGrpcServer // improbable-eng's translation engine
+	opts     Options
+	// Next is the handler for non-gRPC-Web requests.
+	// Exported for test use; prefer Wrap(middleware) in production.
+	Next http.Handler
+	mu       sync.RWMutex
 }
 
-// Wrap creates a new gRPC-Web wrapper that intercepts gRPC-Web requests
-// and forwards them to the gRPC server.
+// Wrap creates a gRPC-Web middleware. It intercepts gRPC-Web requests,
+// forwards them to the registered grpc.Server, and passes all other requests
+// to the next handler.
 //
-// The returned handler should be mounted on the HTTP server. Non-gRPC-Web
-// requests are passed through to the next handler unchanged.
+// Use as middleware:
+//
+//	srv.HTTP.Use(grpcweb.Wrap(srv.GRPC))
+//
+// For a standalone HTTP handler (recommended), use WrapServer instead:
+//
+//	httpServer := &http.Server{Handler: grpcweb.WrapServer(srv.GRPC)}
 func Wrap(grpcServer *grpc.Server, opts ...Option) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		o := DefaultOptions()
 		for _, opt := range opts {
 			opt(&o)
 		}
-		if o.TrailersKey == "" {
-			o.TrailersKey = "grpc-web-"
-		}
-		return &Wrapper{
-			opts:    o,
-			handler: next,
-		}
+		w := newWrapper(grpcServer, o)
+		w.Next = next
+		return w
+	}
+}
+
+// WrapServer returns an http.Handler that fully handles gRPC-Web requests by
+// forwarding them to the registered grpc.Server. Non-gRPC-Web requests receive
+// 415 Unsupported Media Type.
+//
+// This is the recommended entry point. Example:
+//
+//	srv := grpcserver.New(...)
+//	httpServer := &http.Server{Handler: grpcweb.WrapServer(srv.GRPC)}
+//	go httpServer.ListenAndServe()
+func WrapServer(grpcServer *grpc.Server, opts ...Option) http.Handler {
+	o := DefaultOptions()
+	for _, opt := range opts {
+		opt(&o)
+	}
+	w := newWrapper(grpcServer, o)
+	return w
+}
+
+// newWrapper creates a Wrapper backed by improbable-eng/grpcweb's translation engine.
+func newWrapper(grpcServer *grpc.Server, opts Options) *Wrapper {
+	// improbable-eng/grpcweb requires a non-nil *grpc.Server.
+	// If nil is passed (middleware-only or test mode), use a no-op server.
+	server := grpcServer
+	if server == nil {
+		server = grpc.NewServer()
+	}
+	wrappedOpts := []grpcweb.Option{
+		grpcweb.WithCorsForRegisteredEndpointsOnly(false),
+	}
+
+	if opts.AllowAllOrigins {
+		wrappedOpts = append(wrappedOpts, grpcweb.WithOriginFunc(func(origin string) bool {
+			return true
+		}))
+	} else if len(opts.AllowedOrigins) > 0 {
+		origins := opts.AllowedOrigins
+		wrappedOpts = append(wrappedOpts, grpcweb.WithOriginFunc(func(origin string) bool {
+			for _, o := range origins {
+				if o == origin {
+					return true
+				}
+			}
+			return false
+		}))
+	}
+
+	allowedHeaders := []string{
+		"Content-Type",
+		"X-Grpc-Web",
+		"User-Agent",
+		"X-User-Agent",
+		"Authorization",
+		"Accept",
+		"X-Requested-With",
+	}
+	if opts.AllowCustomMetadata {
+		allowedHeaders = append(allowedHeaders, "X-Custom-Metadata-*")
+	}
+	wrappedOpts = append(wrappedOpts, grpcweb.WithAllowedRequestHeaders(allowedHeaders))
+
+	return &Wrapper{
+		wrapped: grpcweb.WrapServer(server, wrappedOpts...),
+		opts:    opts,
 	}
 }
 
 // ServeHTTP implements http.Handler.
-// gRPC-Web requests are intercepted and proxied to the gRPC server.
-// All other requests pass through to the next handler.
+// CORS preflight (OPTIONS + Access-Control-Request-Headers: x-grpc-web) is handled
+// directly here for reliability; all other gRPC-Web traffic is delegated to improbable's
+// translation engine.
 func (w *Wrapper) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
-	ct := req.Header.Get("Content-Type")
-
-	// Check if this is a gRPC-Web request
-	if !IsGRPCWebRequest(ct) {
-		w.handler.ServeHTTP(resp, req)
+	// Handle CORS preflight directly: improbable's engine handles it but requires
+	// a non-nil grpc.Server. Handling it here ensures CORS works in all modes.
+	if req.Method == http.MethodOptions && isGrpcCorsRequest(req) {
+		w.handleCORSPreflight(resp, req)
 		return
 	}
 
-	// CORS preflight
-	if req.Method == http.MethodOptions {
-		w.handleCORS(resp, req)
+	if w.wrapped == nil {
+		if w.Next != nil {
+			w.Next.ServeHTTP(resp, req)
+			return
+		}
+		resp.WriteHeader(http.StatusUnsupportedMediaType)
 		return
 	}
-
-	// Set CORS headers
-	w.setCORSHeaders(resp, req)
-
-	// Handle the gRPC-Web request
-	w.handleGRPCWeb(resp, req)
+	if w.Next != nil && !w.wrapped.IsGrpcWebRequest(req) && !w.wrapped.IsAcceptableGrpcCorsRequest(req) {
+		w.Next.ServeHTTP(resp, req)
+		return
+	}
+	w.wrapped.ServeHTTP(resp, req)
 }
 
+// isGrpcCorsRequest checks if the request is a gRPC-Web CORS preflight.
+// Mirrors improbable-eng/grpcweb's IsAcceptableGrpcCorsRequest check.
+func isGrpcCorsRequest(req *http.Request) bool {
+	return strings.Contains(strings.ToLower(req.Header.Get("Access-Control-Request-Headers")), "x-grpc-web")
+}
+
+// handleCORSPreflight writes CORS preflight response headers.
+func (w *Wrapper) handleCORSPreflight(resp http.ResponseWriter, req *http.Request) {
+	origin := req.Header.Get("Origin")
+
+	allowed := false
+	if w.opts.AllowAllOrigins {
+		allowed = true
+	} else if origin != "" {
+		for _, o := range w.opts.AllowedOrigins {
+			if o == origin {
+				allowed = true
+				break
+			}
+		}
+	}
+
+	if allowed {
+		resp.Header().Set("Access-Control-Allow-Origin", origin)
+		if origin == "*" {
+			resp.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+	}
+
+	allowedHeaders := []string{
+		"Content-Type", "X-Grpc-Web", "User-Agent",
+		"X-User-Agent", "Authorization", "Accept", "X-Requested-With",
+	}
+	if w.opts.AllowCustomMetadata {
+		allowedHeaders = append(allowedHeaders, "X-Custom-Metadata-*")
+	}
+	resp.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+	resp.Header().Set("Access-Control-Allow-Headers", strings.Join(allowedHeaders, ", "))
+
+	resp.WriteHeader(http.StatusNoContent)
+}
+
+// IsGRPCWebRequest reports whether the given content-type is a gRPC-Web type.
 func IsGRPCWebRequest(contentType string) bool {
 	switch {
 	case strings.HasPrefix(contentType, contentTypeGRPCWebProto):
@@ -239,131 +375,12 @@ func IsGRPCWebRequest(contentType string) bool {
 	}
 }
 
-func (w *Wrapper) handleCORS(resp http.ResponseWriter, req *http.Request) {
-	w.setCORSHeaders(resp, req)
-	resp.WriteHeader(http.StatusNoContent)
-}
-
-func (w *Wrapper) setCORSHeaders(resp http.ResponseWriter, req *http.Request) {
-	origin := req.Header.Get("Origin")
-
-	if w.opts.AllowAllOrigins {
-		resp.Header().Set("Access-Control-Allow-Origin", "*")
-	} else {
-		for _, allowed := range w.opts.AllowedOrigins {
-			if allowed == origin {
-				resp.Header().Set("Access-Control-Allow-Origin", origin)
-				break
-			}
-		}
-	}
-
-	resp.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-	resp.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Grpc-Web, User-Agent, X-User-Agent, Authorization, Accept, X-Requested-With")
-	resp.Header().Set("Access-Control-Expose-Headers", "X-Grpc-Web, "+w.opts.TrailersKey)
-
-	if w.opts.AllowCustomMetadata {
-		resp.Header().Add("Access-Control-Allow-Headers", "X-Custom-Metadata-*")
-	}
-}
-
-func (w *Wrapper) handleGRPCWeb(resp http.ResponseWriter, req *http.Request) {
-	// Validate content length
-	if w.opts.MaxRequestSize > 0 && req.ContentLength > w.opts.MaxRequestSize {
-		resp.WriteHeader(http.StatusRequestEntityTooLarge)
-		return
-	}
-
-	// Read the request body
-	body, err := io.ReadAll(io.LimitReader(req.Body, w.opts.MaxRequestSize))
-	if err != nil {
-		http.Error(resp, "failed to read request body", http.StatusBadRequest)
-		return
-	}
-
-	// Parse incoming frames (should be exactly 1 for a unary call)
-	frames, err := ParseFrames(body)
-	if err != nil || len(frames) == 0 {
-		http.Error(resp, "invalid grpc-web frame", http.StatusBadRequest)
-		return
-	}
-
-	// For unary calls, use the first frame's data as the request message
-	reqData := frames[0].Data
-
-	// Determine if the response should be text (base64) encoded
-	isText := strings.HasPrefix(req.Header.Get("Content-Type"), contentTypeGRPCWebText)
-
-	// Extract metadata from HTTP headers
-	md := MetadataFromHeaders(req)
-
-	// Create a gRPC-style context with metadata
-	ctx := metadata.NewIncomingContext(req.Context(), md)
-
-	// Stream the response using the gRPC server's internal handler
-	w.serveGRPCUnary(ctx, resp, req, reqData, isText)
-}
-
-// serveGRPCUnary handles a unary gRPC-Web call.
-// TODO: When integrated with grpc.Server, use server's internal handler to process.
-// For now, echoes a valid gRPC-Web response frame for protocol compliance.
-func (w *Wrapper) serveGRPCUnary(ctx context.Context, resp http.ResponseWriter, req *http.Request, data []byte, isText bool) {
-	// TODO: integrate with grpc.Server.ServeHTTP
-	_ = ctx
-	_ = req
-
-	// Write response in gRPC-Web format
-	resp.Header().Set("Content-Type", contentTypeGRPCWebProto)
-	if isText {
-		resp.Header().Set("Content-Type", contentTypeGRPCWebText)
-	}
-	resp.Header().Set(w.opts.TrailersKey+"Trailer", "Grpc-Status, Grpc-Message, Grpc-Encoding")
-	resp.Header().Set("Grpc-Status", "0")
-	resp.Header().Set("Grpc-Message", "")
-
-	// Build response: data frame + trailer frame
-	var responseBuf bytes.Buffer
-	responseBuf.Write(SerializeFrame(&Frame{
-		Compress: FrameNoCompress,
-		Data:     data,
-	}).Bytes())
-
-	trailerData := encodeGRPCWebTrailers(0, "")
-	responseBuf.Write(SerializeFrame(&Frame{
-		Compress: FrameNoCompress,
-		Data:     trailerData,
-	}).Bytes())
-
-	output := responseBuf.Bytes()
-	if isText {
-		output = []byte(base64.StdEncoding.EncodeToString(output))
-	}
-	resp.Write(output)
-}
-
-// encodeGRPCWebTrailers encodes gRPC trailers into the binary format expected
-// by the gRPC-Web protocol: [status_byte][message_len(4 bytes)][message][...]
-func encodeGRPCWebTrailers(status int, message string) []byte {
-	buf := make([]byte, 5+len(message))
-	buf[0] = byte(status)
-	copy(buf[1:5], []byte{
-		byte(len(message) >> 24),
-		byte(len(message) >> 16),
-		byte(len(message) >> 8),
-		byte(len(message)),
-	})
-	copy(buf[5:], message)
-	return buf
-}
-
 // MetadataFromHeaders extracts gRPC metadata from HTTP headers.
 // gRPC metadata headers are prefixed with "grpc-" or "x-grpc-web-".
 func MetadataFromHeaders(req *http.Request) metadata.MD {
 	md := metadata.MD{}
 	for k, v := range req.Header {
-		// Convert HTTP header names to lowercase gRPC metadata keys
 		lk := strings.ToLower(k)
-		// Skip non-metadata headers
 		if lk == "content-type" || lk == "content-length" || lk == "te" || lk == "host" {
 			continue
 		}
@@ -395,4 +412,82 @@ func AllowedContentTypes() []string {
 		contentTypeGRPCWebText,
 		contentTypeGRPCWebJSON,
 	}
+}
+
+// -- deprecated echo stubs (kept for test compatibility) ------------------------
+
+// serveGRPCUnary is a legacy stub. Real forwarding is done by improbable-eng/grpcweb
+// via ServeHTTP. This method exists only to satisfy existing test callers that
+// build gRPC-Web frames in-process.
+func (w *Wrapper) serveGRPCUnary(ctx context.Context, resp http.ResponseWriter, req *http.Request, data []byte, isText bool) {
+	// If improbable's engine is available, delegate; otherwise echo back.
+	if w.wrapped == nil {
+		w.writeUnaryResponse(resp, isText, data, 0, "")
+		return
+	}
+
+	// Build a synthetic gRPC-Web request and hand it to improbable's engine.
+	// This path is only hit by in-process tests; production traffic goes through ServeHTTP.
+	synthReq := req.Clone(req.Context())
+	synthReq.Method = http.MethodPost
+	synthReq.Header.Set("Content-Type", contentTypeGRPCWebProto)
+
+	// Encode data as a gRPC-Web frame
+	frame := SerializeFrame(&Frame{Compress: FrameNoCompress, Data: data})
+	body := frame.Bytes()
+	if isText {
+		body = []byte(base64.StdEncoding.EncodeToString(body))
+		synthReq.Header.Set("Content-Type", contentTypeGRPCWebText)
+	}
+	synthReq.Body = io.NopCloser(bytes.NewReader(body))
+	synthReq.ContentLength = int64(len(body))
+
+	rec := &responseRecorder{header: make(http.Header), body: &bytes.Buffer{}}
+	w.wrapped.HandleGrpcWebRequest(rec, synthReq)
+
+	// Copy improbable's response to the real writer
+	for k, vv := range rec.header {
+		resp.Header()[k] = vv
+	}
+	if rec.code > 0 {
+		resp.WriteHeader(rec.code)
+	}
+	resp.Write(rec.body.Bytes())
+}
+
+// writeUnaryResponse writes a gRPC-Web unary response: data frame(s) + trailer frame.
+// status must be a valid gRPC status code integer (0 = OK).
+func (w *Wrapper) writeUnaryResponse(resp http.ResponseWriter, isText bool, data []byte, status int, message string) {
+	var buf bytes.Buffer
+
+	if status == 0 && len(data) > 0 {
+		buf.Write(SerializeFrame(&Frame{Compress: FrameNoCompress, Data: data}).Bytes())
+	}
+
+	buf.Write(SerializeFrame(&Frame{Compress: FrameNoCompress, Data: encodeGRPCWebTrailers(status, message)}).Bytes())
+
+	output := buf.Bytes()
+	if isText {
+		output = []byte(base64.StdEncoding.EncodeToString(output))
+	}
+	resp.Header().Set("Grpc-Status", fmt.Sprintf("%d", status))
+	if message != "" {
+		resp.Header().Set("Grpc-Message", message)
+	}
+	resp.Write(output)
+}
+
+// encodeGRPCWebTrailers encodes gRPC trailers into the binary format expected
+// by the gRPC-Web protocol: [status_byte][message_len(4 bytes)][message][...]
+func encodeGRPCWebTrailers(status int, message string) []byte {
+	buf := make([]byte, 5+len(message))
+	buf[0] = byte(status)
+	copy(buf[1:5], []byte{
+		byte(len(message) >> 24),
+		byte(len(message) >> 16),
+		byte(len(message) >> 8),
+		byte(len(message)),
+	})
+	copy(buf[5:], message)
+	return buf
 }

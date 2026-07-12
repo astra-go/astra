@@ -123,8 +123,9 @@ func RabbitMQCapabilities() Capabilities {
 // retry, ordered delivery, multi consumer group, batch,
 // priority queues (via PriorityTopics + sortViewsByPriority),
 // and NAK delay (via ChangeInvisibleDuration).
-// CapTx is conditional — EnableTx config exists but TransactionProducer
-// is not yet implemented (see rocketmq.go TODO).
+// CapTx is conditional — EnableTx config exists. TransactionProducer
+// is implemented (rocketmq.go) but requires broker-side transaction
+// support to be enabled; CapTx=false by default for safety.
 func RocketMQCapabilities() Capabilities {
 	return Capabilities{
 		CapArbitraryDelay: true,
@@ -136,7 +137,7 @@ func RocketMQCapabilities() Capabilities {
 		CapDLQ:            true,
 		CapRetry:          true,
 		CapMultiGroup:     true,
-		CapTx:             false, // TODO: implement TransactionProducer (rocketmq.go)
+		CapTx:             false, // requires broker-side transaction support; set true if RocketMQ broker has TransactionEnabled=true
 		CapBatch:          true,
 	}
 }
