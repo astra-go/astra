@@ -49,6 +49,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"io"
 	"log/slog"
 	"net/http"
@@ -263,9 +264,21 @@ type cookieStateStore struct{ key []byte }
 
 func newCookieStateStore(key []byte) *cookieStateStore {
 	if len(key) == 0 {
-		slog.Warn("oauth2: StateKey not set; state cookies will be invalidated on restart and are unsuitable for multi-instance deployments")
-		key = make([]byte, 32)
-		_, _ = rand.Read(key)
+		// Support fixed key via environment variable for multi-instance deployments.
+		if envKey := os.Getenv("ASTRA_OAUTH_STATE_KEY"); envKey != "" {
+			if b, err := base64.RawURLEncoding.DecodeString(envKey); err == nil && len(b) == 32 {
+				key = b
+			} else if b := []byte(envKey); len(b) == 32 {
+				key = b
+			} else {
+				slog.Error("oauth2: ASTRA_OAUTH_STATE_KEY must be 32 bytes (base64.RawURL or plain); falling back to random")
+			}
+		}
+		if len(key) == 0 {
+			slog.Warn("oauth2: StateKey not set; state cookies will be invalidated on restart and are unsuitable for multi-instance deployments")
+			key = make([]byte, 32)
+			_, _ = rand.Read(key)
+		}
 	}
 	return &cookieStateStore{key: key}
 }

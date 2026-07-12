@@ -172,14 +172,28 @@ func (d *NPlusOneDetector) buildKey(ctx context.Context, table string) string {
 	return fmt.Sprintf("%s:%s", table, d.getRequestID(ctx))
 }
 
+// tablePatterns holds pre-compiled regex for extractTable.
+// Compiled once at init to avoid per-call MustCompile overhead.
+var tablePatterns []*regexp.Regexp
+
+func init() {
+	tablePatterns = []*regexp.Regexp{
+		regexp.MustCompile(`\bFROM\s+(\w+)`),
+		regexp.MustCompile(`\bJOIN\s+(\w+)`),
+		regexp.MustCompile(`\bUPDATE\s+(\w+)`),
+		regexp.MustCompile(`\bINSERT\s+INTO\s+(\w+)`),
+		regexp.MustCompile(`\bDELETE\s+FROM\s+(\w+)`),
+	}
+}
+
 // getRequestID extracts or generates a request ID from context.
 func (d *NPlusOneDetector) getRequestID(ctx context.Context) string {
 	// Try to extract from common tracing headers.
-	if id := ctx.Value("request-id"); id != nil {
-		return id.(string)
+	if id, ok := ctx.Value("request-id").(string); ok {
+		return id
 	}
-	if id := ctx.Value("x-request-id"); id != nil {
-		return id.(string)
+	if id, ok := ctx.Value("x-request-id").(string); ok {
+		return id
 	}
 
 	// Fall back to generating a unique ID per request.
@@ -189,33 +203,13 @@ func (d *NPlusOneDetector) getRequestID(ctx context.Context) string {
 
 // extractTable extracts the table name from a SQL query.
 func (d *NPlusOneDetector) extractTable(query string) string {
-	// Simple regex for common patterns.
-	// SELECT ... FROM table [WHERE ...]
-	// INSERT INTO table ...
-	// UPDATE table ...
-	// DELETE FROM table ...
-
 	query = strings.ToUpper(query)
 	query = strings.TrimSpace(query)
-
-	patterns := []struct {
-		regex     *regexp.Regexp
-		tableIdx  int
-	}{
-		{regexp.MustCompile(`\bFROM\s+(\w+)`), 1},                    // SELECT ... FROM table
-		{regexp.MustCompile(`\bJOIN\s+(\w+)`), 1},                     // JOIN table
-		{regexp.MustCompile(`\bINSERT\s+INTO\s+(\w+)`), 1},           // INSERT INTO table
-		{regexp.MustCompile(`\bUPDATE\s+(\w+)`), 1},                   // UPDATE table
-		{regexp.MustCompile(`\bDELETE\s+FROM\s+(\w+)`), 1},           // DELETE FROM table
-	}
-
-	for _, p := range patterns {
-		matches := p.regex.FindStringSubmatch(query)
-		if len(matches) > p.tableIdx {
-			return matches[p.tableIdx]
+	for _, p := range tablePatterns {
+		if matches := p.FindStringSubmatch(query); len(matches) > 1 {
+			return matches[1]
 		}
 	}
-
 	return ""
 }
 

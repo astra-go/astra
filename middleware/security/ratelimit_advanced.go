@@ -121,20 +121,23 @@ func SlidingWindowWithConfig(cfg SlidingWindowConfig) (astra.HandlerFunc, func()
 
 	store := &swStore{window: cfg.Window}
 
-	// Periodic cleanup — remove entries idle for more than 2 windows.
-	// Goroutine exits when ctx is cancelled.
-	go func() {
-		ticker := time.NewTicker(cfg.Window * 10)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				store.evict(time.Now())
+	// Only start background eviction goroutine when caller explicitly provides
+	// a Context (indicating they will manage lifecycle via the returned cancel).
+	// When cfg.Context is nil the lazy eviction in allow() is sufficient.
+	if cfg.Context != nil {
+		go func() {
+			ticker := time.NewTicker(cfg.Window * 10)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					store.evict(time.Now())
+				}
 			}
-		}
-	}()
+		}()
+	}
 
 	mw := func(c *astra.Ctx) error {
 		if shouldSkip(cfg.Skipper, c) {
@@ -172,14 +175,27 @@ type swEntry struct {
 
 // swStore manages per-key sliding-window entries.
 type swStore struct {
-	mu      sync.RWMutex
-	entries map[string]*swEntry
-	window  time.Duration
+	mu         sync.RWMutex
+	entries    map[string]*swEntry
+	window     time.Duration
+	lastEvict  time.Time  // last eviction timestamp (lazy eviction)
 }
 
 // allow returns true if the request is within the limit.
 func (s *swStore) allow(key string, limit int64) bool {
 	now := time.Now()
+
+	// Lazy eviction: clean stale entries when 10 windows have passed.
+	s.mu.RLock()
+	needsEvict := s.lastEvict.IsZero() || now.Sub(s.lastEvict) >= s.window*10
+	s.mu.RUnlock()
+	if needsEvict {
+		s.evict(now)
+		s.mu.Lock()
+		s.lastEvict = now
+		s.mu.Unlock()
+	}
+
 	entry := s.getOrCreate(key, now)
 
 	entry.mu.Lock()

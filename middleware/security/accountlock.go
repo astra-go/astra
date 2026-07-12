@@ -117,10 +117,14 @@ func (r *RedisAccountLocker) IncrLoginFail(ctx context.Context, key string) (int
 		return 0, fmt.Errorf("incr fail count: %w", err)
 	}
 	if count == 1 {
-		_ = r.client.Expire(ctx, fk, r.window)
+		if err := r.client.Expire(ctx, fk, r.window).Err(); err != nil {
+			return count, fmt.Errorf("set fail counter TTL: %w", err)
+		}
 	}
 	if count >= int64(r.maxFails) {
-		_ = r.LockAccount(ctx, key)
+		if err := r.LockAccount(ctx, key); err != nil {
+			return count, fmt.Errorf("lock account: %w", err)
+		}
 	}
 	return count, nil
 }
