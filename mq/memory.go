@@ -324,6 +324,10 @@ func (p *MemoryProducer) FixedDelay(ctx context.Context, msg *Message, level int
 func (p *MemoryProducer) Close() error { return p.broker.Close() }
 
 // Capabilities returns the memory broker's capability set.
+func (p *MemoryProducer) BeginTransaction(ctx context.Context, _ TransactionChecker) (Transaction, error) {
+	return nil, ErrCapTxNotSupported
+}
+
 func (p *MemoryProducer) Capabilities() Capabilities { return MemoryCapabilities() }
 
 // ─── Memory Consumer ─────────────────────────────────────────────────────────

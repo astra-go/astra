@@ -967,5 +967,9 @@ func natsMessageToMessage(natsMsg *nats.Msg) *Message {
 }
 
 // Capabilities returns the capabilities of NATS JetStream.
+func (p *NATSProducer) BeginTransaction(ctx context.Context, _ TransactionChecker) (Transaction, error) {
+	return nil, ErrCapTxNotSupported
+}
+
 func (p *NATSProducer) Capabilities() Capabilities { return NatsCapabilities() }
 func (c *NATSConsumer) Capabilities() Capabilities { return NatsCapabilities() }

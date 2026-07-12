@@ -8,6 +8,9 @@
 //
 // Default behavior (returning a plain error): treated as ErrRetry
 // with exponential backoff.
+//
+// Sentinel errors:
+//   - ErrCapTxNotSupported: backend does not support transactions
 package mq
 
 import (
@@ -36,6 +39,10 @@ const (
 	// sends the message to DLQ.
 	ErrPanic
 )
+
+// ErrCapTxNotSupported is returned by BeginTransaction when the backend
+// does not support transactional messaging.
+var ErrCapTxNotSupported = fmt.Errorf("mq: transaction not supported by this backend")
 
 // MQError is a semantic error returned by Handlers to control
 // retry/dead-letter behavior.

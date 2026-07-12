@@ -180,6 +180,10 @@ type RocketMQProducer struct {
 	batchBuf  []*Message
 	batchDone chan struct{}
 	flushReq  chan chan struct{}
+
+	// transaction — protected by txMu; nil when no active transaction
+	txMu     sync.Mutex
+	activeTx rmq.Transaction
 }
 
 // NewProducer creates and starts a RocketMQ producer.
@@ -246,7 +250,10 @@ func NewRocketMQProducer(cfg RocketMQConfig) (*RocketMQProducer, error) {
 //   - cfg.EnableDelay && msg.Delay > 0 → SetDelayTimestamp (v5 arbitrary delay)
 //   - msg.IdempKey != "" → stored as property "x-idemp-key"
 //   - cfg.MessageGroup != "" → SetMessageGroup (partition-scoped ordered delivery)
-//   - cfg.EnableTx → TODO: use TransactionProducer
+//   - cfg.EnableTx: TransactionChecker is registered at producer creation time
+//     (mq.WithTransactionChecker); for explicit half-message control, use
+//     BeginTransaction() to get a Transaction and call tx.Publish(ctx, msg)
+//     before tx.Commit/Rollback.
 func (p *RocketMQProducer) Publish(ctx context.Context, msg *Message) error {
 	if p.cfg.BatchSize > 0 {
 		return p.bufferMessage(ctx, msg)
@@ -276,8 +283,24 @@ func (p *RocketMQProducer) publishSingle(ctx context.Context, msg *Message) erro
 	}
 
 	// ── Transaction path ──
-	// Transaction messages should use BeginTransaction() instead.
-	// This path is for non-transactional messages only.
+	// If a transaction was started via BeginTransaction, publish within it.
+	// Otherwise fall through to regular send.
+	p.txMu.Lock()
+	tx := p.activeTx
+	p.txMu.Unlock()
+
+	if tx != nil {
+		// SendWithTransaction returns a slice; log receipt count for observability
+		receipts, err := p.prod.SendWithTransaction(ctx, rmqMsg, tx)
+		if err != nil {
+			return fmt.Errorf("rocketmq publish (transactional): %w", err)
+		}
+		slog.Debug("rocketmq publish ok",
+			slog.String("topic", msg.Topic),
+			slog.Int("receipts", len(receipts)),
+		)
+		return nil
+	}
 
 	receipts, err := p.prod.Send(ctx, rmqMsg)
 	if err != nil {
@@ -806,40 +829,35 @@ func (p *RocketMQProducer) Capabilities() Capabilities { return RocketMQCapabili
 func (c *RocketMQConsumer) Capabilities() Capabilities { return RocketMQCapabilities() }
 
 // ─── Transaction Support ──────────────────────────────────────────────────────
+// Transaction and TransactionChecker are defined in mq/mq.go.
+// rocketmqTransaction implements mq.Transaction; it delegates back to the
+// producer so that Commit/Rollback can be called on either the producer or
+// the Transaction handle — both paths go through the same mutex guard.
 
-// Transaction represents an in-flight RocketMQ transaction.
-// After BeginTransaction, call Publish to send half messages,
-// then Commit or Rollback to finish.
-type Transaction interface {
-	// Publish sends a half message (not visible to consumers until Commit).
-	Publish(ctx context.Context, msg *Message) error
-
-	// Commit makes all half messages visible to consumers.
-	Commit(ctx context.Context) error
-
-	// Rollback discards all half messages.
-	Rollback(ctx context.Context) error
-}
-
-// TransactionChecker is a callback invoked by the RocketMQ broker
-// when the producer crashes before sending Commit or Rollback.
-// It should query local storage (DB, Redis, etc.) and return whether
-// the local transaction was committed or not.
-type TransactionChecker func(ctx context.Context, msg *Message) (bool, error)
-
-// rocketmqTransaction implements the Transaction interface.
+// rocketmqTransaction implements mq.Transaction.
+// It delegates Commit/Rollback to the parent RocketMQProducer so that the
+// producer's activeTx field is always cleared under txMu, even if the caller
+// drops the Transaction handle early.
 type rocketmqTransaction struct {
+	producer *RocketMQProducer
 	tx      rmq.Transaction
-	prod    rmq.Producer
 	checker TransactionChecker
 }
 
 // Publish sends a half message (not visible to consumers until Commit).
+// The producer's active transaction is used; if none is active this call
+// returns ErrCapTxNotSupported.
 func (t *rocketmqTransaction) Publish(ctx context.Context, msg *Message) error {
-	rmqMsg := toRMQMessage(msg)
+	t.producer.txMu.Lock()
+	tx := t.producer.activeTx
+	t.producer.txMu.Unlock()
 
-	// Send with transaction
-	receipts, err := t.prod.SendWithTransaction(ctx, rmqMsg, t.tx)
+	if tx == nil {
+		return ErrCapTxNotSupported
+	}
+
+	rmqMsg := toRMQMessage(msg)
+	receipts, err := t.producer.prod.SendWithTransaction(ctx, rmqMsg, tx)
 	if err != nil {
 		return fmt.Errorf("rocketmq transaction publish: %w", err)
 	}
@@ -850,36 +868,70 @@ func (t *rocketmqTransaction) Publish(ctx context.Context, msg *Message) error {
 	return nil
 }
 
-// Commit makes all half messages visible to consumers.
-func (t *rocketmqTransaction) Commit(ctx context.Context) error {
-	if err := t.tx.Commit(); err != nil {
+// Commit ends the active transaction started by BeginTransaction.
+// It is safe to call even if no transaction is active (no-op).
+func (p *RocketMQProducer) Commit(ctx context.Context) error {
+	p.txMu.Lock()
+	tx := p.activeTx
+	p.activeTx = nil
+	p.txMu.Unlock()
+	if tx == nil {
+		return nil
+	}
+	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("rocketmq transaction commit: %w", err)
 	}
 	slog.Debug("rocketmq transaction committed")
 	return nil
 }
 
-// Rollback discards all half messages.
-func (t *rocketmqTransaction) Rollback(ctx context.Context) error {
-	if err := t.tx.RollBack(); err != nil {
+// Rollback aborts the active transaction started by BeginTransaction.
+// It is safe to call even if no transaction is active (no-op).
+func (p *RocketMQProducer) Rollback(ctx context.Context) error {
+	p.txMu.Lock()
+	tx := p.activeTx
+	p.activeTx = nil
+	p.txMu.Unlock()
+	if tx == nil {
+		return nil
+	}
+	if err := tx.RollBack(); err != nil {
 		return fmt.Errorf("rocketmq transaction rollback: %w", err)
 	}
 	slog.Debug("rocketmq transaction rolled back")
 	return nil
 }
 
+// Commit on the Transaction handle delegates to the producer.
+func (t *rocketmqTransaction) Commit(ctx context.Context) error {
+	return t.producer.Commit(ctx)
+}
+
+// Rollback on the Transaction handle delegates to the producer.
+func (t *rocketmqTransaction) Rollback(ctx context.Context) error {
+	return t.producer.Rollback(ctx)
+}
+
 // BeginTransaction starts a new transaction.
-// The checker will be called by the broker if this producer crashes
-// before Commit/Rollback.
+// The checker is called by the broker if the producer crashes before
+// Commit/Rollback. Satisfies mq.Producer.BeginTransaction.
 func (p *RocketMQProducer) BeginTransaction(ctx context.Context, checker TransactionChecker) (Transaction, error) {
+	p.txMu.Lock()
+	defer p.txMu.Unlock()
+
+	if p.activeTx != nil {
+		return nil, fmt.Errorf("rocketmq: transaction already in progress")
+	}
+
 	tx := p.prod.BeginTransaction()
 	if tx == nil {
 		return nil, fmt.Errorf("rocketmq: failed to begin transaction")
 	}
+	p.activeTx = tx
 
 	return &rocketmqTransaction{
+		producer: p,
 		tx:      tx,
-		prod:    p.prod,
 		checker: checker,
 	}, nil
 }

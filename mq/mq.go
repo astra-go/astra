@@ -150,7 +150,54 @@ type Producer interface {
 
 	// Capabilities returns the set of capabilities supported by this producer's backend.
 	Capabilities() Capabilities
+
+	// BeginTransaction starts a new transaction. Only backends that set
+	// CapTx=true in their Capabilities support this; all others return
+	// ErrCapTxNotSupported.
+	//
+	// The checker is called by the broker if the producer crashes mid-transaction
+	// so it can determine whether the local DB write was committed.
+	BeginTransaction(ctx context.Context, checker TransactionChecker) (Transaction, error)
 }
+
+// Transaction represents an in-flight transaction started via Producer.BeginTransaction.
+// Only RocketMQ and Kafka support this interface.
+//
+// Usage:
+//
+//	tx, err := producer.BeginTransaction(ctx, func(ctx context.Context, msg *Message) (bool, error) {
+//	    // Query your DB: did we commit this? Return true=commit, false=rollback
+//	    committed, _ := db.QueryTx(ctx, msg.IdempKey)
+//	    return committed, nil
+//	})
+//	if err != nil { /* handle */ }
+//	defer tx.Rollback(ctx) // safe fallback
+//
+//	// Send half-messages
+//	if err := tx.Publish(ctx, msg1); err != nil { return err }
+//	if err := tx.Publish(ctx, msg2); err != nil { return err }
+//
+//	// Commit only after DB write succeeds
+//	db.Save(...) // local DB commit
+//	return tx.Commit(ctx)
+type Transaction interface {
+	// Publish sends a half-message (not visible to consumers until Commit).
+	// If Publish returns an error the transaction is already aborted;
+	// call Rollback to clean up and ignore the error.
+	Publish(ctx context.Context, msg *Message) error
+
+	// Commit makes all half-messages in this transaction visible to consumers.
+	Commit(ctx context.Context) error
+
+	// Rollback discards all half-messages in this transaction.
+	Rollback(ctx context.Context) error
+}
+
+// TransactionChecker is a callback invoked by the RocketMQ broker when the
+// producer crashes before sending Commit or Rollback. It should query local
+// storage (DB, Redis, etc.) and return whether the local transaction was
+// committed (true) or should be rolled back (false).
+type TransactionChecker func(ctx context.Context, msg *Message) (bool, error)
 
 // Consumer subscribes to topics and processes messages.
 type Consumer interface {

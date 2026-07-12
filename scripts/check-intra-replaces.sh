@@ -31,7 +31,7 @@ MOD_TABLE=$(mktemp)
 trap "rm -f $MOD_TABLE" EXIT
 
 awk '/^use[[:space:]]*\(/{p=1;next} /^\)/{p=0} p{print}' "$ROOT/go.work" \
-    | sed 's|^[[:space:]]*||;s|^./||' \
+    | sed 's|^[[:space:]]*||;s|^./||;s|[[:space:]]*//.*$||' \
     | grep -v '^$' \
     | while IFS= read -r mod_dir; do
     [ -z "$mod_dir" ] && continue

@@ -228,8 +228,12 @@ func (a *App) sealPool() {
 //	app.Use(Logger(), Recovery())  // register middleware first
 //	app.GET("/users", listUsers)   // then register routes
 //
-// Safe to call concurrently with other Use calls, but not concurrently
-// with route registrations.
+// Concurrency: Safe to call concurrently with other Use calls. Safe to call
+// concurrently with route registrations from a locking perspective (RWMutex
+// read-write pair prevents corruption), but NOT safe after the server has
+// started accepting requests — reading the middleware slice while the server
+// is concurrently registering routes can produce inconsistent handler chains.
+// In practice, always call Use during setup before app.Run().
 func (a *App) Use(middleware ...MiddlewareFunc) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

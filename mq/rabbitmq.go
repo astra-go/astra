@@ -915,5 +915,9 @@ func (c *RabbitMQConsumer) sendToDLQ(ctx context.Context, ch *amqp.Channel, msg 
 }
 
 // Capabilities returns the capabilities of RabbitMQ.
+func (p *RabbitMQProducer) BeginTransaction(ctx context.Context, _ TransactionChecker) (Transaction, error) {
+	return nil, ErrCapTxNotSupported
+}
+
 func (p *RabbitMQProducer) Capabilities() Capabilities { return RabbitMQCapabilities() }
 func (c *RabbitMQConsumer) Capabilities() Capabilities { return RabbitMQCapabilities() }

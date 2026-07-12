@@ -58,15 +58,23 @@ func (l *Lifecycle) RunStartHooks(ctx context.Context) error {
 }
 
 // RunStopHooks runs all registered stop hooks in reverse registration order
-// (LIFO). Errors are logged but not returned so that every hook runs regardless
-// of earlier failures.
-func (l *Lifecycle) RunStopHooks(ctx context.Context) {
+// (LIFO), mirroring di.Container.Stop semantics so that resources are released
+// in the inverse order they were acquired. Errors from individual hooks are
+// collected and returned; the shutdown context timeout error (if any) is NOT
+// included in the returned slice — callers that hit the shutdown deadline can
+// distinguish timeout errors from hook failures.
+//
+// All hooks run regardless of earlier failures; the returned error slice contains
+// one entry per failed hook in reverse order.
+func (l *Lifecycle) RunStopHooks(ctx context.Context) (errs []error) {
 	l.mu.RLock()
 	hooks := l.stopHooks
 	l.mu.RUnlock()
 	for i := len(hooks) - 1; i >= 0; i-- {
 		if err := hooks[i](ctx); err != nil {
 			slog.Error("stop hook failed", "err", err)
+			errs = append(errs, err)
 		}
 	}
+	return
 }

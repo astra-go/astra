@@ -209,24 +209,52 @@ func (p *KafkaProducer) FixedDelay(ctx context.Context, msg *Message, level int)
 
 // ─── Transaction Methods ─────────────────────────────────────────────────────
 
+// kafkaTransaction implements mq.Transaction for Kafka.
+type kafkaTransaction struct {
+	producer *KafkaProducer
+}
+
+func (t *kafkaTransaction) Publish(ctx context.Context, msg *Message) error {
+	return t.producer.publishWithActiveTxn(ctx, msg)
+}
+
+func (t *kafkaTransaction) Commit(ctx context.Context) error {
+	return t.producer.CommitTransaction(ctx)
+}
+
+func (t *kafkaTransaction) Rollback(ctx context.Context) error {
+	return t.producer.AbortTransaction(ctx)
+}
+
 // BeginTransaction starts a new Kafka transaction.
-// Only valid if EnableTx was set in the config.
-func (p *KafkaProducer) BeginTransaction() error {
+// Returns ErrCapTxNotSupported if EnableTx is not set in the config.
+// Note: Kafka transactions are purely client-side coordinated (no broker callback);
+// the checker parameter is accepted for interface compatibility but ignored.
+func (p *KafkaProducer) BeginTransaction(ctx context.Context, _ TransactionChecker) (Transaction, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if !p.cfg.EnableTx {
-		return fmt.Errorf("kafka producer: transactions not enabled (set EnableTx=true)")
+		return nil, fmt.Errorf("kafka producer: transactions not enabled (set EnableTx=true)")
 	}
 	if p.inTxn {
-		return fmt.Errorf("kafka producer: transaction already in progress")
+		return nil, fmt.Errorf("kafka producer: transaction already in progress")
 	}
 
 	if err := p.client.BeginTransaction(); err != nil {
-		return fmt.Errorf("kafka producer: begin transaction: %w", err)
+		return nil, fmt.Errorf("kafka producer: begin transaction: %w", err)
 	}
 	p.inTxn = true
-	return nil
+	return &kafkaTransaction{producer: p}, nil
+}
+
+// publishWithActiveTxn sends a message while a transaction is active.
+// Idempotency is handled by Kafka broker (EnableIdempotence).
+// Caller must hold p.mu.
+func (p *KafkaProducer) publishWithActiveTxn(ctx context.Context, msg *Message) error {
+	record := msgToRecord(msg)
+	results := p.client.ProduceSync(ctx, record)
+	return results.FirstErr()
 }
 
 // CommitTransaction commits the current Kafka transaction.

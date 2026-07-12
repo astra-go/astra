@@ -1,7 +1,7 @@
 // Package mq - HTTP route integration for the mq module.
 //
 // This file provides HTTP route registration for publishing messages via REST.
-// It uses the RouteRegistrar interface to avoid importing the astra/ package.
+// It uses the HTTPRouteRegistrar interface to avoid importing the astra/ package.
 package mq
 
 import (
@@ -11,9 +11,11 @@ import (
 	"time"
 )
 
-// RouteRegistrar is the interface that the HTTP router must implement.
+// HTTPRouteRegistrar is the interface that the HTTP router must implement.
 // It mirrors the method set exposed by astra.App for route registration.
-type RouteRegistrar interface {
+// Named HTTPRouteRegistrar to avoid confusion with astra.RouteRegistrar
+// (which has a different signature: astra.HandlerFunc vs func(context, *http.Request)).
+type HTTPRouteRegistrar interface {
 	GET(path string, handler func(ctx context.Context, r *http.Request) error)
 	POST(path string, handler func(ctx context.Context, r *http.Request) error)
 	PUT(path string, handler func(ctx context.Context, r *http.Request) error)
@@ -55,7 +57,7 @@ type HTTPRouteOptions struct {
 //   - X-Trace-ID: distributed tracing ID
 //
 // Response: 202 Accepted with body {"status":"published","topic":...,"key":...}
-func RegisterHTTPRoutes(registrar RouteRegistrar, opts HTTPRouteOptions) {
+func RegisterHTTPRoutes(registrar HTTPRouteRegistrar, opts HTTPRouteOptions) {
 	if opts.IdempotencyTTL == 0 {
 		opts.IdempotencyTTL = 24 * time.Hour
 	}

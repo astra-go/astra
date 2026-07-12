@@ -3,6 +3,18 @@
 // login providers, payment gateways, SMS channels, storage backends, etc.)
 // register and resolve their implementations.
 //
+// # provider vs di package
+//
+// This package and the di package address different problems:
+//   - di.Container: manages dependency lifecycles and environment-aware injection
+//     (wire a *sql.DB into your repository; swap implementations per environment)
+//   - provider.Registry: dispatches between named implementations of the same
+//     interface by code (e.g. choose "alipay" vs "wechat" payment gateway at
+//     runtime based on config)
+//
+// They are orthogonal and composable: use di to wire the provider registry itself,
+// then use provider to select a concrete implementation at runtime.
+//
 // # Quick start
 //
 //	// 1. Define your provider interface

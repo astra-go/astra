@@ -389,5 +389,9 @@ func (c *PulsarConsumer) Close() error {
 var _ Consumer = (*PulsarConsumer)(nil)
 
 // Capabilities returns the capabilities of Apache Pulsar.
+func (p *PulsarProducer) BeginTransaction(ctx context.Context, _ TransactionChecker) (Transaction, error) {
+	return nil, ErrCapTxNotSupported
+}
+
 func (p *PulsarProducer) Capabilities() Capabilities { return PulsarCapabilities() }
 func (c *PulsarConsumer) Capabilities() Capabilities { return PulsarCapabilities() }

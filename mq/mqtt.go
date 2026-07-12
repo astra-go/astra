@@ -752,5 +752,9 @@ func (c *MQTTConsumer) Close() error {
 }
 
 // Capabilities returns the capabilities of MQTT.
+func (p *MQTTProducer) BeginTransaction(ctx context.Context, _ TransactionChecker) (Transaction, error) {
+	return nil, ErrCapTxNotSupported
+}
+
 func (p *MQTTProducer) Capabilities() Capabilities { return MqttCapabilities() }
 func (c *MQTTConsumer) Capabilities() Capabilities { return MqttCapabilities() }

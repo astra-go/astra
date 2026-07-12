@@ -272,6 +272,10 @@ func (p *RedisProducer) Close() error {
 }
 
 // Capabilities returns the capability set.
+func (p *RedisProducer) BeginTransaction(ctx context.Context, _ TransactionChecker) (Transaction, error) {
+	return nil, ErrCapTxNotSupported
+}
+
 func (p *RedisProducer) Capabilities() Capabilities { return RedisCapabilities() }
 
 // ─── Consumer ─────────────────────────────────────────────────────────────────

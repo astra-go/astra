@@ -1,7 +1,7 @@
 // Package astra - HTTP route integration for mq module.
 //
-// This file implements mq.RouteRegistrar using *App
-// and wires up the HTTP → MQ publishing routes.
+// This file implements mq.HTTPRouteRegistrar using *App and wires up the
+// HTTP → MQ publishing routes.
 package astra
 
 import (
@@ -11,8 +11,9 @@ import (
 	"github.com/astra-go/astra/mq"
 )
 
-// astraRouteRegistrar implements mq.RouteRegistrar using *App.
-type astraRouteRegistrar struct {
+// astraMQRouteRegistrar implements mq.HTTPRouteRegistrar using *App.
+// Named with MQ prefix to distinguish it from astra.RouteRegistrar (app.go).
+type astraMQRouteRegistrar struct {
 	app *App
 }
 
@@ -28,40 +29,40 @@ type astraRouteRegistrar struct {
 //	}
 //	app.RegisterMQHTTPRoutes(opts)
 func (app *App) RegisterMQHTTPRoutes(opts mq.HTTPRouteOptions) {
-	registrar := &astraRouteRegistrar{app: app}
+	registrar := &astraMQRouteRegistrar{app: app}
 	mq.RegisterHTTPRoutes(registrar, opts)
 }
 
-// GET implements mq.RouteRegistrar.
-func (r *astraRouteRegistrar) GET(path string, handler func(ctx context.Context, r *http.Request) error) {
+// GET implements mq.HTTPRouteRegistrar.
+func (r *astraMQRouteRegistrar) GET(path string, handler func(ctx context.Context, r *http.Request) error) {
 	r.app.GET(path, func(c *Ctx) error {
 		return handler(c.Request().Context(), c.Request())
 	})
 }
 
-// POST implements mq.RouteRegistrar.
-func (r *astraRouteRegistrar) POST(path string, handler func(ctx context.Context, r *http.Request) error) {
+// POST implements mq.HTTPRouteRegistrar.
+func (r *astraMQRouteRegistrar) POST(path string, handler func(ctx context.Context, r *http.Request) error) {
 	r.app.POST(path, func(c *Ctx) error {
 		return handler(c.Request().Context(), c.Request())
 	})
 }
 
-// PUT implements mq.RouteRegistrar.
-func (r *astraRouteRegistrar) PUT(path string, handler func(ctx context.Context, r *http.Request) error) {
+// PUT implements mq.HTTPRouteRegistrar.
+func (r *astraMQRouteRegistrar) PUT(path string, handler func(ctx context.Context, r *http.Request) error) {
 	r.app.PUT(path, func(c *Ctx) error {
 		return handler(c.Request().Context(), c.Request())
 	})
 }
 
-// DELETE implements mq.RouteRegistrar.
-func (r *astraRouteRegistrar) DELETE(path string, handler func(ctx context.Context, r *http.Request) error) {
+// DELETE implements mq.HTTPRouteRegistrar.
+func (r *astraMQRouteRegistrar) DELETE(path string, handler func(ctx context.Context, r *http.Request) error) {
 	r.app.DELETE(path, func(c *Ctx) error {
 		return handler(c.Request().Context(), c.Request())
 	})
 }
 
-// Any implements mq.RouteRegistrar.
-func (r *astraRouteRegistrar) Any(path string, handler func(ctx context.Context, r *http.Request) error) {
+// Any implements mq.HTTPRouteRegistrar.
+func (r *astraMQRouteRegistrar) Any(path string, handler func(ctx context.Context, r *http.Request) error) {
 	r.app.Any(path, func(c *Ctx) error {
 		return handler(c.Request().Context(), c.Request())
 	})

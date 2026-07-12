@@ -15,10 +15,24 @@
 //	type APIComponent struct{ db *gorm.DB }
 //	func (c *APIComponent) Name() string { return "api" }
 //	func (c *APIComponent) Init(app *astra.App) error { ... }
+//
+// # v3 Removal Roadmap
+//
+// Module v1 is scheduled for removal in v3.0. The deprecation timeline:
+//
+//   - v2.x (current): Module functional; deprecated calls log slog.Warn
+//   - v2.5: go.mod toolchain gate — new projects see deprecation notice
+//   - v3.0: Module, ModuleFunc, ModuleAsComponent, RegisterModule, Modules() removed
+//
+// To prepare for v3, migrate all Install → Init and implement Component.
+// The ModuleAsComponent adapter will be removed; use Component directly.
 
 package astra
 
-import "fmt"
+import (
+	"fmt"
+	"log/slog"
+)
 
 // Module is the v1 plug-and-play building-block interface.
 //
@@ -47,11 +61,15 @@ type ModuleFunc struct {
 //
 // Deprecated: Use NewComponentFunc instead.
 func NewModuleFunc(name string, fn func(*App) error) Module {
+	slog.Warn("NewModuleFunc is deprecated — migrate to Component + NewComponentFunc", "module", name)
 	return ModuleFunc{name: name, fn: fn}
 }
 
-func (m ModuleFunc) Name() string        { return m.name }
-func (m ModuleFunc) Install(app *App) error { return m.fn(app) }
+func (m ModuleFunc) Name() string          { return m.name }
+func (m ModuleFunc) Install(app *App) error {
+	slog.Warn("Module.Install is deprecated — rename to Init and implement Component", "module", m.name)
+	return m.fn(app)
+}
 
 // ModuleAsComponent wraps a v1 Module so it can be passed to App.Register.
 //
@@ -88,6 +106,9 @@ func (a *App) Register(components ...Component) error {
 //
 // Deprecated: Implement Component and use Register directly.
 func (a *App) RegisterModule(modules ...Module) error {
+	for _, m := range modules {
+		slog.Warn("RegisterModule is deprecated — migrate to Component", "module", m.Name())
+	}
 	components := make([]Component, len(modules))
 	for i, m := range modules {
 		components[i] = ModuleAsComponent(m)
@@ -97,6 +118,7 @@ func (a *App) RegisterModule(modules ...Module) error {
 
 // Components returns a snapshot of all successfully installed components keyed
 // by name. The returned map is a copy — mutating it has no effect on the App.
+// For single-component lookups prefer GetComponent to avoid the full map copy.
 func (a *App) Components() map[string]Component {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -107,11 +129,22 @@ func (a *App) Components() map[string]Component {
 	return out
 }
 
+// GetComponent returns the component with the given name and a boolean indicating
+// whether it was found. This is O(1) and avoids the full map copy returned by
+// Components(). Prefer this for routine single-component access.
+func (a *App) GetComponent(name string) (Component, bool) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	c, ok := a.components[name]
+	return c, ok
+}
+
 // Modules returns a snapshot of all successfully installed components keyed by
 // name, for backward compatibility with v1 callers.
 //
 // Deprecated: Use Components() instead.
 func (a *App) Modules() map[string]Component {
+	slog.Warn("App.Modules is deprecated — use App.Components() instead")
 	return a.Components()
 }
 
