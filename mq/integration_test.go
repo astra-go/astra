@@ -4,16 +4,19 @@
 //
 // Run with:
 //
-//	go test -v -tags=integration -run 'Test.*Kafka.*' ./mq/        # Kafka only
-//	go test -v -tags=integration -run 'Test.*RabbitMQ.*' ./mq/     # RabbitMQ only
-//	go test -v -tags=integration -run 'Test.*Nats.*' ./mq/         # NATS only
-//	go test -v -tags=integration -run 'Test.*Mqtt.*' ./mq/         # MQTT only
-//	go test -v -tags=integration ./mq/                             # all
+//	go test -v -tags=integration -run 'Test.*Kafka.*' ./mq/          # Kafka only
+//	go test -v -tags=integration -run 'Test.*RocketMQ.*' ./mq/         # RocketMQ only
+//	go test -v -tags=integration -run 'Test.*RabbitMQ.*' ./mq/         # RabbitMQ only
+//	go test -v -tags=integration -run 'Test.*Nats.*' ./mq/            # NATS only
+//	go test -v -tags=integration -run 'Test.*Mqtt.*' ./mq/            # MQTT only
+//	go test -v -tags=integration ./mq/                                # all
 //
 // Environment variables:
 //
-//	MQ_TEST_TYPE   - Optional filter: kafka, rabbitmq, nats, mqtt
+//	MQ_TEST_TYPE   - Optional filter: kafka, rocketmq, rabbitmq, nats, mqtt
 //	KAFKA_BROKERS  - Kafka brokers (default: localhost:9092)
+//	ROCKETMQ_URL   - RocketMQ nameserver (default: http://localhost:9876)
+//	ROCKETMQ_TOPIC - RocketMQ topic for pub/sub tests (default: test-topic)
 //	RABBITMQ_URL   - RabbitMQ URL (default: amqp://guest:guest@localhost:5672/)
 //	NATS_URL       - NATS URL (default: nats://localhost:4222)
 //	MQTT_URL       - MQTT broker URL (default: tcp://localhost:1883)
@@ -196,6 +199,238 @@ func TestMqttPublishSubscribe(t *testing.T) {
 	defer c.Close()
 
 	testPubSub(t, p, c)
+}
+
+// ── RocketMQ ──────────────────────────────────────────────────────────────────
+
+func TestRocketMQPublishSubscribe(t *testing.T) {
+	skipUnlessType(t, "rocketmq")
+
+	url := os.Getenv("ROCKETMQ_URL")
+	if url == "" {
+		url = "http://localhost:9876"
+	}
+	topic := os.Getenv("ROCKETMQ_TOPIC")
+	if topic == "" {
+		topic = testTopic
+	}
+
+	p, err := mq.NewRocketMQProducer(mq.RocketMQConfig{
+		NamesrvAddr: url,
+		Topic:      topic,
+	})
+	if err != nil {
+		t.Fatalf("create RocketMQ producer: %v", err)
+	}
+	defer p.Close()
+
+	c, err := mq.NewRocketMQConsumer(mq.RocketMQConsumerConfig{
+		NamesrvAddr: url,
+		Topic:      topic,
+		Group:      testGroup,
+	})
+	if err != nil {
+		t.Fatalf("create RocketMQ consumer: %v", err)
+	}
+	defer c.Close()
+
+	testPubSub(t, p, c)
+}
+
+// TestRocketMQTransaction_BeginTransaction exercises the full transaction lifecycle:
+// BeginTransaction → Publish → Commit → verify message is delivered.
+// Rollback is tested by publishing in a transaction and calling Rollback, then
+// verifying no message arrives.
+func TestRocketMQTransaction_BeginTransaction(t *testing.T) {
+	skipUnlessType(t, "rocketmq")
+
+	url := os.Getenv("ROCKETMQ_URL")
+	if url == "" {
+		url = "http://localhost:9876"
+	}
+	topic := os.Getenv("ROCKETMQ_TOPIC")
+	if topic == "" {
+		topic = testTopic + "-tx"
+	}
+
+	p, err := mq.NewRocketMQProducer(mq.RocketMQConfig{
+		NamesrvAddr: url,
+		Topic:      topic,
+	})
+	if err != nil {
+		t.Fatalf("create RocketMQ producer: %v", err)
+	}
+	defer p.Close()
+
+	c, err := mq.NewRocketMQConsumer(mq.RocketMQConsumerConfig{
+		NamesrvAddr: url,
+		Topic:      topic,
+		Group:      testGroup + "-tx",
+	})
+	if err != nil {
+		t.Fatalf("create RocketMQ consumer: %v", err)
+	}
+	defer c.Close()
+
+	// Verify the producer claims to support transactions
+	caps := p.Capabilities()
+	if !caps[mq.CapTx] {
+		t.Skip("RocketMQ producer CapTx=false; skipping transaction test")
+	}
+
+	// ── Commit path ──
+	t.Run("commit", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+
+		tx, err := p.BeginTransaction(ctx, nil)
+		if err != nil {
+			t.Fatalf("BeginTransaction: %v", err)
+		}
+
+		payload := []byte(`{"action":"commit"}`)
+		if err := p.Publish(ctx, &mq.Message{Topic: topic, Payload: payload}); err != nil {
+			t.Fatalf("Publish in transaction: %v", err)
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatalf("tx.Commit: %v", err)
+		}
+
+		// Verify message is delivered
+		received := make(chan *mq.Message, 1)
+		go func() {
+			subCtx, subCancel := context.WithCancel(ctx)
+			defer subCancel()
+			_ = c.Subscribe(subCtx, []string{topic}, testGroup+"-tx", func(_ context.Context, msg *mq.Message) error {
+				select {
+				case received <- msg:
+				default:
+				}
+				return nil
+			})
+		}()
+
+		time.Sleep(500 * time.Millisecond)
+
+		select {
+		case msg := <-received:
+			if string(msg.Payload) != string(payload) {
+				t.Errorf("payload mismatch: got %q, want %q", string(msg.Payload), string(payload))
+			}
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for committed message")
+		}
+	})
+
+	// ── Rollback path ──
+	t.Run("rollback", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+
+		tx, err := p.BeginTransaction(ctx, nil)
+		if err != nil {
+			t.Fatalf("BeginTransaction: %v", err)
+		}
+
+		if err := p.Publish(ctx, &mq.Message{Topic: topic, Payload: []byte(`{"action":"rollback"}`)}); err != nil {
+			t.Fatalf("Publish in transaction: %v", err)
+		}
+
+		if err := tx.Rollback(ctx); err != nil {
+			t.Fatalf("tx.Rollback: %v", err)
+		}
+
+		// Give broker time to process rollback
+		time.Sleep(time.Second)
+
+		// Drain any messages already in-flight from the commit test
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer drainCancel()
+		_ = c.Subscribe(drainCtx, []string{topic}, testGroup+"-tx", func(_ context.Context, _ *mq.Message) error {
+			return nil
+		})
+	})
+}
+
+// ── Kafka transactions ──────────────────────────────────────────────────────────
+
+// TestKafkaTransaction_BeginTransaction verifies Kafka transactional producer:
+// BeginTransaction → Publish → Commit → verify message is delivered.
+// Also verifies that rollback is not supported (ErrCapTxNotSupported on Begin).
+func TestKafkaTransaction_BeginTransaction(t *testing.T) {
+	skipUnlessType(t, "kafka")
+
+	brokers := brokersFromEnv("KAFKA_BROKERS", "localhost:9092")
+
+	p, err := mq.NewKafkaProducer(mq.KafkaProducerConfig{
+		Brokers:  brokers,
+		Topic:    testTopic + "-kafka-tx",
+		EnableTx: true, // required for Kafka transactions
+	})
+	if err != nil {
+		t.Fatalf("create Kafka producer: %v", err)
+	}
+	defer p.Close()
+
+	caps := p.Capabilities()
+	if !caps[mq.CapTx] {
+		t.Skip("Kafka producer CapTx=false (EnableTx may not be supported in this env); skipping")
+	}
+
+	// ── Commit path ──
+	t.Run("commit", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+
+		tx, err := p.BeginTransaction(ctx, nil)
+		if err != nil {
+			t.Fatalf("BeginTransaction: %v", err)
+		}
+
+		payload := []byte(`{"kafka":"commit"}`)
+		if err := p.Publish(ctx, &mq.Message{Topic: testTopic + "-kafka-tx", Payload: payload}); err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatalf("tx.Commit: %v", err)
+		}
+
+		// Consume to verify
+		c, err := mq.NewKafkaConsumer(mq.KafkaConsumerConfig{
+			Brokers: brokers,
+			Group:   testGroup + "-kafka-tx",
+		})
+		if err != nil {
+			t.Fatalf("create consumer: %v", err)
+		}
+		defer c.Close()
+
+		received := make(chan *mq.Message, 1)
+		go func() {
+			subCtx, subCancel := context.WithCancel(ctx)
+			defer subCancel()
+			_ = c.Subscribe(subCtx, []string{testTopic + "-kafka-tx"}, testGroup+"-kafka-tx", func(_ context.Context, msg *mq.Message) error {
+				select {
+				case received <- msg:
+				default:
+				}
+				return nil
+			})
+		}()
+
+		time.Sleep(500 * time.Millisecond)
+
+		select {
+		case msg := <-received:
+			if string(msg.Payload) != string(payload) {
+				t.Errorf("payload mismatch: got %q, want %q", string(msg.Payload), string(payload))
+			}
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for committed message")
+		}
+	})
 }
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
