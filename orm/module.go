@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Module wraps a *gorm.DB as an astra.Module.
+// Component wraps a *gorm.DB as an astra.Component.
 //
 // On Install it:
 //   - Applies connection-pool settings (via SetPool)
@@ -20,7 +20,7 @@ import (
 //	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 //	if err != nil { log.Fatal(err) }
 //
-//	app.Register(orm.NewModule(db, orm.DefaultPoolConfig))
+//	app.Register(orm.NewComponent(db, orm.DefaultPoolConfig))
 //
 // After installation the *gorm.DB is available in handlers:
 //
@@ -29,22 +29,22 @@ import (
 //	    var users []User
 //	    return c.JSON(200, users)
 //	})
-type Module struct {
+type Component struct {
 	db   *gorm.DB
 	pool PoolConfig
 }
 
-// NewModule creates an ORM Module for db with the given pool settings.
+// NewComponent creates an ORM Component for db with the given pool settings.
 // Pass orm.DefaultPoolConfig if you do not need to tune the pool.
-func NewModule(db *gorm.DB, pool PoolConfig) *Module {
-	return &Module{db: db, pool: pool}
+func NewComponent(db *gorm.DB, pool PoolConfig) *Component {
+	return &Component{db: db, pool: pool}
 }
 
-// Name implements astra.Module.
-func (m *Module) Name() string { return "orm" }
+// Name implements astra.Component.
+func (m *Component) Name() string { return "orm" }
 
-// Install implements astra.Module.
-func (m *Module) Install(app *astra.App) error {
+// Init implements astra.Component.
+func (m *Component) Init(app *astra.App) error {
 	if err := SetPool(m.db, m.pool); err != nil {
 		return fmt.Errorf("orm: set pool: %w", err)
 	}
@@ -58,10 +58,9 @@ func (m *Module) Install(app *astra.App) error {
 	})
 	return nil
 }
-
 // DB returns the underlying *gorm.DB for use outside of request handlers
 // (migrations, seeding, etc.).
-func (m *Module) DB() *gorm.DB { return m.db }
+func (m *Component) DB() *gorm.DB { return m.db }
 
-// Ensure *Module satisfies astra.Module at compile time.
-var _ astra.Module = (*Module)(nil)
+// Ensure *Component satisfies astra.Component at compile time.
+var _ astra.Component = (*Component)(nil)

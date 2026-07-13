@@ -6,7 +6,7 @@ import (
 	"github.com/astra-go/astra"
 )
 
-// Module wraps an Engine as an astra.Module, binding the engine's Start and
+// Component wraps an Engine as an astra.Component, binding the engine's Start and
 // Stop to the application's lifecycle hooks.
 //
 // Typical usage:
@@ -24,23 +24,23 @@ import (
 //	    Channels: []string{"ops-webhook"},
 //	})
 //
-//	app.Register(alert.NewModule(e))
-type Module struct {
+//	app.Register(alert.NewComponent(e))
+type Component struct {
 	engine *Engine
 }
 
-// NewModule creates a Module that manages the given Engine's lifecycle.
+// NewComponent creates a Component that manages the given Engine's lifecycle.
 // The engine is started in an OnStart hook (receiving the app's context) and
 // stopped in an OnStop hook.
-func NewModule(e *Engine) *Module {
-	return &Module{engine: e}
+func NewComponent(e *Engine) *Component {
+	return &Component{engine: e}
 }
 
-// Name implements astra.Module.
-func (m *Module) Name() string { return "alert" }
+// Name implements astra.Component.
+func (m *Component) Name() string { return "alert" }
 
-// Install implements astra.Module.
-func (m *Module) Install(app *astra.App) error {
+// Init implements astra.Component.
+func (m *Component) Init(app *astra.App) error {
 	app.OnStart(func(ctx context.Context) error {
 		m.engine.Start(ctx)
 		return nil
@@ -51,10 +51,9 @@ func (m *Module) Install(app *astra.App) error {
 	})
 	return nil
 }
-
 // Engine returns the underlying Engine so callers can inspect active alerts
 // or add rules after installation.
-func (m *Module) Engine() *Engine { return m.engine }
+func (m *Component) Engine() *Engine { return m.engine }
 
-// Ensure *Module satisfies astra.Module at compile time.
-var _ astra.Module = (*Module)(nil)
+// Ensure *Component satisfies astra.Component at compile time.
+var _ astra.Component = (*Component)(nil)
