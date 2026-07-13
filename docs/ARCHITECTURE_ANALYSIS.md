@@ -35,7 +35,7 @@ github.com/astra-go/astra (主模块)
 | 10 | 两套 DI 系统并行 | ⏸ 暂缓（需产品决策） | P2 |
 | 11 | middleware/security 包过大 | ⏸ 暂缓 | P3 |
 | 12 | Auth 与 Security JWT 职责重叠 | ⏸ 暂缓（需产品决策） | P3 |
-| 13 | Module 废弃技术债 | ⏸ 暂缓（v3 路线图） | P3 |
+| 13 | Module 废弃技术债 | ✅ 已完成（v1.0.6 de47fcd） | — |
 | 14 | kvStoreMapThreshold 未确认 | ⏸ 需确认 | P3 |
 | 15 | Components() 深拷贝开销 | ⏸ 需 profiling 数据 | P3 |
 
@@ -182,7 +182,7 @@ func (l *Lifecycle) RunStopHooks(ctx context.Context) (errs []error) {
 
 - `middleware/security/` 包过大 → 按需拆分
 - `Auth` 与 `Security JWT` 职责重叠 → 需产品决策统一入口
-- `Module` 废弃但未移除 → v3 路线图
+- `Module` 废弃但未移除 → ✅ 已完成（v1.0.6 de47fcd）
 - `kvStoreMapThreshold` 未确认
 - `Components()` 深拷贝 → 需 profiling 数据支撑再做决策
 
