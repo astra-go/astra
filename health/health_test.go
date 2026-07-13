@@ -79,12 +79,12 @@ func TestRegister_WithPrefix(t *testing.T) {
 	s.GET("/internal/health").AssertStatus(http.StatusOK)
 }
 
-// ─── NewModule ────────────────────────────────────────────────────────────────
+// ─── NewComponent ────────────────────────────────────────────────────────────
 
-func TestNewModule_RegistersRoutes(t *testing.T) {
+func TestNewComponent_RegistersRoutes(t *testing.T) {
 	app := testutil.NewTestApp()
-	if err := app.RegisterModule(health.NewModule()); err != nil {
-		t.Fatalf("RegisterModule: %v", err)
+	if err := app.Register(health.NewComponent()); err != nil {
+		t.Fatalf("Register: %v", err)
 	}
 	s := testutil.NewServer(t, app)
 
@@ -93,23 +93,23 @@ func TestNewModule_RegistersRoutes(t *testing.T) {
 	s.GET("/health").AssertStatus(http.StatusOK)
 }
 
-func TestNewModule_WithProbe(t *testing.T) {
+func TestNewComponent_WithProbe(t *testing.T) {
 	app := testutil.NewTestApp()
-	if err := app.RegisterModule(health.NewModule(
+	if err := app.Register(health.NewComponent(
 		health.WithProbe("svc", func(_ context.Context) error { return nil }),
 	)); err != nil {
-		t.Fatalf("RegisterModule: %v", err)
+		t.Fatalf("Register: %v", err)
 	}
 	s := testutil.NewServer(t, app)
 	s.GET("/ready").AssertStatus(http.StatusOK)
 }
 
-// ─── NewIstioModule ───────────────────────────────────────────────────────────
+// ─── NewIstioComponent ──────────────────────────────────────────────────────
 
-func TestNewIstioModule_RegistersAllRoutes(t *testing.T) {
+func TestNewIstioComponent_RegistersAllRoutes(t *testing.T) {
 	app := testutil.NewTestApp()
-	if err := app.RegisterModule(health.NewIstioModule()); err != nil {
-		t.Fatalf("RegisterModule: %v", err)
+	if err := app.Register(health.NewIstioComponent()); err != nil {
+		t.Fatalf("Register: %v", err)
 	}
 	s := testutil.NewServer(t, app)
 

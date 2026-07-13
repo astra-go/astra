@@ -28,7 +28,7 @@ type App struct {
 	lifecycle  *Lifecycle
 	components map[string]Component
 	mu         sync.RWMutex
-	slim       bool // true when created by NewSlim(); disables lifecycle/plugin/module subsystems
+	slim       bool // true when created by NewSlim(); disables lifecycle and component subsystems
 
 	// pool telemetry — each counter is padded to its own cache line to prevent
 	// false sharing under parallel request load (3 atomic writes per request).
@@ -121,8 +121,7 @@ func New(opts ...Option) *App {
 //
 // Compared with New(), a slim App:
 //   - Does not allocate a Lifecycle (OnStart / OnStop return ErrSlimMode).
-//   - Does not initialise the Module or Plugin registries (Register /
-//     RegisterPlugin return ErrSlimMode).
+//   - Does not initialise the Component registry (Register returns ErrSlimMode).
 //   - Sets Binder to nil, so c.Bind / c.ShouldBind are unavailable; use
 //     c.BodyParser or manual JSON decoding instead.
 //
@@ -554,24 +553,4 @@ func (a *App) Stop(ctx context.Context) error {
 // context duration.
 func (a *App) ShutdownTimeout() int { return a.options.ShutdownTimeout }
 
-// RegisterPlugin registers one or more v1 Plugins in order. Each plugin is
-// wrapped as a Component and installed through Register, giving it the same
-// duplicate-detection and error-wrapping behaviour as any Component.
-// Returns the first error encountered.
-// Returns ErrSlimMode when called on an App created by NewSlim().
-//
-//	app.RegisterPlugin(
-//	    &prometheus.Plugin{},
-//	    &tracing.Plugin{Endpoint: "localhost:4317"},
-//	)
-//
-// Deprecated: Implement Component and use Register directly. Plugin.Init
-// already matches the Component.Init signature — only the interface assertion
-// needs to change.
-func (a *App) RegisterPlugin(plugins ...Plugin) error {
-	components := make([]Component, len(plugins))
-	for i, p := range plugins {
-		components[i] = pluginAdapter{p}
-	}
-	return a.Register(components...)
-}
+

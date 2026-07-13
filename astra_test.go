@@ -334,46 +334,6 @@ func TestErrorHandler_ProdMode_Masks5xx(t *testing.T) {
 		AssertBodyNotContains("internal secret details")
 }
 
-// ─── Plugin ───────────────────────────────────────────────────────────────────
-
-type echoPlugin struct{ called bool }
-
-func (p *echoPlugin) Name() string { return "echo" }
-func (p *echoPlugin) Init(app *astra.App) error {
-	p.called = true
-	app.GET("/plugin/echo", func(c *astra.Ctx) error {
-		return c.String(200, "from plugin")
-	})
-	return nil
-}
-
-func TestPlugin_RegisterAndInit(t *testing.T) {
-	app := testutil.NewTestApp()
-	p := &echoPlugin{}
-	if err := app.RegisterPlugin(p); err != nil {
-		t.Fatalf("RegisterPlugin: %v", err)
-	}
-	if !p.called {
-		t.Fatal("plugin Init was not called")
-	}
-	srv := testutil.NewServer(t, app)
-	srv.GET("/plugin/echo").AssertStatus(200).AssertBodyContains("from plugin")
-}
-
-type failPlugin struct{}
-
-func (failPlugin) Name() string        { return "fail" }
-func (failPlugin) Init(*astra.App) error { return errors.New("init failed") }
-
-func TestPlugin_InitError(t *testing.T) {
-	app := testutil.NewTestApp()
-	err := app.RegisterPlugin(failPlugin{})
-	testutil.AssertError(t, err)
-	if !strings.Contains(err.Error(), "fail") {
-		t.Errorf("error should mention plugin name: %v", err)
-	}
-}
-
 // ─── Serializer ───────────────────────────────────────────────────────────────
 
 type customSerializer struct{ called bool }
@@ -673,14 +633,6 @@ func TestNewSlim_OnStart_ReturnsErrSlimMode(t *testing.T) {
 func TestNewSlim_OnStop_ReturnsErrSlimMode(t *testing.T) {
 	app := astra.NewSlim()
 	err := app.OnStop(func(ctx context.Context) error { return nil })
-	if !errors.Is(err, astra.ErrSlimMode) {
-		t.Fatalf("expected ErrSlimMode, got %v", err)
-	}
-}
-
-func TestNewSlim_RegisterPlugin_ReturnsErrSlimMode(t *testing.T) {
-	app := astra.NewSlim()
-	err := app.RegisterPlugin()
 	if !errors.Is(err, astra.ErrSlimMode) {
 		t.Fatalf("expected ErrSlimMode, got %v", err)
 	}

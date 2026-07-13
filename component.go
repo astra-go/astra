@@ -1,12 +1,11 @@
 // Package astra — Component system (v2 unified interface)
 //
-// Component is the single plug-and-play interface that replaces the separate
-// Module and Plugin interfaces introduced in v1. Both Module (Install) and
-// Plugin (Init) are now deprecated aliases; migrate to Component.
+// Component is the single plug-and-play interface for wiring any building
+// block into an *App through a single Init call.
 //
 //	app := astra.New()
 //	must(app.Register(
-//	    health.New(health.WithProbe("db", dbProbe)),
+//	    health.NewComponent(health.WithProbe("db", dbProbe)),
 //	    ormComponent,
 //	    cacheComponent,
 //	))
@@ -33,9 +32,6 @@ package astra
 // Component is the unified plug-and-play interface for wiring any building
 // block — whether a first-party business unit or a third-party library adapter
 // — into an *App through a single Init call.
-//
-// Component replaces the separate Module (Install) and Plugin (Init)
-// interfaces from v1. Both are deprecated; implement Component instead.
 //
 // A single Init call is the only contract: the component receives the full
 // *App reference and is free to register routes, middleware, lifecycle hooks,
@@ -70,15 +66,3 @@ func NewComponentFunc(name string, fn func(*App) error) Component {
 
 func (c ComponentFunc) Name() string        { return c.name }
 func (c ComponentFunc) Init(app *App) error { return c.fn(app) }
-
-// moduleAdapter wraps a v1 Module so it satisfies Component.
-type moduleAdapter struct{ m Module }
-
-func (a moduleAdapter) Name() string        { return a.m.Name() }
-func (a moduleAdapter) Init(app *App) error { return a.m.Install(app) }
-
-// pluginAdapter wraps a v1 Plugin so it satisfies Component.
-type pluginAdapter struct{ p Plugin }
-
-func (a pluginAdapter) Name() string        { return a.p.Name() }
-func (a pluginAdapter) Init(app *App) error { return a.p.Init(app) }
