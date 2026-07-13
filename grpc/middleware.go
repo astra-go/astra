@@ -33,6 +33,8 @@ import (
 	"context"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Handler is the unified handler signature used by Kratos-style middleware.
@@ -111,11 +113,29 @@ func StreamInterceptorMiddleware(middlewares ...Middleware) grpc.StreamServerInt
 		ss grpc.ServerStream,
 		_ *grpc.StreamServerInfo,
 		handler grpc.StreamHandler,
-	) error {
-		h := func(ctx context.Context, _ any) (any, error) {
-			return nil, handler(srv, &wrappedServerStream{ServerStream: ss, ctx: ctx})
+	) (err error) {
+		h := func(ctx context.Context, _ any) (res any, hErr error) {
+			defer func() {
+				if r := recover(); r != nil {
+					hErr = status.Errorf(codes.Internal, "panic recovered: %v", r)
+				}
+			}()
+			// handler is called inside h's recover scope so panics from the handler
+			// itself do not propagate up to StreamInterceptorMiddleware's recover.
+			defer func() {
+				if recover() != nil {
+					hErr = status.Errorf(codes.Internal, "panic recovered: %v", "")
+				}
+			}()
+			hErr = handler(srv, &wrappedServerStream{ServerStream: ss, ctx: ctx})
+			return
 		}
-		_, err := chain(h)(ss.Context(), nil)
-		return err
+		defer func() {
+			if r := recover(); r != nil {
+				err = status.Errorf(codes.Internal, "panic recovered: %v", r)
+			}
+		}()
+		_, err = chain(h)(ss.Context(), nil)
+		return
 	}
 }
