@@ -825,7 +825,13 @@ func fromMessageView(view *rmq.MessageView) *Message {
 }
 
 // Capabilities returns the capabilities of Apache RocketMQ.
-func (p *RocketMQProducer) Capabilities() Capabilities { return RocketMQCapabilities() }
+func (p *RocketMQProducer) Capabilities() Capabilities {
+	c := RocketMQCapabilities()
+	// CapTx reflects whether THIS producer is configured for transactions.
+	// Requires EnableTx=true AND a TransactionChecker at construction time.
+	c[CapTx] = p.cfg.EnableTx && p.cfg.TransactionChecker != nil
+	return c
+}
 func (c *RocketMQConsumer) Capabilities() Capabilities { return RocketMQCapabilities() }
 
 // ─── Transaction Support ──────────────────────────────────────────────────────

@@ -137,7 +137,7 @@ func RocketMQCapabilities() Capabilities {
 		CapDLQ:            true,
 		CapRetry:          true,
 		CapMultiGroup:     true,
-		CapTx:             false, // requires broker-side transaction support; set true if RocketMQ broker has TransactionEnabled=true
+		CapTx:             false, // negotiated per-producer: see RocketMQProducer.Capabilities() (requires EnableTx + TransactionChecker)
 		CapBatch:          true,
 	}
 }
