@@ -49,7 +49,7 @@ func NewMultiLevelJWTCache(l1MaxSize int, l2 JWTCacheBackend) *MultiLevelJWTCach
 		l1MaxSize = 512
 	}
 	return &MultiLevelJWTCache{
-		l1: newJWTCache(l1MaxSize),
+		l1: NewJWTCache(l1MaxSize),
 		l2: l2,
 	}
 }

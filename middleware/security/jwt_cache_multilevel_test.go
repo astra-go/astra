@@ -67,7 +67,7 @@ type testMultiLevel struct {
 
 func newTestMultiLevel(l1Size int) *testMultiLevel {
 	return &testMultiLevel{
-		l1: newJWTCache(l1Size),
+		l1: NewJWTCache(l1Size),
 		l2: newFakeL2(),
 	}
 }
@@ -246,7 +246,7 @@ func TestMultiLevel_ExpiredL1_FallsBackToL2(t *testing.T) {
 // TestJWTCache_Delete verifies the new delete method on jwtCache.
 func TestJWTCache_Delete(t *testing.T) {
 	ctx := context.Background()
-	c := newJWTCache(64)
+	c := NewJWTCache(64)
 	claims := newTestClaims("frank", 3600)
 	now := time.Now().Unix()
 

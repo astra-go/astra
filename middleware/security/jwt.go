@@ -80,14 +80,6 @@ const DefaultJWTLeeway = 30 * time.Second
 // to plug in a custom or shared cache.
 //
 // Get returns (claims, true) on a hit, (nil, false) on a miss or error.
-// Set stores claims with a TTL derived from expireAt (Unix seconds).
-// Implementations must be safe for concurrent use.
-type JWTCacheBackend interface {
-	Get(ctx context.Context, sig string) (*Claims, bool)
-	Set(ctx context.Context, sig string, claims *Claims, expireAt int64)
-	Delete(ctx context.Context, sig string) error
-}
-
 // StrictJWTLeeway disables clock-skew tolerance entirely. Pass it as
 // JWTConfig.Leeway when tokens are short-lived or single-use and any
 // post-expiry acceptance is unacceptable.
@@ -120,14 +112,6 @@ const MinECBits = 256
 // Written by: JWTWithConfig (using cfg.ContextKey, which defaults to ClaimsKey)
 // Read by:    GetClaims, any handler that needs token claims
 const ClaimsKey = "claims"
-
-// Claims holds parsed JWT claims. Standard registered claims (sub, exp, iat…)
-// are embedded; any custom fields are accessible through the Extra map.
-type Claims struct {
-	jwt.RegisteredClaims
-	// Extra contains all non-registered claims from the token payload.
-	Extra map[string]any
-}
 
 // JWTConfig configures the JWT middleware.
 type JWTConfig struct {
@@ -321,7 +305,7 @@ func JWTWithConfig(cfg JWTConfig) astra.HandlerFunc {
 	if cfg.CacheBackend != nil {
 		cacheBackend = cfg.CacheBackend
 	} else if cfg.CacheSize > 0 {
-		cacheBackend = newJWTCache(cfg.CacheSize)
+		cacheBackend = NewJWTCache(cfg.CacheSize)
 	}
 
 	return func(c *astra.Ctx) error {

@@ -37,7 +37,7 @@ func (c *jwtCache) Set(_ context.Context, sig string, claims *Claims, expireAt i
 	c.set(sig, claims, expireAt, now)
 }
 
-func newJWTCache(maxTotal int) *jwtCache {
+func NewJWTCache(maxTotal int) *jwtCache {
 	perShard := max(maxTotal/jwtCacheShards, 1)
 	c := &jwtCache{}
 	for i := range c.shards {

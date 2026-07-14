@@ -5,27 +5,6 @@ import (
 	"time"
 )
 
-// TokenRevokeStore is the interface for checking and recording revoked JWT tokens.
-// Implementations must be safe for concurrent use.
-//
-// The store is keyed by the token's signature segment (last dot-separated field)
-// to keep keys short (~43 chars for HS256) and consistent with the JWT cache.
-//
-// Built-in implementation: NewMemoryRevokeStore.
-// For multi-instance deployments, implement this interface backed by Redis or
-// another shared store and pass it via JWTConfig.RevokeStore.
-type TokenRevokeStore interface {
-	// IsRevoked returns true when the token identified by sig has been revoked
-	// and its revocation entry has not yet expired.
-	IsRevoked(sig string) bool
-
-	// Revoke marks the token identified by sig as revoked until expireAt (Unix
-	// seconds). Entries whose expireAt is in the past are ignored.
-	Revoke(sig string, expireAt int64)
-}
-
-// ─── In-memory implementation ─────────────────────────────────────────────────
-
 type revokeEntry struct {
 	expireAt int64 // Unix seconds; entry is valid while time.Now().Unix() < expireAt
 }
