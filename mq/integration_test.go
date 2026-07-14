@@ -20,6 +20,23 @@
 //	RABBITMQ_URL   - RabbitMQ URL (default: amqp://guest:guest@localhost:5672/)
 //	NATS_URL       - NATS URL (default: nats://localhost:4222)
 //	MQTT_URL       - MQTT broker URL (default: tcp://localhost:1883)
+//
+// RocketMQ transaction note:
+//
+//	The transaction test (TestRocketMQTransaction_BeginTransaction) requires a
+//	TRANSACTION-typed topic. RocketMQ 5.x proxies (incl. 5.3.1) expose no
+//	CreateTopic RPC, so the topic must be pre-created on the broker via mqadmin:
+//
+//	  mqadmin updateTopic -n <namesrv>:9876 -c <cluster> -t <topic> \
+//	    -a +message.type=TRANSACTION
+//
+//	Example (inside the broker container):
+//	  docker exec astra-rmq-broker \
+//	    /home/rocketmq/rocketmq-5.3.1/bin/mqadmin updateTopic \
+//	    -n namesrv:9876 -c DefaultCluster -t astra-integration-test-tx \
+//	    -a +message.type=TRANSACTION
+//	If the topic is NORMAL, the test still exercises the full transaction
+//	lifecycle but SKIPs the delivery assertion with a setup hint.
 package mq_test
 
 import (
@@ -275,43 +292,145 @@ func TestRocketMQTransaction_BeginTransaction(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 
-	// BeginTransaction must return a usable transaction handle.
-	tx, err := p.BeginTransaction(ctx, nil)
-	if err != nil {
-		t.Fatalf("BeginTransaction: %v", err)
-	}
-
 	// A second BeginTransaction while one is active must be rejected so the
 	// framework never loses track of the in-flight transaction.
+	if _, err := p.BeginTransaction(ctx, nil); err != nil {
+		t.Fatalf("BeginTransaction: %v", err)
+	}
 	if _, err := p.BeginTransaction(ctx, nil); err == nil {
 		t.Fatal("expected error for nested BeginTransaction, got nil")
 	}
+	// Roll back the probe transaction so the sub-tests start clean.
+	if err := p.Rollback(ctx); err != nil {
+		t.Fatalf("rollback probe transaction: %v", err)
+	}
 
-	// Publishing within the transaction routes the half-message through the
-	// broker's transaction path. RocketMQ 5.x only accepts transactional
-	// publishes on a TRANSACTION-typed topic. The proxy (5.3.1) exposes no
-	// CreateTopic RPC and mqadmin cannot set the topic message type, so in
-	// this environment the topic is plain NORMAL and the broker rejects the
-	// publish. We assert the framework correctly enters the transaction and
-	// surfaces the broker error, then skip the delivery assertion.
-	pubErr := p.Publish(ctx, &mq.Message{Topic: topic, Payload: []byte(`{"action":"commit"}`)})
-	if pubErr != nil {
-		if strings.Contains(pubErr.Error(), "message type not match") ||
-			strings.Contains(pubErr.Error(), "topic route") ||
-			strings.Contains(pubErr.Error(), "No topic route") {
-			t.Skipf("RocketMQ 5.x topic %q is not TRANSACTION-typed (proxy 5.3.1 has no CreateTopic RPC and mqadmin cannot set messageType); full end-to-end transaction delivery cannot be exercised in this environment: %v", topic, pubErr)
+	// ── Commit path: the half-message MUST become visible after Commit ──
+	t.Run("commit_delivers", func(t *testing.T) {
+		tx, err := p.BeginTransaction(ctx, nil)
+		if err != nil {
+			t.Fatalf("BeginTransaction: %v", err)
 		}
-		t.Fatalf("Publish in transaction: %v", pubErr)
-	}
+		payload := []byte(`{"action":"commit"}`)
+		if err := p.Publish(ctx, &mq.Message{Topic: topic, Payload: payload}); err != nil {
+			// RocketMQ 5.x only accepts transactional publishes on a
+			// TRANSACTION-typed topic. If the topic is NORMAL, the broker
+			// rejects it. The topic must be created with:
+			//   mqadmin updateTopic -n <namesrv> -c <cluster> -t <topic> \
+			//     -a +message.type=TRANSACTION
+			if strings.Contains(err.Error(), "message type not match") ||
+				strings.Contains(err.Error(), "topic route") ||
+				strings.Contains(err.Error(), "No topic route") {
+				_ = p.Rollback(ctx) // clear active tx before skipping
+				t.Skipf("RocketMQ 5.x topic %q is not TRANSACTION-typed; create it with: mqadmin updateTopic -n <namesrv> -c <cluster> -t %s -a +message.type=TRANSACTION: %v", topic, topic, err)
+			}
+			t.Fatalf("Publish in transaction: %v", err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatalf("tx.Commit: %v", err)
+		}
 
-	if err := tx.Commit(ctx); err != nil {
-		t.Fatalf("tx.Commit: %v", err)
-	}
+		// Subscribe and verify the committed half-message is delivered.
+		c, err := mq.NewRocketMQConsumer(mq.RocketMQConsumerConfig{
+			Endpoint:      endpoint,
+			Topic:        topic,
+			ConsumerGroup: testGroup + "-tx-commit",
+		})
+		if err != nil {
+			t.Fatalf("create consumer: %v", err)
+		}
+		defer c.Close()
 
-	// After Commit, the active transaction must be cleared so a new one can
-	// begin (proves the framework state machine resets correctly).
+		received := make(chan *mq.Message, 1)
+		go func() {
+			subCtx, subCancel := context.WithCancel(ctx)
+			defer subCancel()
+			_ = c.Subscribe(subCtx, []string{topic}, testGroup+"-tx-commit", func(_ context.Context, msg *mq.Message) error {
+				select {
+				case received <- msg:
+				default:
+				}
+				return nil
+			})
+		}()
+
+		time.Sleep(500 * time.Millisecond)
+		select {
+		case msg := <-received:
+			if string(msg.Payload) != string(payload) {
+				t.Errorf("payload mismatch: got %q, want %q", string(msg.Payload), string(payload))
+			}
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for committed transaction message")
+		}
+	})
+
+	// ── Rollback path: the half-message MUST stay invisible after Rollback ──
+	// Uses a dedicated topic so the rolled-back message cannot be confused
+	// with a committed message from the commit_delivers sub-test.
+	rbTopic := topic + "-rb"
+	t.Run("rollback_hidden", func(t *testing.T) {
+		tx, err := p.BeginTransaction(ctx, nil)
+		if err != nil {
+			t.Fatalf("BeginTransaction: %v", err)
+		}
+		payload := []byte(`{"action":"rollback"}`)
+		if err := p.Publish(ctx, &mq.Message{Topic: rbTopic, Payload: payload}); err != nil {
+			if strings.Contains(err.Error(), "message type not match") ||
+				strings.Contains(err.Error(), "topic route") ||
+				strings.Contains(err.Error(), "No topic route") {
+				t.Skipf("RocketMQ 5.x topic %q is not TRANSACTION-typed; create it with: mqadmin updateTopic -n <namesrv> -c <cluster> -t %s -a +message.type=TRANSACTION: %v", rbTopic, rbTopic, err)
+			}
+			t.Fatalf("Publish in transaction: %v", err)
+		}
+		if err := tx.Rollback(ctx); err != nil {
+			t.Fatalf("tx.Rollback: %v", err)
+		}
+
+		c, err := mq.NewRocketMQConsumer(mq.RocketMQConsumerConfig{
+			Endpoint:      endpoint,
+			Topic:        rbTopic,
+			ConsumerGroup: testGroup + "-tx-rollback",
+		})
+		if err != nil {
+			t.Fatalf("create consumer: %v", err)
+		}
+		defer c.Close()
+
+		received := make(chan *mq.Message, 1)
+		go func() {
+			subCtx, subCancel := context.WithCancel(ctx)
+			defer subCancel()
+			_ = c.Subscribe(subCtx, []string{rbTopic}, testGroup+"-tx-rollback", func(_ context.Context, msg *mq.Message) error {
+				select {
+				case received <- msg:
+				default:
+				}
+				return nil
+			})
+		}()
+
+		// Wait well beyond the broker's invisible duration; a rolled-back
+		// half-message must never be delivered to a consumer.
+		select {
+		case msg := <-received:
+			t.Errorf("rolled-back transaction message was delivered (must stay hidden): %q", string(msg.Payload))
+		case <-time.After(3 * time.Second):
+			// Expected: nothing arrived.
+		}
+	})
+
+	// After all sub-tests, the active transaction must be cleared so a new
+	// one can begin (proves the framework state machine resets correctly).
+	// A sub-test that skipped mid-transaction leaves activeTx set; roll it
+	// back first so the assertion below reflects the framework, not a
+	// skipped sub-test's leftover state.
+	_ = p.Rollback(ctx)
 	if _, err := p.BeginTransaction(ctx, nil); err != nil {
-		t.Fatalf("BeginTransaction after commit: %v", err)
+		t.Fatalf("BeginTransaction after sub-tests: %v", err)
+	}
+	if err := p.Rollback(ctx); err != nil {
+		t.Fatalf("cleanup rollback: %v", err)
 	}
 }
 

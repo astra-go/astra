@@ -1,0 +1,46 @@
+version: '3.8'
+services:
+  namesrv:
+    image: apache/rocketmq:5.3.1
+    container_name: astra-rmq-namesrv
+    command: sh mqnamesrv
+    ports:
+      - "9876:9876"
+    networks: [rmq-net]
+
+  broker:
+    image: apache/rocketmq:5.3.1
+    container_name: astra-rmq-broker
+    command: sh mqbroker -n namesrv:9876
+    environment:
+      - NAMESRV_ADDR=namesrv:9876
+    depends_on: [namesrv]
+    ports:
+      - "10911:10911"
+      - "10909:10909"
+    healthcheck:
+      # The broker is healthy once it registers with the namesrv.
+      test: ["CMD", "sh", "-c", "/home/rocketmq/rocketmq-5.3.1/bin/mqadmin clusterList -n namesrv:9876"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [rmq-net]
+
+  proxy:
+    image: apache/rocketmq:5.3.1
+    container_name: astra-rmq-proxy
+    command: sh mqproxy -n namesrv:9876
+    depends_on:
+      namesrv:
+        condition: service_started
+      broker:
+        condition: service_healthy
+    ports:
+      - "8081:8081"   # gRPC (Go client connects here)
+      - "8080:8080"   # remoting
+    networks: [rmq-net]
+
+networks:
+  rmq-net:
+    driver: bridge
+    name: astra-rmq-net
