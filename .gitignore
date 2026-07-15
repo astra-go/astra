@@ -7,3 +7,6 @@ trace.out
 .bench-current.txt
 tools/modproxy/*
 !tools/modproxy/main.go
+
+# Build tool caches
+.astractl/

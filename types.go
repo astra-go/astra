@@ -19,7 +19,12 @@ type Map map[string]any
 // H is an alias for Map.
 type H = Map
 
-// ErrorHandler is a function that handles errors returned from handlers.
+// ErrorHandler is the framework-level error handler (Options.ErrorHandler).
+// It receives both the context and the error, allowing inspection of the
+// original error before writing a response.
+//
+// For middleware-level error handlers that only receive the context, see
+// middleware.ErrorHandler (astra.HandlerFunc alias).
 type ErrorHandler func(*Ctx, error)
 
 // Option is a functional option for configuring the App.

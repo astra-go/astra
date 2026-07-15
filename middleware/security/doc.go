@@ -36,10 +36,10 @@
 //	  pprof.go            — pprof profiling endpoints
 //	  options.go          — shared middleware options
 //
-// Relationship with auth package:
+// Relationship with auth module:
 //
-//	The auth/ subpackage is a standalone authentication system (token issuance,
-//	token introspection, account management). middleware/security/jwt.go is the
-//	HTTP middleware that verifies incoming JWTs. Use auth for login/logout flows;
-//	use middleware/security/jwt.go to protect routes.
+//	github.com/astra-go/astra/auth is a standalone authentication module (RBAC,
+//	OAuth2). middleware/security provides the HTTP middleware layer — JWT
+//	verification, API key auth, rate limiting, etc. Use auth for login/logout
+//	flows and access control; use this package to protect routes.
 package security
