@@ -532,7 +532,7 @@ func TestIPFilter_Allowlist_PermitsAllowed(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Use(sec.IPFilter(sec.IPFilterConfig{
 		Allowlist: []string{"127.0.0.1/32"},
-	}))
+	}).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -546,7 +546,7 @@ func TestIPFilter_Allowlist_BlocksNotAllowed(t *testing.T) {
 	app.Use(sec.IPFilter(sec.IPFilterConfig{
 		Allowlist: []string{"10.0.0.0/8"},
 		GetIP: func(c *astra.Ctx) string { return "192.168.1.1" },
-	}))
+	}).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -559,7 +559,7 @@ func TestIPFilter_Blocklist_BlocksBlocked(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Use(sec.IPFilter(sec.IPFilterConfig{
 		Blocklist: []string{"127.0.0.1/32"},
-	}))
+	}).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -573,7 +573,7 @@ func TestIPFilter_BlocklistTakesPrecedenceOverAllowlist(t *testing.T) {
 	app.Use(sec.IPFilter(sec.IPFilterConfig{
 		Allowlist: []string{"127.0.0.0/8"},
 		Blocklist: []string{"127.0.0.1/32"},
-	}))
+	}).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -584,7 +584,7 @@ func TestIPFilter_BlocklistTakesPrecedenceOverAllowlist(t *testing.T) {
 
 func TestIPFilter_EmptyLists_AllowAll(t *testing.T) {
 	app := testutil.NewTestApp()
-	app.Use(sec.IPFilter(sec.IPFilterConfig{}))
+	app.Use(sec.IPFilter(sec.IPFilterConfig{}).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -598,7 +598,7 @@ func TestIPFilter_Skipper_Skips(t *testing.T) {
 	app.Use(sec.IPFilter(sec.IPFilterConfig{
 		Blocklist: []string{"127.0.0.1/32"},
 		Skipper:   func(c *astra.Ctx) bool { return true },
-	}))
+	}).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -611,7 +611,7 @@ func TestIPFilter_UnparseableIP_Denied(t *testing.T) {
 	app := testutil.NewTestApp()
 	app.Use(sec.IPFilter(sec.IPFilterConfig{
 		GetIP: func(c *astra.Ctx) string { return "not-an-ip" },
-	}))
+	}).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -625,7 +625,7 @@ func TestIPFilter_CustomDenyStatus(t *testing.T) {
 	app.Use(sec.IPFilter(sec.IPFilterConfig{
 		Blocklist:   []string{"127.0.0.1/32"},
 		DenyStatus:  http.StatusNotFound,
-	}))
+	}).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -646,7 +646,7 @@ func TestIPFilter_DynamicLoader(t *testing.T) {
 			return allow, nil, nil
 		},
 		ReloadInterval: time.Hour, // long interval for test
-	}))
+	}).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -661,7 +661,7 @@ func TestIPFilter_DynamicLoader(t *testing.T) {
 func TestSignature_ValidRequest_Passes(t *testing.T) {
 	secret := []byte("test-secret-key")
 	app := testutil.NewTestApp()
-	app.Use(sec.Signature(secret))
+	app.Use(sec.Signature(secret).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -682,7 +682,7 @@ func TestSignature_ValidRequest_Passes(t *testing.T) {
 
 func TestSignature_MissingHeaders_Returns401(t *testing.T) {
 	app := testutil.NewTestApp()
-	app.Use(sec.Signature([]byte("secret")))
+	app.Use(sec.Signature([]byte("secret")).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -693,7 +693,7 @@ func TestSignature_MissingHeaders_Returns401(t *testing.T) {
 
 func TestSignature_InvalidSignature_Returns401(t *testing.T) {
 	app := testutil.NewTestApp()
-	app.Use(sec.Signature([]byte("secret")))
+	app.Use(sec.Signature([]byte("secret")).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -709,7 +709,7 @@ func TestSignature_InvalidSignature_Returns401(t *testing.T) {
 func TestSignature_ExpiredTimestamp_Returns401(t *testing.T) {
 	secret := []byte("secret")
 	app := testutil.NewTestApp()
-	app.Use(sec.Signature(secret))
+	app.Use(sec.Signature(secret).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -731,7 +731,7 @@ func TestSignature_ExpiredTimestamp_Returns401(t *testing.T) {
 func TestSignature_NonceReplay_Returns401(t *testing.T) {
 	secret := []byte("secret")
 	app := testutil.NewTestApp()
-	app.Use(sec.Signature(secret))
+	app.Use(sec.Signature(secret).Handler)
 	app.GET("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -766,7 +766,7 @@ func TestSignature_PanicsOnEmptySecret(t *testing.T) {
 func TestSignature_WithBody(t *testing.T) {
 	secret := []byte("secret")
 	app := testutil.NewTestApp()
-	app.Use(sec.Signature(secret))
+	app.Use(sec.Signature(secret).Handler)
 	app.POST("/", func(c *astra.Ctx) error {
 		return c.String(http.StatusOK, "ok")
 	})
