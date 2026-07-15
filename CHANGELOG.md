@@ -263,7 +263,7 @@ Initial stable release of Astra framework with core features and basic extension
 
 ### ⚠️ Deprecated
 
-- **provider/**: All types (`Factory`, `Registry`, `NewRegistry`, `MustRegister`) are now deprecated aliases for `di.ProviderFactory[T]`, `di.ProviderRegistry[T]`, etc. **This package will be removed in v2.0.0.** Migrate imports from `"github.com/astra-go/astra/provider"` to `"github.com/astra-go/astra/di"`.
+- **provider/**: All types (`Factory`, `Registry`, `NewRegistry`, `MustRegister`) are now deprecated aliases for `di.ProviderFactory[T]`, `di.ProviderRegistry[T]`, etc. **This package will be removed in v1.1.1.** Migrate imports from `"github.com/astra-go/astra/provider"` to `"github.com/astra-go/astra/di"`.
 - **module v1**: `NewModuleFunc`, `ModuleFunc.Install()`, `App.RegisterModule()`, `App.Modules()` emit `slog.Warn` at runtime. To be removed following the v3 roadmap.
 
 ---

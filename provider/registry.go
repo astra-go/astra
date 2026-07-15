@@ -16,7 +16,7 @@
 //	reg := di.NewProviderRegistry[MyInterface]()
 //	reg.MustRegister(factory)
 //
-// Removal timeline: This package will be removed in astra v2.0.0.
+// Removal timeline: This package will be removed in v1.1.1.
 // Users are encouraged to migrate before then.
 package provider
 

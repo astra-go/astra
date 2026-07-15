@@ -10,3 +10,9 @@ tools/modproxy/*
 
 # Build tool caches
 .astractl/
+# Example binaries (compiled, not source)
+examples/crud/crud
+examples/orm/orm
+examples/quic/quic
+examples/showcase/api
+examples/showcase/grpc
