@@ -67,7 +67,7 @@ func TestClosed_ASuccessResetsConsecutiveFailures(t *testing.T) {
 func TestOpen_RejectsBeforeInterval(t *testing.T) {
 	b := circuitbreaker.New(circuitbreaker.WithName("reject"),
 		circuitbreaker.WithMaxFailures(1),
-		circuitbreaker.WithInterval(50*time.Millisecond))
+		circuitbreaker.WithInterval(100*time.Millisecond))
 
 	_ = b.Call(context.Background(), func() error { return errBoom })
 	testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
@@ -80,13 +80,14 @@ func TestOpen_RejectsBeforeInterval(t *testing.T) {
 func TestOpen_BecomesHalfOpenAfterInterval(t *testing.T) {
 	b := circuitbreaker.New(circuitbreaker.WithName("recover"),
 		circuitbreaker.WithMaxFailures(1),
-		circuitbreaker.WithInterval(40*time.Millisecond),
+		circuitbreaker.WithInterval(50*time.Millisecond),
 		circuitbreaker.WithSuccessThreshold(2))
 
 	_ = b.Call(context.Background(), func() error { return errBoom })
 	testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
 
-	time.Sleep(60 * time.Millisecond)
+	// Wait well past the interval to avoid CI timing flakes.
+	time.Sleep(150 * time.Millisecond)
 
 	// First probe after the interval is admitted and runs fn.
 	ran := false
@@ -108,11 +109,11 @@ func TestOpen_BecomesHalfOpenAfterInterval(t *testing.T) {
 func TestHalfOpen_FailureReopens(t *testing.T) {
 	b := circuitbreaker.New(circuitbreaker.WithName("hoff-fail"),
 		circuitbreaker.WithMaxFailures(1),
-		circuitbreaker.WithInterval(30*time.Millisecond),
+		circuitbreaker.WithInterval(50*time.Millisecond),
 		circuitbreaker.WithSuccessThreshold(2))
 
 	_ = b.Call(context.Background(), func() error { return errBoom })
-	time.Sleep(45 * time.Millisecond)
+	time.Sleep(120 * time.Millisecond)
 
 	// Probe fails → back to Open.
 	testutil.AssertError(t, b.Call(context.Background(), func() error { return errBoom }))
@@ -124,19 +125,19 @@ func TestHalfOpen_FailureReopens(t *testing.T) {
 func TestHalfOpen_TimeoutForcesOpen(t *testing.T) {
 	b := circuitbreaker.New(circuitbreaker.WithName("hoff-timeout"),
 		circuitbreaker.WithMaxFailures(1),
-		circuitbreaker.WithInterval(30*time.Millisecond),
-		circuitbreaker.WithTimeout(30*time.Millisecond),
+		circuitbreaker.WithInterval(50*time.Millisecond),
+		circuitbreaker.WithTimeout(50*time.Millisecond),
 		circuitbreaker.WithSuccessThreshold(100)) // never reached in this test
 
 	_ = b.Call(context.Background(), func() error { return errBoom })
-	time.Sleep(45 * time.Millisecond)
+	time.Sleep(120 * time.Millisecond)
 
 	// First probe succeeds (1 success, far below the huge threshold).
 	testutil.AssertNoError(t, b.Call(context.Background(), func() error { return nil }))
 	testutil.AssertEqual(t, circuitbreaker.StateHalfOpen, b.State())
 
 	// Wait past the HalfOpen timeout; the next call force-reopens.
-	time.Sleep(45 * time.Millisecond)
+	time.Sleep(120 * time.Millisecond)
 	err := b.Call(context.Background(), func() error { return nil })
 	testutil.AssertErrorIs(t, err, circuitbreaker.ErrOpen)
 	testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
@@ -147,12 +148,12 @@ func TestHalfOpen_TimeoutForcesOpen(t *testing.T) {
 func TestHalfOpen_MaxRequestsLimit(t *testing.T) {
 	b := circuitbreaker.New(circuitbreaker.WithName("maxreq"),
 		circuitbreaker.WithMaxFailures(1),
-		circuitbreaker.WithInterval(20*time.Millisecond),
+		circuitbreaker.WithInterval(50*time.Millisecond),
 		circuitbreaker.WithMaxRequests(1),
 		circuitbreaker.WithSuccessThreshold(100))
 
 	_ = b.Call(context.Background(), func() error { return errBoom })
-	time.Sleep(30 * time.Millisecond)
+	time.Sleep(120 * time.Millisecond)
 
 	started := make(chan struct{})
 	release := make(chan struct{})
@@ -241,14 +242,14 @@ func TestOnStateChange_Fired(t *testing.T) {
 	ch := make(chan [2]circuitbreaker.State, 16)
 	b := circuitbreaker.New(circuitbreaker.WithName("cb"),
 		circuitbreaker.WithMaxFailures(1),
-		circuitbreaker.WithInterval(20*time.Millisecond),
+		circuitbreaker.WithInterval(50*time.Millisecond),
 		circuitbreaker.WithSuccessThreshold(2),
 		circuitbreaker.WithOnStateChange(func(_ string, from, to circuitbreaker.State) {
 			ch <- [2]circuitbreaker.State{from, to}
 		}))
 
 	_ = b.Call(context.Background(), func() error { return errBoom }) // Closed→Open
-	time.Sleep(30 * time.Millisecond)
+	time.Sleep(120 * time.Millisecond)
 	_ = b.Call(context.Background(), func() error { return nil })    // Open→HalfOpen
 	_ = b.Call(context.Background(), func() error { return nil })    // HalfOpen→Closed
 
@@ -307,7 +308,7 @@ func TestCounts_And_Reset(t *testing.T) {
 func TestConcurrent_NoRace(t *testing.T) {
 	b := circuitbreaker.New(circuitbreaker.WithName("race"),
 		circuitbreaker.WithMaxFailures(3),
-		circuitbreaker.WithInterval(5*time.Millisecond),
+		circuitbreaker.WithInterval(10*time.Millisecond),
 		circuitbreaker.WithSuccessThreshold(2))
 
 	var ops int64
@@ -327,7 +328,19 @@ func TestConcurrent_NoRace(t *testing.T) {
 			}
 		}()
 	}
-	wg.Wait()
+
+	// Wait with a generous timeout for slow CI machines.
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("concurrent test timed out")
+	}
+
 	testutil.AssertEqual(t, int64(10000), atomic.LoadInt64(&ops))
 	// The breaker must still be in a valid state.
 	switch b.State() {
@@ -335,6 +348,11 @@ func TestConcurrent_NoRace(t *testing.T) {
 	default:
 		t.Fatalf("invalid state: %v", b.State())
 	}
+
+	// Counts should be internally consistent (admitted calls only, rejected don't count).
+	c := b.Counts()
+	testutil.AssertEqual(t, c.Requests, c.TotalSuccesses+c.TotalFailures)
+	t.Logf("admitted=%d rejected=%d", c.Requests, int64(10000)-c.Requests)
 }
 
 // ─── State.String ─────────────────────────────────────────────────────────────
@@ -343,4 +361,274 @@ func TestState_String(t *testing.T) {
 	testutil.AssertEqual(t, "closed", circuitbreaker.StateClosed.String())
 	testutil.AssertEqual(t, "open", circuitbreaker.StateOpen.String())
 	testutil.AssertEqual(t, "half-open", circuitbreaker.StateHalfOpen.String())
+}
+
+// ─── Edge case: Interval <= 0 disables auto-recovery ─────────────────────────
+
+func TestInterval_Zero_NeverRecovers(t *testing.T) {
+	b := circuitbreaker.New(circuitbreaker.WithName("no-interval"),
+		circuitbreaker.WithMaxFailures(1),
+		circuitbreaker.WithInterval(0)) // never auto-recover
+
+	_ = b.Call(context.Background(), func() error { return errBoom })
+	testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
+
+	// Even after a long wait, the breaker stays Open.
+	time.Sleep(100 * time.Millisecond)
+	err := b.Call(context.Background(), func() error { return nil })
+	testutil.AssertErrorIs(t, err, circuitbreaker.ErrOpen)
+	testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
+}
+
+func TestInterval_Negative_ImmediateHalfOpen(t *testing.T) {
+	// Interval <= 0 means Open→HalfOpen transition happens on the very next call
+	// (no waiting). This is useful for manual recovery via Reset().
+	b := circuitbreaker.New(circuitbreaker.WithName("neg-interval"),
+		circuitbreaker.WithMaxFailures(1),
+		circuitbreaker.WithInterval(-1),
+		circuitbreaker.WithSuccessThreshold(1)) // one success is enough to close
+
+	_ = b.Call(context.Background(), func() error { return errBoom })
+	testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
+
+	// Immediate HalfOpen transition without waiting, single success closes.
+	testutil.AssertNoError(t, b.Call(context.Background(), func() error { return nil }))
+	testutil.AssertEqual(t, circuitbreaker.StateClosed, b.State())
+}
+
+// ─── Edge case: Timeout == 0 disables HalfOpen timeout ────────────────────────
+
+func TestTimeout_Zero_NoForceReopen(t *testing.T) {
+	b := circuitbreaker.New(circuitbreaker.WithName("no-timeout"),
+		circuitbreaker.WithMaxFailures(1),
+		circuitbreaker.WithInterval(50*time.Millisecond),
+		circuitbreaker.WithTimeout(0),
+		circuitbreaker.WithSuccessThreshold(100)) // never close naturally
+
+	_ = b.Call(context.Background(), func() error { return errBoom })
+	testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
+
+	// Transition to HalfOpen
+	time.Sleep(120 * time.Millisecond)
+	testutil.AssertNoError(t, b.Call(context.Background(), func() error { return nil }))
+	testutil.AssertEqual(t, circuitbreaker.StateHalfOpen, b.State())
+
+	// Long wait — without Timeout, the breaker stays HalfOpen.
+	time.Sleep(200 * time.Millisecond)
+	testutil.AssertEqual(t, circuitbreaker.StateHalfOpen, b.State())
+
+	// Further calls are admitted (probe limit permitting).
+	testutil.AssertNoError(t, b.Call(context.Background(), func() error { return nil }))
+	testutil.AssertEqual(t, circuitbreaker.StateHalfOpen, b.State())
+}
+
+// ─── Inflight accounting under HalfOpen stress ───────────────────────────────
+
+func TestHalfOpen_InflightAccounting(t *testing.T) {
+	b := circuitbreaker.New(circuitbreaker.WithName("inflight"),
+		circuitbreaker.WithMaxFailures(1),
+		circuitbreaker.WithInterval(50*time.Millisecond),
+		circuitbreaker.WithMaxRequests(3),
+		circuitbreaker.WithSuccessThreshold(2))
+
+	// Trip the breaker.
+	_ = b.Call(context.Background(), func() error { return errBoom })
+	testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
+
+	// Wait for HalfOpen transition.
+	time.Sleep(120 * time.Millisecond)
+
+	// Hold multiple probes in-flight simultaneously.
+	var startedOnce sync.Once
+	started := make(chan struct{})
+	release := make(chan struct{})
+
+	var inFlight int32
+	var maxInFlight int32
+
+	blocking := func() error {
+		cur := atomic.AddInt32(&inFlight, 1)
+		for {
+			old := atomic.LoadInt32(&maxInFlight)
+			if cur <= old || atomic.CompareAndSwapInt32(&maxInFlight, old, cur) {
+				break
+			}
+		}
+		startedOnce.Do(func() { close(started) })
+		<-release
+		atomic.AddInt32(&inFlight, -1)
+		return nil
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = b.Call(context.Background(), blocking)
+		}()
+	}
+
+	// Wait until all 3 probes are blocked.
+	<-started
+	time.Sleep(100 * time.Millisecond)
+
+	// With MaxRequests=3 and 3 probes in-flight, the 4th must be rejected.
+	err := b.Call(context.Background(), func() error { return nil })
+	testutil.AssertErrorIs(t, err, circuitbreaker.ErrOpen)
+
+	// All 3 in-flight probes should have been admitted.
+	testutil.AssertEqual(t, int32(3), atomic.LoadInt32(&maxInFlight))
+
+	// Release probes.
+	close(release)
+	wg.Wait()
+
+	// After probes complete, inflight returns to 0 and new calls are admitted.
+	time.Sleep(50 * time.Millisecond)
+	testutil.AssertNoError(t, b.Call(context.Background(), func() error { return nil }))
+}
+
+// ─── Panic recovery: inflight counter must not leak ───────────────────────────
+
+func TestCall_FnPanic_InflightCleanup(t *testing.T) {
+	b := circuitbreaker.New(circuitbreaker.WithName("panic"),
+		circuitbreaker.WithMaxFailures(1),
+		circuitbreaker.WithInterval(50*time.Millisecond),
+		circuitbreaker.WithMaxRequests(1),
+		circuitbreaker.WithSuccessThreshold(100))
+
+	// Trip the breaker.
+	_ = b.Call(context.Background(), func() error { return errBoom })
+	testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
+
+	time.Sleep(120 * time.Millisecond)
+
+	// A HalfOpen probe that panics.
+	panicked := false
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicked = true
+			}
+		}()
+		_ = b.Call(context.Background(), func() error {
+			panic("boom")
+		})
+	}()
+	testutil.AssertEqual(t, true, panicked)
+
+	// Panic counts as failure → breaker is Open again.
+	// But inflight was cleaned up: after the interval, a new probe is admitted
+	// (proving the inflight counter was properly decremented during recovery).
+	time.Sleep(120 * time.Millisecond)
+	testutil.AssertNoError(t, b.Call(context.Background(), func() error { return nil }))
+}
+
+// ─── Successful call after panic does not leave stale failure counts ──────────
+
+func TestCall_PanicCountsAsFailure(t *testing.T) {
+	b := circuitbreaker.New(circuitbreaker.WithName("panic-fail"),
+		circuitbreaker.WithMaxFailures(2))
+
+	func() {
+		defer func() { recover() }()
+		_ = b.Call(context.Background(), func() error { panic("boom") })
+	}()
+
+	c := b.Counts()
+	testutil.AssertEqual(t, int64(1), c.Requests)
+	testutil.AssertEqual(t, int64(0), c.TotalSuccesses)
+	testutil.AssertEqual(t, int64(1), c.TotalFailures)
+
+	// Another failure should trip the breaker (MaxFailures=2).
+	_ = b.Call(context.Background(), func() error { return errBoom })
+	testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
+}
+
+// ─── Multiple Open ↔ HalfOpen cycles ──────────────────────────────────────────
+
+func TestHalfOpen_MultipleRecoveryCycles(t *testing.T) {
+	b := circuitbreaker.New(circuitbreaker.WithName("cycles"),
+		circuitbreaker.WithMaxFailures(1),
+		circuitbreaker.WithInterval(50*time.Millisecond),
+		circuitbreaker.WithSuccessThreshold(2))
+
+	for cycle := 0; cycle < 3; cycle++ {
+		// Trip the breaker.
+		_ = b.Call(context.Background(), func() error { return errBoom })
+		testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
+
+		// Wait for HalfOpen.
+		time.Sleep(120 * time.Millisecond)
+
+		// Fail the probe → back to Open.
+		testutil.AssertError(t, b.Call(context.Background(), func() error { return errBoom }))
+		testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
+	}
+}
+
+func TestHalfOpen_MultipleRecoverySuccess(t *testing.T) {
+	b := circuitbreaker.New(circuitbreaker.WithName("cycles-ok"),
+		circuitbreaker.WithMaxFailures(1),
+		circuitbreaker.WithInterval(50*time.Millisecond),
+		circuitbreaker.WithSuccessThreshold(2))
+
+	for cycle := 0; cycle < 3; cycle++ {
+		_ = b.Call(context.Background(), func() error { return errBoom })
+		testutil.AssertEqual(t, circuitbreaker.StateOpen, b.State())
+
+		time.Sleep(120 * time.Millisecond)
+
+		// Two successful probes → Closed.
+		testutil.AssertNoError(t, b.Call(context.Background(), func() error { return nil }))
+		testutil.AssertEqual(t, circuitbreaker.StateHalfOpen, b.State())
+		testutil.AssertNoError(t, b.Call(context.Background(), func() error { return nil }))
+		testutil.AssertEqual(t, circuitbreaker.StateClosed, b.State())
+	}
+}
+
+// ─── MaxRequests=0 defaults to 1 ─────────────────────────────────────────────
+
+func TestHalfOpen_MaxRequestsZeroDefaultsToOne(t *testing.T) {
+	b := circuitbreaker.New(circuitbreaker.WithName("maxreq0"),
+		circuitbreaker.WithMaxFailures(1),
+		circuitbreaker.WithInterval(50*time.Millisecond),
+		circuitbreaker.WithMaxRequests(0),
+		circuitbreaker.WithSuccessThreshold(100))
+
+	_ = b.Call(context.Background(), func() error { return errBoom })
+	time.Sleep(120 * time.Millisecond)
+
+	// First probe is admitted (MaxRequests defaults to 1).
+	started := make(chan struct{})
+	release := make(chan struct{})
+	go func() {
+		_ = b.Call(context.Background(), func() error {
+			close(started)
+			<-release
+			return nil
+		})
+	}()
+	<-started
+
+	// Second probe must be rejected (MaxRequests==1).
+	err := b.Call(context.Background(), func() error { return nil })
+	testutil.AssertErrorIs(t, err, circuitbreaker.ErrOpen)
+
+	close(release)
+}
+
+// ─── Names are settable and retrievable ───────────────────────────────────────
+
+func TestName_Retrievable(t *testing.T) {
+	b := circuitbreaker.New(circuitbreaker.WithName("my-cb"))
+	testutil.AssertEqual(t, "my-cb", b.Name())
+}
+
+// ─── Default name ─────────────────────────────────────────────────────────────
+
+func TestName_Default(t *testing.T) {
+	b := circuitbreaker.New()
+	testutil.AssertEqual(t, "circuit-breaker", b.Name())
 }

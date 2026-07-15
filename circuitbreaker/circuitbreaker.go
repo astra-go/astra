@@ -60,6 +60,9 @@ import (
 // limit has been reached) and the request is rejected without running fn.
 var ErrOpen = errors.New("circuit breaker open: request rejected")
 
+// errPanic is used internally to record a panicking fn in afterRequest.
+var errPanic = errors.New("circuit breaker: fn panicked")
+
 // Default* values used when a Settings field is left at its zero value.
 const (
 	DefaultMaxFailures     uint32 = 5
@@ -296,7 +299,7 @@ func (b *Breaker) Reset() {
 }
 
 // Call runs fn inside the breaker.
-func (b *Breaker) Call(ctx context.Context, fn func() error) error {
+func (b *Breaker) Call(ctx context.Context, fn func() error) (err error) {
 	if err := ctx.Err(); err != nil {
 		b.reportCall("rejected")
 		return err
@@ -304,7 +307,18 @@ func (b *Breaker) Call(ctx context.Context, fn func() error) error {
 	if err := b.beforeRequest(); err != nil {
 		return err
 	}
-	err := fn()
+
+	// Recover from panics in fn to prevent inflight counter leaks during
+	// HalfOpen probes. The panic is re-thrown after cleanup so callers can
+	// still observe the original panic with a recovery middleware.
+	defer func() {
+		if r := recover(); r != nil {
+			b.afterRequest(errPanic)
+			panic(r)
+		}
+	}()
+
+	err = fn()
 	b.afterRequest(err)
 	return err
 }
