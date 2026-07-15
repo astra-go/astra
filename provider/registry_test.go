@@ -128,7 +128,7 @@ func TestMustRegister(t *testing.T) {
 func TestRegisterNil(t *testing.T) {
 	r := NewRegistry[SMSSender]()
 	err := r.Register(nil)
-	assertErrContains(t, err, "nil factory")
+	assertErrContains(t, err, "nil")
 }
 
 func TestRegisterEmptyCode(t *testing.T) {

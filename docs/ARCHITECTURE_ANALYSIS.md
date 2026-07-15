@@ -30,11 +30,11 @@ github.com/astra-go/astra (主模块)
 | 5 | App.Use 并发安全注释不准确 | ✅ **已修复** | P1 |
 | 6 | NATS/Redis 未加入 Builder | ❌ **误报**（已完整支持） | — |
 | 7 | Go 1.25 版本不可用 | ❌ **误报**（go 1.25.8 已安装） | — |
-| 8 | Kafka CapFixedDelay 语义不清 | ✅ 已完成（mq/capability.go:78-80 注释说明是框架层 workaround） | — |
+| 8 | Kafka CapFixedDelay 语义不清 | ✅ 已完成（capability.go:77-98 区分原生/框架模拟，Kafka + RabbitMQ 统一注释） | — |
 | 9 | go.work replace 维护成本高 | ✅ 已解决（scripts/check-intra-replaces.sh 自动检查 + --fix 自动修复） | — |
-| 10 | 两套 DI 系统并行 | ⏸ 暂缓（需产品决策） | P2 |
-| 11 | middleware/security 包过大 | ⏸ 暂缓 | P3 |
-| 12 | Auth 与 Security JWT 职责重叠 | ⏸ 暂缓（需产品决策） | P3 |
+| 10 | 两套 DI 系统并行 | ✅ 已完成（provider → di.ProviderRegistry，原包 deprecated） | P2 |
+| 11 | middleware/security 包过大 | ✅ 已处理（分析后不建议拆分，详见§四；auth/ 空子包已清理） | P3 |
+| 12 | Auth 与 Security JWT 职责重叠 | ✅ 已解决（前次重构已将 JWT 代码移入 security/，auth/ 已空并删除） | P3 |
 | 13 | Module 废弃技术债 | ✅ 已完成（v1.0.6 de47fcd） | — |
 | 14 | kvStoreMapThreshold 未确认 | ✅ 确认（context_store.go:20 = 16，自适应 slice→map 优化，设计合理无需修改） | — |
 | 15 | Components() 深拷贝开销 | ✅ 确认（浅拷贝，module.go:35-40，仅复制 map 结构，Component 值是引用；GetComponent() 已提供 O(1) 单组件查找，无需 profiling） | — |
@@ -180,11 +180,23 @@ func (l *Lifecycle) RunStopHooks(ctx context.Context) (errs []error) {
 
 ### P3 — 其他
 
-- `middleware/security/` 包过大 → 按需拆分
-- `Auth` 与 `Security JWT` 职责重叠 → 需产品决策统一入口
+#### middleware/security 包拆分分析（2026-07-15）
+
+**结论：不建议拆分。**
+
+分析依据：
+- `Skipper` / `ErrorHandler` / `shouldSkip` 被 15+ 文件共享，拆分后子包需 import `security/` 回环
+- 10 个外部 importers 需更新引用路径（marketplace, examples, e2e）
+- 每个模块（JWT/RateLimit/Tenant/IP 等）已按文件名自包含于 `security/`
+- auth/ 空子包已删除（前次 JWT 重构后无人引用）
+- ~7000 行 / 35 文件对 Go 安全中间件包而言属合理规模
+- 若未来拆包，需先将共享类型提升为独立接口（避免 import cycle），届时再做
+
+#### 其他 P3 项
+
 - `Module` 废弃但未移除 → ✅ 已完成（v1.0.6 de47fcd）
-- `kvStoreMapThreshold` 未确认
-- `Components()` 深拷贝 → 需 profiling 数据支撑再做决策
+- `kvStoreMapThreshold` → ✅ 确认（context_store.go:20 = 16）
+- `Components()` 深拷贝 → ✅ 确认（浅拷贝，仅复制 map 结构）
 
 ---
 

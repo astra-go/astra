@@ -16,6 +16,11 @@ const (
 
 	// CapFixedDelay means the backend supports fixed-level delay
 	// (e.g. RocketMQ v4 has 18 fixed delay levels).
+	//
+	// NOTE: Not all backends support this natively — some backends
+	// emulate fixed delay via framework-layer workarounds (per-level
+	// delay topics, TTL+DLX, or topic-level routing). See each
+	// backend's Capabilities() doc for the implementation mechanism.
 	CapFixedDelay
 
 	// CapNakDelay means the backend supports NAK + configurable delay
@@ -70,18 +75,29 @@ func (c Capabilities) Has(cap Capability) bool {
 // ── Default capability sets for each backend ──────────────────────────────
 
 // KafkaCapabilities returns the capabilities of Apache Kafka.
-// Kafka supports: ordered delivery (partition), multi consumer group,
-// batch sending, idempotent delivery (via EnableIdempotent),
-// transactional messages (via EnableTx + kgo.Transactional), arbitrary delay
-// (via republish), NAK delay (via NakWithDelay), DLQ (via DLQTopic), retry
-// (via RetryPolicy), priority (via priority sorting within Subscribe).
-// It does NOT support: fixed delay levels (Kafka has no native concept of
-// fixed delay; CapFixedDelay is implemented via per-level delay topics +
-// a forwarding consumer — a framework-layer workaround, not broker-native).
+//
+// Broker-native capabilities:
+//   - CapOrdered (partition ordering)
+//   - CapMultiGroup (consumer groups)
+//   - CapBatch (producer batching)
+//   - CapIdempotency (EnableIdempotent)
+//   - CapTx (via EnableTx + kgo.Transactional, exactly-once semantics)
+//
+// Framework-emulated capabilities (not native to Kafka broker):
+//   - CapFixedDelay — per-level delay topics + forwarding consumer.
+//     Kafka has no native concept of fixed delay levels; the framework
+//     creates N delay topics and a consumer that forwards messages on
+//     schedule.
+//   - CapArbitraryDelay — client-side republish goroutine with
+//     configurable delay.
+//   - CapNakDelay — NakWithDelay via republish with client-side timer.
+//   - CapPriority — priority sorting within Subscribe (client-side).
+//   - CapDLQ — DLQTopic forwarding (client-side).
+//   - CapRetry — RetryPolicy (client-side retry loop).
 func KafkaCapabilities() Capabilities {
 	return Capabilities{
 		CapArbitraryDelay: true,
-		CapFixedDelay:     true, // via per-level delay topics + forwarding consumer (framework workaround)
+		CapFixedDelay:     true, // framework-emulated: per-level delay topics + forwarding consumer (not broker-native)
 		CapNakDelay:       true,
 		CapIdempotency:    true,
 		CapPriority:       true,
@@ -95,13 +111,22 @@ func KafkaCapabilities() Capabilities {
 }
 
 // RabbitMQCapabilities returns the capabilities of RabbitMQ.
-// RabbitMQ supports: priority queues (CapPriority), DLQ via DLX (CapDLQ),
-// multi consumer group (CapMultiGroup), arbitrary delay via the
-// x-delayed-message plugin (CapArbitraryDelay), fixed delay via per-level
-// delay queues (CapFixedDelay), idempotent deduplication via the
-// IdempCache interface (CapIdempotency), staircase retry via RetryPolicy
-// (CapRetry), ordered delivery within a single queue (CapOrdered),
-// AMQP transactions (CapTx), and client-side batch publishing (CapBatch).
+//
+// Broker-native capabilities:
+//   - CapPriority (queue priority)
+//   - CapDLQ (DLX — dead-letter exchange)
+//   - CapMultiGroup (consumer groups)
+//   - CapTx (AMQP transactions)
+//   - CapOrdered (single-queue FIFO)
+//
+// Plugin-dependent or framework-emulated capabilities:
+//   - CapFixedDelay — per-level delay queues via TTL + DLX (framework
+//     workaround; RabbitMQ has no native delay-level concept).
+//   - CapArbitraryDelay — requires the x-delayed-message plugin.
+//   - CapIdempotency — client-side IdempCache interface.
+//   - CapRetry — RetryPolicy (client-side retry loop).
+//   - CapBatch — client-side aggregation.
+//   - CapNakDelay — republish + x-delay (semantically equivalent).
 func RabbitMQCapabilities() Capabilities {
 	return Capabilities{
 		CapArbitraryDelay: true,
