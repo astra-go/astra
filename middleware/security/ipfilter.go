@@ -6,32 +6,27 @@
 //
 // # Static rules
 //
-//	app.Use(middleware.IPFilter(middleware.IPFilterConfig{
-//	    // Allow only private network + a specific CDN range
-//	    Allowlist: []string{
-//	        "10.0.0.0/8",
-//	        "172.16.0.0/12",
-//	        "192.168.0.0/16",
-//	        "203.0.113.0/24",
-//	    },
-//	    // Blocklist takes precedence over allowlist
+//	h := middleware.IPFilter(middleware.IPFilterConfig{
+//	    Allowlist: []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "203.0.113.0/24"},
 //	    Blocklist: []string{"10.10.0.5/32"},
-//	}))
+//	})
+//	defer h.Stop()
+//	app.Use(h.Handler)
 //
 // # Dynamic rules (reload from DB / config)
 //
-//	app.Use(middleware.IPFilter(middleware.IPFilterConfig{
-//	    Loader: func(ctx context.Context) (allow, block []string, err error) {
-//	        return db.LoadIPRules(ctx)
-//	    },
+//	h := middleware.IPFilter(middleware.IPFilterConfig{
+//	    Loader:         func(ctx context.Context) (allow, block []string, err error) { return db.LoadIPRules(ctx) },
 //	    ReloadInterval: 5 * time.Minute,
-//	}))
+//	})
+//	defer h.Stop()
+//	app.Use(h.Handler)
 //
 // # IP extraction
 //
-// By default the middleware reads X-Forwarded-For → X-Real-IP → RemoteAddr,
-// matching the same priority chain as the audit-log middleware.
-// Override with a custom GetIP function when running behind a trusted proxy.
+// By default the middleware reads X-Forwarded-For → X-Real-IP → RemoteAddr.
+// When TrustedProxies is set, X-Forwarded-For is only trusted when the
+// immediate client (RemoteAddr) matches a trusted proxy.
 package security
 
 import (
@@ -88,8 +83,19 @@ type IPFilterConfig struct {
 	Skipper Skipper
 }
 
+// IPFilterHandler is returned by IPFilter. It provides the request handler via
+// the Handler field and the goroutine stop function via Stop.
+// Stop is a no-op when the handler was created without a Loader.
+type IPFilterHandler struct {
+	// Handler is the actual request handler; pass it to app.Use or a route.
+	Handler astra.HandlerFunc
+	// Stop stops the background reload goroutine started by IPFilter.
+	// Safe to call multiple times.
+	Stop func()
+}
+
 // IPFilter returns an IP allow-list / block-list middleware.
-func IPFilter(cfg IPFilterConfig) astra.HandlerFunc {
+func IPFilter(cfg IPFilterConfig) *IPFilterHandler {
 	if cfg.DenyStatus == 0 {
 		cfg.DenyStatus = http.StatusForbidden
 	}
@@ -103,13 +109,11 @@ func IPFilter(cfg IPFilterConfig) astra.HandlerFunc {
 	state := &ipFilterState{}
 	state.update(cfg.Allowlist, cfg.Blocklist)
 
-	// Parse trusted proxy CIDRs for X-Forwarded-For validation.
 	trustedNets := parseCIDRs(cfg.TrustedProxies)
 
 	// Start background reload if Loader is provided.
 	reloadCtx, reloadCancel := context.WithCancel(context.Background())
 	if cfg.Loader != nil {
-		// Initial load.
 		if allow, block, err := cfg.Loader(reloadCtx); err == nil {
 			state.update(allow, block)
 		}
@@ -130,27 +134,20 @@ func IPFilter(cfg IPFilterConfig) astra.HandlerFunc {
 		}()
 	}
 
-	// Expose reload cancel so callers can stop the background goroutine.
-	if cfg.ReloadCancel == nil {
-		cfg.ReloadCancel = reloadCancel
-	}
-
-	return func(c *astra.Ctx) error {
-		_ = reloadCancel // keep cancel alive (prevents goroutine leak)
+	// The reloadCancel is captured by the goroutine above and by the handler closure.
+	// Stop cancels the reload context, causing the goroutine to exit.
+	handler := func(c *astra.Ctx) error {
 		if shouldSkip(cfg.Skipper, c) {
 			c.Next()
 			return nil
 		}
 
 		ip := cfg.GetIP(c)
-		// When TrustedProxies is configured, validate that X-Forwarded-For
-		// comes from a trusted proxy. If not, fall back to RemoteAddr.
 		if len(trustedNets) > 0 {
 			ip = extractTrustedIP(c.Request(), trustedNets)
 		}
 		parsed := net.ParseIP(ip)
 		if parsed == nil {
-			// Unparseable IP — deny by default (fail-safe).
 			return c.JSON(cfg.DenyStatus, map[string]any{"error": "forbidden"})
 		}
 
@@ -161,22 +158,32 @@ func IPFilter(cfg IPFilterConfig) astra.HandlerFunc {
 		c.Next()
 		return nil
 	}
+
+	return &IPFilterHandler{
+		Handler: handler,
+		Stop: func() {
+			if cfg.Loader != nil {
+				reloadCancel()
+			}
+			if cfg.ReloadCancel != nil {
+				cfg.ReloadCancel()
+			}
+		},
+	}
 }
 
 // ─── internal state ────────────────────────────────────────────────────────
 
 type ipFilterState struct {
-	mu        sync.RWMutex
-	allowNets []*net.IPNet
-	blockNets []*net.IPNet
+	mu         sync.RWMutex
+	allowNets  []*net.IPNet
+	blockNets  []*net.IPNet
 }
 
 func (s *ipFilterState) update(allowList, blockList []string) {
-	allow := parseCIDRs(allowList)
-	block := parseCIDRs(blockList)
 	s.mu.Lock()
-	s.allowNets = allow
-	s.blockNets = block
+	s.allowNets = parseCIDRs(allowList)
+	s.blockNets = parseCIDRs(blockList)
 	s.mu.Unlock()
 }
 
@@ -210,8 +217,7 @@ func parseCIDRs(cidrs []string) []*net.IPNet {
 		if !strings.Contains(cidr, "/") {
 			cidr += "/32"
 		}
-		_, ipNet, err := net.ParseCIDR(cidr)
-		if err == nil {
+		if _, ipNet, err := net.ParseCIDR(cidr); err == nil {
 			nets = append(nets, ipNet)
 		}
 	}
@@ -236,16 +242,12 @@ func realClientIP(r *http.Request) string {
 }
 
 // extractTrustedIP returns the real client IP when TrustedProxies is configured.
-// It validates that the immediate client (RemoteAddr) is a trusted proxy before
-// trusting X-Forwarded-For or X-Real-IP. Falls back to RemoteAddr otherwise.
 func extractTrustedIP(r *http.Request, trustedNets []*net.IPNet) string {
 	host := remoteAddrHost(r)
 	parsedRemote := net.ParseIP(host)
 	if parsedRemote == nil {
 		return host
 	}
-
-	// Check if the immediate client is a trusted proxy.
 	trusted := false
 	for _, n := range trustedNets {
 		if n.Contains(parsedRemote) {
@@ -253,9 +255,7 @@ func extractTrustedIP(r *http.Request, trustedNets []*net.IPNet) string {
 			break
 		}
 	}
-
 	if trusted {
-		// Remote is a trusted proxy — trust X-Forwarded-For / X-Real-IP.
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 			parts := strings.Split(xff, ",")
 			ip := strings.TrimSpace(parts[0])
@@ -269,12 +269,9 @@ func extractTrustedIP(r *http.Request, trustedNets []*net.IPNet) string {
 			}
 		}
 	}
-
-	// Not a trusted proxy or no forwarding headers — use RemoteAddr.
 	return host
 }
 
-// remoteAddrHost extracts the host portion from RemoteAddr.
 func remoteAddrHost(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

@@ -30,14 +30,14 @@ github.com/astra-go/astra (主模块)
 | 5 | App.Use 并发安全注释不准确 | ✅ **已修复** | P1 |
 | 6 | NATS/Redis 未加入 Builder | ❌ **误报**（已完整支持） | — |
 | 7 | Go 1.25 版本不可用 | ❌ **误报**（go 1.25.8 已安装） | — |
-| 8 | Kafka CapFixedDelay 语义不清 | ⏸ 暂缓 | P2 |
-| 9 | go.work replace 维护成本高 | ⏸ 暂缓 | P2 |
+| 8 | Kafka CapFixedDelay 语义不清 | ✅ 已完成（mq/capability.go:78-80 注释说明是框架层 workaround） | — |
+| 9 | go.work replace 维护成本高 | ✅ 已解决（scripts/check-intra-replaces.sh 自动检查 + --fix 自动修复） | — |
 | 10 | 两套 DI 系统并行 | ⏸ 暂缓（需产品决策） | P2 |
 | 11 | middleware/security 包过大 | ⏸ 暂缓 | P3 |
 | 12 | Auth 与 Security JWT 职责重叠 | ⏸ 暂缓（需产品决策） | P3 |
 | 13 | Module 废弃技术债 | ✅ 已完成（v1.0.6 de47fcd） | — |
-| 14 | kvStoreMapThreshold 未确认 | ⏸ 需确认 | P3 |
-| 15 | Components() 深拷贝开销 | ⏸ 需 profiling 数据 | P3 |
+| 14 | kvStoreMapThreshold 未确认 | ✅ 确认（context_store.go:20 = 16，自适应 slice→map 优化，设计合理无需修改） | — |
+| 15 | Components() 深拷贝开销 | ✅ 确认（浅拷贝，module.go:35-40，仅复制 map 结构，Component 值是引用；GetComponent() 已提供 O(1) 单组件查找，无需 profiling） | — |
 
 ---
 

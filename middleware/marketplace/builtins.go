@@ -291,13 +291,13 @@ func factoryAPIKey(config any) (astra.HandlerFunc, error) {
 func factoryIPFilter(config any) (astra.HandlerFunc, error) {
 	m, ok := config.(map[string]any)
 	if !ok || len(m) == 0 {
-		return security.IPFilter(security.IPFilterConfig{}), nil
+		return security.IPFilter(security.IPFilterConfig{}).Handler, nil
 	}
 	var cfg security.IPFilterConfig
 	if err := DecodeConfig(m, &cfg); err != nil {
 		return nil, err
 	}
-	return security.IPFilter(cfg), nil
+	return security.IPFilter(cfg).Handler, nil
 }
 
 func factorySignature(config any) (astra.HandlerFunc, error) {
@@ -314,7 +314,7 @@ func factorySignature(config any) (astra.HandlerFunc, error) {
 			cfg.SecretKey = []byte(sk)
 		}
 	}
-	return security.SignatureWithConfig(cfg), nil
+	return security.SignatureWithConfig(cfg).Handler, nil
 }
 
 func factoryTenant(config any) (astra.HandlerFunc, error) {

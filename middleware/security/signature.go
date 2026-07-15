@@ -25,15 +25,25 @@
 //
 // # Usage
 //
-//	app.Use(middleware.Signature([]byte("my-shared-secret")))
+//	h := middleware.Signature([]byte("my-shared-secret"))
+//	defer h.Close()
+//	app.Use(h.Handler)
 //
 //	// Fine-grained config
-//	app.Use(middleware.SignatureWithConfig(middleware.SignatureConfig{
+//	h := middleware.SignatureWithConfig(middleware.SignatureConfig{
 //	    SecretKey:    []byte(os.Getenv("API_SECRET")),
 //	    TimestampTTL: 5 * time.Minute,
 //	    NonceWindow:  5 * time.Minute,
 //	    NonceStore:   myRedisStore,  // implement SignatureNonceStore interface
-//	}))
+//	})
+//	defer h.Close()
+//	app.Use(h.Handler)
+//
+// # Stopping the background reaper goroutine
+//
+// When NonceStore is nil (the default), an in-memory NonceStore is used. It
+// starts a background goroutine to evict expired nonces every minute. Call
+// SignatureStopFunc(handler)() to stop that goroutine at shutdown.
 package security
 
 import (
@@ -94,13 +104,40 @@ type SignatureConfig struct {
 	Skipper Skipper
 }
 
+// SignatureHandler is returned by Signature and SignatureWithConfig.
+// The Handler field is the actual request handler; call Close to stop the
+// background reaper goroutine of the in-memory NonceStore.
+type SignatureHandler struct {
+	// Handler is the actual request handler; pass it to app.Use or a route.
+	Handler astra.HandlerFunc
+	// NonceStore is the active nonce deduplication backend.
+	NonceStore SignatureNonceStore
+	// Close stops the background reaper goroutine of the in-memory NonceStore.
+	// Safe to call multiple times. No-op when a custom NonceStore was configured.
+	Close func()
+}
+
 // Signature returns an HMAC request-signature middleware using default settings.
-func Signature(secretKey []byte) astra.HandlerFunc {
+//
+// The returned handler uses an in-memory NonceStore with a background reaper.
+// Call h.Close() to stop that goroutine at shutdown:
+//
+//	h := middleware.Signature(secretKey)
+//	defer h.Close()
+//	app.Use(h.Handler)
+func Signature(secretKey []byte) *SignatureHandler {
 	return SignatureWithConfig(SignatureConfig{SecretKey: secretKey})
 }
 
 // SignatureWithConfig returns an HMAC request-signature middleware.
-func SignatureWithConfig(cfg SignatureConfig) astra.HandlerFunc {
+//
+// When NonceStore is nil the default in-memory store is used; its reaper
+// goroutine can be stopped by calling h.Close() at shutdown:
+//
+//	h := middleware.SignatureWithConfig(cfg)
+//	defer h.Close()
+//	app.Use(h.Handler)
+func SignatureWithConfig(cfg SignatureConfig) *SignatureHandler {
 	if len(cfg.SecretKey) == 0 {
 		panic("middleware: Signature: SecretKey must not be empty")
 	}
@@ -123,7 +160,10 @@ func SignatureWithConfig(cfg SignatureConfig) astra.HandlerFunc {
 		cfg.NonceStore = NewInMemoryNonceStore()
 	}
 
-	return func(c *astra.Ctx) error {
+	// Track whether we created the in-memory store so we can register its Close.
+	createdStore, isInMemory := cfg.NonceStore.(*InMemoryNonceStore)
+
+	handler := func(c *astra.Ctx) error {
 		if shouldSkip(cfg.Skipper, c) {
 			c.Next()
 			return nil
@@ -189,6 +229,20 @@ func SignatureWithConfig(cfg SignatureConfig) astra.HandlerFunc {
 		c.Next()
 		return nil
 	}
+
+	// Build Close func: in-memory store has a Close; custom stores do not.
+	var closeFn func()
+	if isInMemory && createdStore != nil {
+		closeFn = createdStore.Close
+	} else {
+		closeFn = func() {}
+	}
+
+	return &SignatureHandler{
+		Handler:    handler,
+		NonceStore: cfg.NonceStore,
+		Close:      closeFn,
+	}
 }
 
 // sha256Hex returns the lowercase hex-encoded SHA-256 hash of b.
@@ -204,11 +258,11 @@ func sha256Hex(b []byte) string {
 // use a Redis-backed implementation.
 // Call Close to stop the background reaper goroutine.
 type InMemoryNonceStore struct {
-	mu       sync.Mutex
-	nonces   map[string]time.Time
-	stop     chan struct{}
-	once     sync.Once
-	maxSize  int           // maximum entries before eviction of oldest
+	mu      sync.Mutex
+	nonces  map[string]time.Time
+	stop    chan struct{}
+	once    sync.Once
+	maxSize int // maximum entries before eviction of oldest
 }
 
 const defaultMaxNonceEntries = 100_000
