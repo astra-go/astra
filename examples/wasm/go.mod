@@ -1,4 +1,4 @@
-module example/wasm
+module github.com/astra-go/astra/examples/wasm
 
 go 1.25.1
 
@@ -25,3 +25,5 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 )
+
+replace github.com/astra-go/astra => ../..

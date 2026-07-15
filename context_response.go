@@ -48,8 +48,16 @@ var (
 )
 
 // clCacheSize is the upper bound (exclusive) for the pre-built Content-Length
-// header cache.  Responses up to 1023 bytes (covering virtually all JSON API
-// responses) will use a pre-allocated []string with no per-request allocation.
+// header cache.  Responses up to clCacheSize-1 bytes use a pre-allocated
+// []string with zero per-request allocation.
+//
+// Rationale: 1024 covers virtually all JSON API responses (status, errors,
+// small payloads).  At this size the fixed memory cost is ~52 KB (3 arrays ×
+// 1024 elements, allocated once in init()).
+//
+// When the response body exceeds this threshold, contentLengthSlice falls back
+// to allocating a fresh []string{strconv.Itoa(n)} — one extra heap alloc per
+// response, functionally transparent.
 const clCacheSize = 1024
 
 // clStrings[i] holds strconv.Itoa(i) for i in [0, clCacheSize).

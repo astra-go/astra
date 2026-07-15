@@ -16,7 +16,8 @@
 //	reg := di.NewProviderRegistry[MyInterface]()
 //	reg.MustRegister(factory)
 //
-// This package will be removed in a future release.
+// Removal timeline: This package will be removed in astra v2.0.0.
+// Users are encouraged to migrate before then.
 package provider
 
 import "github.com/astra-go/astra/di"

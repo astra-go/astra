@@ -241,17 +241,30 @@ Initial stable release of Astra framework with core features and basic extension
 
 ### ✨ Added
 
-- **GraphQL**: GraphQL integration (planned)
-- **WebSocket**: Enhanced WebSocket support with room/channel abstraction
-- **CLI**: Command-line tool for project scaffolding
+- **di/ProviderRegistry**: Generic `ProviderRegistry[T]` and `ProviderFactory[T]` for runtime dispatch between named implementations (`di/registry.go`).
+- **lifecycle**: `Lifecycle` now returns `[]error` instead of a single error, allowing multiple cleanup errors to be surfaced.
 
 ### 🐛 Fixed
 
-- **None yet**
+- **grpcweb**: Replaced custom `grpc.Invoke` forwarding with `improbable-eng/grpc-web v0.15.0` `WrapServer` delegation.
+- **middleware**: Fixed a panic in the stream interceptor when receiving a `nil` request.
+- **mq**: Fixed RocketMQ transaction e2e test (wrong `--enable-proxy` flag, wrong topic creation command).
+- **cors**: Consolidated origin validation into `validateOrigins` helper, reducing duplicated `panic()` call sites from 8 to 5.
+- **taskqueue**: Removed dead `must()` function that could panic on serialization failure.
+- **content-length**: Documented `clCacheSize` rationale, memory cost (~52 KB), and degradation behavior.
+- **build**: Deleted unused `tools/modproxy/cache/` (178 MB); added `.astractl/` to `.gitignore` and removed cached JSON from tracking.
 
 ### 🔄 Changed
 
-- **None yet**
+- **middleware/security**: `SignatureWithConfig` and `IPFilter` now return `*SignatureHandler`/`*IPFilterHandler` structs (with `.Handler` field + `Stop()`/`Close()` methods) instead of raw `HandlerFunc`.
+- **middleware/security**: `Skipper` and `ErrorHandler` types unified as aliases to `middleware.Skipper` / `middleware.ErrorHandler`.
+- **mq**: Renamed `RouteRegistrar` to `HTTPRouteRegistrar`. Composable `CapTx`, `CapFixedDelay` capabilities clarified with per-backend semantics.
+- **app**: Added `App.GetComponent(name)` for O(1) component lookup.
+
+### ⚠️ Deprecated
+
+- **provider/**: All types (`Factory`, `Registry`, `NewRegistry`, `MustRegister`) are now deprecated aliases for `di.ProviderFactory[T]`, `di.ProviderRegistry[T]`, etc. **This package will be removed in v2.0.0.** Migrate imports from `"github.com/astra-go/astra/provider"` to `"github.com/astra-go/astra/di"`.
+- **module v1**: `NewModuleFunc`, `ModuleFunc.Install()`, `App.RegisterModule()`, `App.Modules()` emit `slog.Warn` at runtime. To be removed following the v3 roadmap.
 
 ---
 

@@ -233,9 +233,3 @@ func WithTaskRetryMax(n int) MessageOption {
 	return func(msg *mq.Message) { msg.RetryMax = n }
 }
 
-func must(v []byte, err error) []byte {
-	if err != nil {
-		panic(err)
-	}
-	return v
-}

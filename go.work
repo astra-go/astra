@@ -27,46 +27,22 @@ go 1.25.11
 
 use (
 	. // github.com/astra-go/astra — core framework
-	./auth // token issuance, account management
-	./boot // service bootstrap & health
-	./config // configuration loading (Nacos, Etcd, Apollo)
-	./config/vault // Vault secrets backend
-	./grpc // gRPC server/client
-	./mq // multi-backend message queue (Kafka, NATS, RocketMQ, ...)
-	./orm // GORM + sharding + RW splitting
-	./orm/clickhouse // ClickHouse adapter
-	./session // session management
-
-	./cache // Redis / in-process cache
-	./mongodb // MongoDB driver
-	./storage // cloud storage (S3 / OSS / COS)
 
 	./alert // alerting & notifications
 	./audit // audit logging
+	./auth // token issuance, account management
+
+	./benchmarks // performance benchmarks
+	./boot // service bootstrap & health
+
+	./cache // Redis / in-process cache
+
+	./client // generic HTTP/REST client
+	./config // configuration loading (Nacos, Etcd, Apollo)
+	./config/vault // Vault secrets backend
 	./discovery // service discovery
 	./dtx/orm // distributed transaction (ORM adapter)
 	./dtx/redis // distributed transaction (Redis adapter)
-	./lock // distributed locking
-	./runner // long-running process manager
-
-	./quic // QUIC/HTTP3 server
-	./stream // streaming (gRPC, WebSocket)
-	./taskqueue // task queue (Asynq-compatible)
-
-	./benchmarks // performance benchmarks
-	./otel // OpenTelemetry instrumentation
-	./testutil // testing utilities
-	./validate // struct validation
-
-	./client // generic HTTP/REST client
-	./loadbalance // load balancing strategies
-	./mask // data masking (PII redactor)
-	./notify // push notifications
-	./rule // business rule engine
-	./search // full-text search
-	./token // token utilities
-
-	./middleware/security // security middleware (JWT, rate-limit, tenant, ...)
 
 	./e2e // end-to-end tests
 	./e2e/orm // ORM integration tests
@@ -74,14 +50,41 @@ use (
 	./examples/basic // minimal example
 	./examples/cache // cache example
 	./examples/crud // CRUD API example
+	./examples/hello
 	./examples/jwt // JWT authentication example
+	./examples/mq
 	./examples/orm // ORM example
 	./examples/quic // QUIC/HTTP3 example
 	./examples/quickstart // quickstart
 	./examples/reference-blog // reference blog (full-featured)
 	./examples/showcase // showcase
 	./examples/techempower // TechEmpower benchmarks
+	./examples/wasm
 	./examples/websocket // WebSocket example
+	./grpc // gRPC server/client
+	./loadbalance // load balancing strategies
+	./lock // distributed locking
+	./mask // data masking (PII redactor)
+
+	./middleware/security // security middleware (JWT, rate-limit, tenant, ...)
+	./mongodb // MongoDB driver
+	./mq // multi-backend message queue (Kafka, NATS, RocketMQ, ...)
+	./notify // push notifications
+	./orm // GORM + sharding + RW splitting
+	./orm/clickhouse // ClickHouse adapter
+	./otel // OpenTelemetry instrumentation
+
+	./quic // QUIC/HTTP3 server
+	./rule // business rule engine
+	./runner // long-running process manager
+	./search // full-text search
+	./session // session management
+	./storage // cloud storage (S3 / OSS / COS)
+	./stream // streaming (gRPC, WebSocket)
+	./taskqueue // task queue (Asynq-compatible)
+	./testutil // testing utilities
+	./token // token utilities
+	./validate // struct validation
 )
 
 // Intra-workspace replace directives.
@@ -133,4 +136,8 @@ replace (
 	// consul/proto-public v0.8.0 requires go 1.25.8; pin to v0.6.5 which requires go 1.25.0.
 	// config/go.mod carries the same replace for module-level builds.
 	github.com/hashicorp/consul/proto-public v0.8.0 => github.com/hashicorp/consul/proto-public v0.6.5
+	github.com/astra-go/astra/examples/hello v0.0.0-00010101000000-000000000000 => ./examples/hello
+	github.com/astra-go/astra/examples/mq v0.0.0-00010101000000-000000000000 => ./examples/mq
+	github.com/astra-go/astra/examples/wasm v0.0.0-00010101000000-000000000000 => ./examples/wasm
 )
+

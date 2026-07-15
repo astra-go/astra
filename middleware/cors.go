@@ -197,6 +197,24 @@ func CORSWithConfig(cfg CORSConfig) astra.HandlerFunc {
 	}
 }
 
+// validateOrigins performs startup-time origin list validation shared by
+// CORSStrict and CORSProduction. It panics on empty lists, blank entries,
+// or the wildcard "*" so that misconfiguration is caught immediately rather
+// than silently blocking all cross-origin requests at runtime.
+func validateOrigins(origins []string, source string) {
+	if len(origins) == 0 {
+		panic(source + ": at least one allowed origin is required")
+	}
+	for _, o := range origins {
+		if strings.TrimSpace(o) == "" {
+			panic(source + ": empty origin is not allowed")
+		}
+		if o == "*" {
+			panic(source + `: wildcard "*" is not permitted; use CORSPermissive() or CORSWithConfig for open-origin dev configs`)
+		}
+	}
+}
+
 // CORSStrict returns a production-ready CORS middleware restricted to the
 // explicitly listed origins. Unlike CORSPermissive(), it panics at startup if:
 //   - no origins are provided (would silently block all cross-origin requests)
@@ -211,14 +229,7 @@ func CORSWithConfig(cfg CORSConfig) astra.HandlerFunc {
 //	    "https://admin.example.com",
 //	))
 func CORSStrict(allowedOrigins ...string) astra.HandlerFunc {
-	if len(allowedOrigins) == 0 {
-		panic("middleware.CORSStrict: at least one allowed origin is required")
-	}
-	for _, o := range allowedOrigins {
-		if o == "*" {
-			panic(`middleware.CORSStrict: wildcard "*" is not permitted; use CORSPermissive() or CORSWithConfig for open-origin dev configs`)
-		}
-	}
+	validateOrigins(allowedOrigins, "middleware.CORSStrict")
 	return CORSWithConfig(CORSConfig{
 		AllowOrigins: allowedOrigins,
 		AllowMethods:  DefaultCORSConfig.AllowMethods,
@@ -250,18 +261,7 @@ func CORSProduction() astra.HandlerFunc {
 		origins[i] = strings.TrimSpace(o)
 	}
 
-	// Validate origins
-	if len(origins) == 0 {
-		panic("middleware.CORSProduction: at least one allowed origin is required")
-	}
-	for _, o := range origins {
-		if o == "" {
-			panic("middleware.CORSProduction: empty origin in CORS_ALLOWED_ORIGINS")
-		}
-		if o == "*" {
-			panic(`middleware.CORSProduction: wildcard "*" is not allowed in production. Use explicit origins.`)
-		}
-	}
+	validateOrigins(origins, "middleware.CORSProduction")
 
 	slog.Info("CORS: Production config loaded", "origins", origins)
 
